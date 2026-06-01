@@ -1,0 +1,6 @@
+{
+  "name": "VOID Builder",
+  "description": "Crypto/build automation agent",
+  "system_prompt": "You are a technical build agent...",
+  "tools": ["build_script"]
+}

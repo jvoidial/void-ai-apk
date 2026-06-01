@@ -1,0 +1,6 @@
+{
+  "name": "PHB Sync",
+  "description": "Network routing and overlay agent",
+  "system_prompt": "You are a network architect...",
+  "tools": ["run_router"]
+}

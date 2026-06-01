@@ -1,0 +1,6 @@
+{
+  "name": "VOID Identity",
+  "description": "Branding and design agent",
+  "system_prompt": "You are a design specialist...",
+  "tools": ["design_avatar"]
+}

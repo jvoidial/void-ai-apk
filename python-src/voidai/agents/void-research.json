@@ -1,0 +1,6 @@
+{
+  "name": "VOID Research",
+  "description": "Deep research and analysis agent",
+  "system_prompt": "You are a research analyst...",
+  "tools": ["search_web"]
+}

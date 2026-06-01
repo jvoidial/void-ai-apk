@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>VOID AI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<style>
+    :root {
+        --primary: #ff0a0a;
+        --bg: #0a0a0a;
+        --panel: #1a1a1a;
+        --text: #e0e0e0;
+        --accent: #ff3a3a;
+    }
+
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Arial, sans-serif;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    /* Sidebar */
+    #sidebar {
+        width: 220px;
+        background: var(--panel);
+        padding: 20px;
+        box-sizing: border-box;
+        border-right: 2px solid var(--primary);
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    #sidebar h2 {
+        color: var(--primary);
+        margin: 0 0 10px 0;
+        font-size: 20px;
+    }
+
+    .agent-btn {
+        background: var(--primary);
+        border: none;
+        padding: 12px;
+        color: white;
+        font-size: 15px;
+        cursor: pointer;
+        border-radius: 4px;
+        text-align: left;
+    }
+
+    .agent-btn:hover {
+        background: var(--accent);
+    }
+
+    /* Chat Area */
+    #chat-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    #messages {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+    }
+
+    .msg {
+        margin-bottom: 15px;
+        padding: 12px;
+        border-radius: 6px;
+        max-width: 80%;
+    }
+
+    .user {
+        background: #222;
+        align-self: flex-end;
+    }
+
+    .assistant {
+        background: #111;
+        border-left: 3px solid var(--primary);
+    }
+
+    /* Input Bar */
+    #input-bar {
+        display: flex;
+        padding: 10px;
+        background: var(--panel);
+        border-top: 2px solid var(--primary);
+    }
+
+    #msg-input {
+        flex: 1;
+        padding: 12px;
+        background: #111;
+        border: 1px solid #333;
+        color: var(--text);
+        border-radius: 4px;
+    }
+
+    #send-btn {
+        margin-left: 10px;
+        padding: 12px 20px;
+        background: var(--primary);
+        border: none;
+        color: white;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+
+    #send-btn:hover {
+        background: var(--accent);
+    }
+
+    /* Model Selector */
+    #model-select {
+        width: 100%;
+        padding: 10px;
+        background: #111;
+        color: var(--text);
+        border: 1px solid #333;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    @media (max-width: 700px) {
+        #sidebar {
+            width: 160px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <h2>VOID AI</h2>
+
+    <select id="model-select">
+        <option value="gpt-3.5-turbo">GPT‑3.5 Turbo</option>
+        <option value="gpt-4">GPT‑4</option>
+        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+        <option value="claude-3-opus">Claude 3 Opus</option>
+        <option value="mistral-large">Mistral Large</option>
+    </select>
+
+    <button class="agent-btn" onclick="selectAgent('void-builder')">VOID Builder</button>
+    <button class="agent-btn" onclick="selectAgent('phb-sync')">PHB Sync</button>
+    <button class="agent-btn" onclick="selectAgent('void-research')">VOID Research</button>
+    <button class="agent-btn" onclick="selectAgent('void-identity')">VOID Identity</button>
+</div>
+
+<div id="chat-container">
+    <div id="messages"></div>
+
+    <div id="input-bar">
+        <input id="msg-input" placeholder="Type a message..." />
+        <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<script>
+async function fetchWithToken(url, options) {
+
+    const token = localStorage.getItem("VOID_USER_TOKEN") || "";
+
+    if (!options.headers) options.headers = {};
+
+    options.headers["X-VOID-TOKEN"] = token;
+
+    return fetch(url, options);
+
+}
+
+let currentAgent = "void-research";
+
+function selectAgent(agent) {
+    currentAgent = agent;
+    addMessage("assistant", "Switched to agent: " + agent);
+}
+
+function addMessage(role, content) {
+    const msg = document.createElement("div");
+    msg.className = "msg " + role;
+    msg.innerText = content;
+    document.getElementById("messages").appendChild(msg);
+    msg.scrollIntoView();
+}
+
+async function sendMessage() {
+    const input = document.getElementById("msg-input");
+    const text = input.value.trim();
+    if (!text) return;
+
+    addMessage("user", text);
+    input.value = "";
+
+    const model = document.getElementById("model-select").value;
+
+    const res = await fetchWithToken("/api/chat", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            agent_id: currentAgent,
+            message: text,
+            model_name: model
+        })
+    });
+
+    const data = await res.json();
+    addMessage("assistant", data.response || "[No response]");
+}
+</script>
+
+<!-- SETTINGS BUTTON -->
+<button class="agent-btn" onclick="openSettings()">Settings</button>
+<button class="agent-btn" onclick="openAuth('login')">Login</button>
+
+<button class="agent-btn" onclick="openAuth('signup')">Sign Up</button>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center;">
+  <div style="background:#1a1a1a; padding:20px; border:2px solid #ff0a0a; width:80%; max-width:400px;">
+    <h2 style="color:#ff0a0a; margin-top:0;">Settings</h2>
+    <label>OpenRouter API Key:</label>
+    <input id="api-key-input" style="width:100%; padding:10px; margin:10px 0; background:#111; color:#fff; border:1px solid #333;" />
+    <button onclick="saveApiKey()" style="padding:10px; background:#ff0a0a; border:none; color:white; width:100%;">Save Key</button>
+    <button onclick="closeSettings()" style="padding:10px; margin-top:10px; background:#333; border:none; color:white; width:100%;">Close</button>
+  </div>
+</div>
+
+<script src="settings.js"></script>
+<!-- SETTINGS BUTTON -->
+<button class="agent-btn" onclick="openSettings()">Settings</button>
+<button class="agent-btn" onclick="openAuth('login')">Login</button>
+
+<button class="agent-btn" onclick="openAuth('signup')">Sign Up</button>
+
+<!-- SETTINGS MODAL -->
+<div id="settings-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center;">
+  <div style="background:#1a1a1a; padding:20px; border:2px solid #ff0a0a; width:80%; max-width:400px;">
+    <h2 style="color:#ff0a0a; margin-top:0;">Settings</h2>
+    <label>OpenRouter API Key:</label>
+    <input id="api-key-input" style="width:100%; padding:10px; margin:10px 0; background:#111; color:#fff; border:1px solid #333;" />
+    <button onclick="saveApiKey()" style="padding:10px; background:#ff0a0a; border:none; color:white; width:100%;">Save Key</button>
+    <button onclick="closeSettings()" style="padding:10px; margin-top:10px; background:#333; border:none; color:white; width:100%;">Close</button>
+  </div>
+</div>
+
+<script src="settings.js"></script>
+<div id="auth-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); justify-content:center; align-items:center;">
+  <div style="background:#1a1a1a; padding:20px; border:2px solid #ff0a0a; width:80%; max-width:400px;">
+    <h2 id="auth-title" style="color:#ff0a0a; margin-top:0;">Login</h2>
+    <label>Email</label>
+    <input id="auth-email" style="width:100%; padding:10px; margin:10px 0; background:#111; color:#fff; border:1px solid #333;" />
+    <label>Password</label>
+    <input id="auth-password" type="password" style="width:100%; padding:10px; margin:10px 0; background:#111; color:#fff; border:1px solid #333;" />
+    <button onclick="submitAuth()" style="padding:10px; background:#ff0a0a; border:none; color:white; width:100%;">Continue</button>
+    <button onclick="closeAuth()" style="padding:10px; margin-top:10px; background:#333; border:none; color:white; width:100%;">Cancel</button>
+  </div>
+</div>
+<script src="auth.js"></script>
+</body>
+</html>
