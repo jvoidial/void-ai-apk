@@ -4,6 +4,11 @@ plugins {
 }
 
 android {
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "VOIDAI.apk"
+        }
+    }
     namespace "com.voidai.app"
     compileSdk 34
 
@@ -51,5 +56,6 @@ android {
         variant.outputs.all { output ->
             outputFileName = "VOIDAI.apk"
         }
+    }
     }
 }
