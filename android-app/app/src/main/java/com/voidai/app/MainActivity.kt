@@ -46,13 +46,12 @@ class MainActivity : AppCompatActivity() {
         messagesRecycler.layoutManager = LinearLayoutManager(this)
         messagesRecycler.adapter = adapter
 
-        // System persona message
+        // System persona
         messages.add(
             Message(
                 role = "system",
-                content = "You are VOID-AI, Jacob's system persona. " +
-                          "You can reason about code, scripts, tools, and deep technical workflows. " +
-                          "You respond clearly, can handle long inputs, and may call tools on the backend.",
+                content = "You are VOIDAI GPT, Jacob's technical, code-aware assistant. " +
+                          "You handle scripts, tools, and long inputs with clear, high-signal answers.",
                 isUser = false
             )
         )
@@ -80,7 +79,6 @@ class MainActivity : AppCompatActivity() {
         messagesRecycler.scrollToPosition(messages.size - 1)
     }
 
-    // Send full conversation to your chosen GPT-like backend
     private fun sendToBackend() {
         val jsonMessages = JSONArray()
         messages.forEach { msg ->
@@ -111,14 +109,13 @@ class MainActivity : AppCompatActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    addAssistantMessage("VOID-AI backend error: ${e.message}")
+                    addAssistantMessage("VOIDAI backend error: ${e.message}")
                 }
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val raw = response.body?.string().orEmpty()
                 val replyText = try {
-                    // If backend returns JSON like { "reply": "..." }
                     val obj = JSONObject(raw)
                     obj.optString("reply", raw)
                 } catch (e: Exception) {
@@ -128,7 +125,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     addAssistantMessage(
                         replyText.ifEmpty {
-                            "VOID-AI backend returned empty response."
+                            "VOIDAI backend returned empty response."
                         }
                     )
                 }
