@@ -2,8 +2,9 @@ package com.voidai.app
 
 import android.os.Bundle
 import android.webkit.WebChromeClient
-import android.webkit.WebSettings
 import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.webkit.WebSettings
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -17,7 +18,14 @@ class MainActivity : AppCompatActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.cacheMode = WebSettings.LOAD_DEFAULT
+            settings.allowFileAccess = true
+            settings.allowContentAccess = true
+            settings.loadsImagesAutomatically = true
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+
+            webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
+
             loadUrl("file:///android_asset/voidai_chat.html")
         }
 
