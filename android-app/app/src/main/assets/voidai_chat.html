@@ -53,70 +53,7 @@
 </div>
 
 <script src="voidai_runtime.js"></script>
+<script src="voidai_synapse.js"></script>
 <script src="voidai_lang.js"></script>
-<script>
-const input = document.getElementById("input");
-const send = document.getElementById("send");
-const messages = document.getElementById("messages");
-const modelChip = document.getElementById("modelChip");
-
-function add(text, who) {
-  const div = document.createElement("div");
-  div.className = "msg " + who;
-  div.textContent = text;
-  messages.appendChild(div);
-  messages.scrollTop = messages.scrollHeight;
-
-  if (who === "user") {
-    VOIDAI_RUNTIME.addMessage("user", text);
-  } else {
-    VOIDAI_RUNTIME.addMessage("assistant", text);
-  }
-
-  VOIDAI_LANG.addToCorpus(text);
-}
-
-function saveConversationPreview(text) {
-  const convos = JSON.parse(localStorage.getItem("voidai_convos") || "[]");
-  const id = Date.now().toString();
-  convos.push({ id, title:"Chat " + id, preview:text.slice(0,60) });
-  localStorage.setItem("voidai_convos", JSON.stringify(convos));
-}
-
-send.onclick = () => {
-  const t = input.value.trim();
-  if (!t) return;
-  add(t, "user");
-  input.value = "";
-  saveConversationPreview(t);
-  setTimeout(() => {
-    const reply = VOIDAI_LANG.generate(t, modelChip.textContent || "Instant");
-    add(reply, "ai");
-  }, 220);
-};
-
-input.addEventListener("keydown", e => {
-  if (e.key === "Enter") { e.preventDefault(); send.click(); }
-});
-
-document.getElementById("btnHistory").onclick = () => {
-  location.href = "conversation_history.html";
-};
-
-document.getElementById("btnSettings").onclick = () => {
-  location.href = "settings.html";
-};
-
-modelChip.onclick = () => {
-  const current = localStorage.getItem("voidai_model") || "Instant";
-  const next = current === "Instant" ? "Expert" : current === "Expert" ? "Reasoner" : "Instant";
-  localStorage.setItem("voidai_model", next);
-  modelChip.textContent = next;
-};
-
-const savedModel = localStorage.getItem("voidai_model");
-if (savedModel) modelChip.textContent = savedModel;
-</script>
-
-</body>
+<script src="voidai_synapse_hook.js"></script>
 </html>
