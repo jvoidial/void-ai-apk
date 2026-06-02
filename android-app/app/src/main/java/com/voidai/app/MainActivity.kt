@@ -7,11 +7,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.button.MaterialButton
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.IOException
 
 data class Message(
     val role: String,      // "system", "user", "assistant"
@@ -21,18 +16,11 @@ data class Message(
 
 class MainActivity : AppCompatActivity() {
 
-    companion object {
-        // TODO: set these to your chosen free/open LLM provider
-        private const val BASE_URL = "https://your-llm-endpoint.example.com/chat"
-        private const val API_KEY = "YOUR_API_KEY_HERE"
-    }
-
     private lateinit var messagesRecycler: RecyclerView
     private lateinit var inputField: TextInputEditText
     private lateinit var sendButton: MaterialButton
     private val messages = mutableListOf<Message>()
     private lateinit var adapter: MessageAdapter
-    private val client = OkHttpClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,7 +50,7 @@ class MainActivity : AppCompatActivity() {
             if (text.isNotEmpty()) {
                 addUserMessage(text)
                 inputField.setText("")
-                sendToBackend()
+                addLocalStubReply(text)
             }
         }
     }
@@ -79,57 +67,19 @@ class MainActivity : AppCompatActivity() {
         messagesRecycler.scrollToPosition(messages.size - 1)
     }
 
-    private fun sendToBackend() {
-        val jsonMessages = JSONArray()
-        messages.forEach { msg ->
-            val obj = JSONObject()
-            obj.put("role", msg.role)
-            obj.put("content", msg.content)
-            jsonMessages.put(obj)
-        }
+    // Local GPT-style stub so the app never crashes while backend is not wired
+    private fun addLocalStubReply(userText: String) {
+        val reply = """
+            VOIDAI GPT (local stub):
 
-        val root = JSONObject()
-        root.put("messages", jsonMessages)
+            I received your message and would normally send it to a model backend.
 
-        val body = RequestBody.create(
-            "application/json; charset=utf-8".toMediaTypeOrNull(),
-            root.toString()
-        )
+            You said:
+            $userText
 
-        val requestBuilder = Request.Builder()
-            .url(BASE_URL)
-            .post(body)
+            Once you configure a real endpoint, this reply will come from that model instead.
+        """.trimIndent()
 
-        if (API_KEY.isNotEmpty()) {
-            requestBuilder.addHeader("Authorization", "Bearer $API_KEY")
-        }
-
-        val request = requestBuilder.build()
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                runOnUiThread {
-                    addAssistantMessage("VOIDAI backend error: ${e.message}")
-                }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val raw = response.body?.string().orEmpty()
-                val replyText = try {
-                    val obj = JSONObject(raw)
-                    obj.optString("reply", raw)
-                } catch (e: Exception) {
-                    raw
-                }
-
-                runOnUiThread {
-                    addAssistantMessage(
-                        replyText.ifEmpty {
-                            "VOIDAI backend returned empty response."
-                        }
-                    )
-                }
-            }
-        })
+        addAssistantMessage(reply)
     }
 }
