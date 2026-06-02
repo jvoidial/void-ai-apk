@@ -2,9 +2,9 @@ package com.voidai.app
 
 import android.os.Bundle
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.WebSettings
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
@@ -15,13 +15,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         web = WebView(this).apply {
-            settings.javaScriptEnabled = true
-            settings.domStorageEnabled = true
-            settings.cacheMode = WebSettings.LOAD_DEFAULT
-            settings.allowFileAccess = true
-            settings.allowContentAccess = true
-            settings.loadsImagesAutomatically = true
-            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            val s = settings
+            s.javaScriptEnabled = true
+            s.domStorageEnabled = true
+            s.allowFileAccess = true
+            s.allowContentAccess = true
+            s.allowFileAccessFromFileURLs = true
+            s.allowUniversalAccessFromFileURLs = true
+            s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            s.loadsImagesAutomatically = true
 
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
