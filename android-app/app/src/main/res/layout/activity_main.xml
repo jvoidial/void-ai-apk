@@ -2,7 +2,8 @@
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#000000">
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/messagesRecycler"
@@ -26,13 +27,16 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="Message VOID-AI..."
-            android:maxLines="6" />
+            android:maxLines="6"
+            android:textColor="@android:color/white"
+            android:textColorHint="#888888" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/sendButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Send"
+            android:text="SEND"
+            android:textAllCaps="true"
             android:layout_marginStart="8dp" />
     </LinearLayout>
 

@@ -21,6 +21,12 @@ data class Message(
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        // TODO: set these to your chosen free/open LLM provider
+        private const val BASE_URL = "https://your-llm-endpoint.example.com/chat"
+        private const val API_KEY = "YOUR_API_KEY_HERE"
+    }
+
     private lateinit var messagesRecycler: RecyclerView
     private lateinit var inputField: TextInputEditText
     private lateinit var sendButton: MaterialButton
@@ -44,9 +50,9 @@ class MainActivity : AppCompatActivity() {
         messages.add(
             Message(
                 role = "system",
-                content = "You are VOID-AI, Jacob's Termux-bound system persona. " +
+                content = "You are VOID-AI, Jacob's system persona. " +
                           "You can reason about code, scripts, tools, and deep technical workflows. " +
-                          "You respond clearly, with high signal, and can handle long inputs.",
+                          "You respond clearly, can handle long inputs, and may call tools on the backend.",
                 isUser = false
             )
         )
@@ -74,7 +80,7 @@ class MainActivity : AppCompatActivity() {
         messagesRecycler.scrollToPosition(messages.size - 1)
     }
 
-    // Send full conversation to your backend (Termux/system-god/etc.)
+    // Send full conversation to your chosen GPT-like backend
     private fun sendToBackend() {
         val jsonMessages = JSONArray()
         messages.forEach { msg ->
@@ -92,11 +98,15 @@ class MainActivity : AppCompatActivity() {
             root.toString()
         )
 
-        // TODO: point this at your real backend
-        val request = Request.Builder()
-            .url("http://127.0.0.1:11434/chat")
+        val requestBuilder = Request.Builder()
+            .url(BASE_URL)
             .post(body)
-            .build()
+
+        if (API_KEY.isNotEmpty()) {
+            requestBuilder.addHeader("Authorization", "Bearer $API_KEY")
+        }
+
+        val request = requestBuilder.build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -106,12 +116,21 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val text = response.body?.string().orEmpty()
-                // If your backend returns JSON, parse here. For now, treat as plain text.
+                val raw = response.body?.string().orEmpty()
+                val replyText = try {
+                    // If backend returns JSON like { "reply": "..." }
+                    val obj = JSONObject(raw)
+                    obj.optString("reply", raw)
+                } catch (e: Exception) {
+                    raw
+                }
+
                 runOnUiThread {
-                    addAssistantMessage(text.ifEmpty {
-                        "VOID-AI backend returned empty response."
-                    })
+                    addAssistantMessage(
+                        replyText.ifEmpty {
+                            "VOID-AI backend returned empty response."
+                        }
+                    )
                 }
             }
         })

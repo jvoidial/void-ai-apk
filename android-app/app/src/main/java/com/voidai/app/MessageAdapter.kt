@@ -34,9 +34,8 @@ class MessageAdapter(private val items: List<Message>) :
         private val messageText: TextView = itemView.findViewById(R.id.messageText)
         fun bind(message: Message) {
             messageText.text = message.content
-            // crude code detection: use monospace if it looks like code
             if (message.content.contains("```") ||
-                message.content.contains("{") && message.content.contains("}") ||
+                (message.content.contains("{") && message.content.contains("}")) ||
                 message.content.contains("class ") ||
                 message.content.contains("def ") ||
                 message.content.contains("fun ")
