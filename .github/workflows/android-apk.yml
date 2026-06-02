@@ -9,6 +9,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,7 +31,7 @@ jobs:
 
       - name: Build debug APK
         working-directory: android-app
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
