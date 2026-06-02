@@ -1,4 +1,4 @@
-# VOID AI APK (Odysseus-GPT P2P)
+# VOID AI APK (VOIDAI-GPT P2P)
 
 Standalone Android APK with:
 - Embedded Python
