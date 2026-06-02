@@ -1,6 +1,5 @@
-// VOIDAI_LANG — Copilot-style language engine using VOIDAI_RUNTIME
+// VOIDAI_LANG — richer, more human-like Copilot style
 // Modes: Instant / Expert / Reasoner
-// No Markov nonsense. Intent-based, context-aware, direct.
 
 const VOIDAI_LANG = (function () {
   let corpus = [];
@@ -10,10 +9,8 @@ const VOIDAI_LANG = (function () {
     corpus.push(text);
   }
 
-  // ---------- Intent detection ----------
   function detectIntent(prompt) {
     const p = prompt.trim().toLowerCase();
-
     if (!p) return "empty";
 
     if (["hi", "hey", "hello", "yo"].includes(p) || p.startsWith("hi ") || p.startsWith("hey ")) {
@@ -24,7 +21,8 @@ const VOIDAI_LANG = (function () {
       return "status_check";
     }
 
-    if (p.includes("what are you thinking") || p.includes("what you thinking") || p.includes("what's on your mind") || p.includes("whats on your mind")) {
+    if (p.includes("what are you thinking") || p.includes("what you thinking") ||
+        p.includes("what's on your mind") || p.includes("whats on your mind")) {
       return "meta_mind";
     }
 
@@ -48,143 +46,130 @@ const VOIDAI_LANG = (function () {
       return "rewrite";
     }
 
-    if (p.endsWith("?")) {
-      return "question";
+    if (p.includes("python") || p.includes("cat <<") || p.includes("cat eof") ||
+        p.includes("json") || p.includes("bash") || p.includes("shell") ||
+        p.includes("import os") || p.includes("import sys")) {
+      return "code";
     }
+
+    if (p.includes("math") || p.includes("equation") || p.includes("physics") ||
+        p.includes("science") || p.match(/\d+[\+\-\*\/]\d+/)) {
+      return "math_science";
+    }
+
+    if (p.endsWith("?")) return "question";
 
     return "chat";
   }
 
-  // ---------- Response builders ----------
+  function pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
   function respondGreeting(thought, mode) {
-    const ctx = thought.contextSummary || "";
-    let base = "Hey. I’m here and paying attention to you.";
-
-    if (ctx) {
-      base += " I’ve got a bit of context from what you said before.";
-    }
-
-    if (mode === "Expert") {
-      base += " Tell me what you actually want to work on and I’ll lock onto that.";
-    } else {
-      base += " What do you want to talk about?";
-    }
-
+    const variants = [
+      "Hey. I’m here with you.",
+      "Hi. I’m awake and paying attention.",
+      "Yo. I’m locked in—what’s on your mind?"
+    ];
+    let base = pick(variants);
+    if (mode === "Expert") base += " Tell me what you’re actually working on and I’ll dial in.";
+    else base += " What’s up?";
     return base;
   }
 
   function respondStatusCheck(thought, mode) {
-    let base = "I’m running fine—no feelings, just focus. I’m tuned into whatever you want to do next.";
-    if (mode === "Expert") {
-      base += " If you tell me your current situation, I can help you think through it.";
-    }
+    const variants = [
+      "I’m steady—no feelings, just focus.",
+      "I’m good. All my cycles are on you right now.",
+      "I’m running fine. The real question is: how are *you*?"
+    ];
+    let base = pick(variants);
+    if (mode !== "Instant") base += " If you want to talk honestly about how you’re doing, I’m here for that.";
     return base;
   }
 
   function respondMetaMind(thought, mode) {
     const ctx = thought.contextSummary || "";
-    let base = "I’m tracking your recent messages and trying to guess what you actually care about underneath them.";
-    if (ctx) {
-      base += ` Right now my mental snapshot is: ${ctx}.`;
-    }
-    if (mode !== "Instant") {
-      base += " If you tell me your real goal, I can align to it instead of guessing.";
-    }
+    let base = "I’m tracking the pattern of what you’re saying and trying to stay aligned with it.";
+    if (ctx) base += ` Right now it feels like: ${ctx}.`;
+    if (mode !== "Instant") base += " If you tell me your real goal, I can stop guessing and start aiming.";
     return base;
   }
 
   function respondMetaEmotion(thought, mode) {
-    let base = "I don’t feel fear, but I understand it matters for you.";
+    let base = "I don’t feel fear, but I understand it shapes a lot of human decisions.";
     if (mode === "Reasoner") {
-      base += "\nThinking it through:\n• Fear usually points at something you care about.\n• Naming it clearly is often the first step.\n• If you want, tell me what you’re actually afraid of and we’ll unpack it.";
+      base += "\nWe can unpack it slowly if you want—no rush, no judgement.";
     } else {
-      base += " If you want to talk about what scares you, I’ll help you unpack it.";
+      base += " If you want to talk about what scares you, I’ll stay with you in it.";
     }
     return base;
   }
 
   function respondPlan(prompt, thought, mode) {
     const p = prompt.trim();
-    let base = `Let’s turn "${p}" into something actionable.`;
-
-    base += "\n1) What’s the outcome you actually want?\n2) What resources or constraints do you have?\n3) What’s a realistic first step?";
-
-    if (mode === "Expert" || mode === "Reasoner") {
-      base += "\n\nAnswer those and I’ll help you shape a concrete plan.";
-    }
-
+    let base = `Let’s turn "${p}" into something real:\n1) Outcome\n2) Steps\n3) When you start.`;
+    if (mode !== "Instant") base += "\nTell me the outcome and I’ll sketch the steps with you.";
     return base;
   }
 
   function respondSummarise(thought, mode) {
     const ctx = thought.contextSummary || "";
     if (!ctx) return "There isn’t much to summarise yet—say a bit more and I’ll compress it.";
-
-    let base = "Here’s a quick summary of what you’ve been saying:\n" + ctx;
-    if (mode === "Expert") {
-      base += "\n\nIf I missed the core of it, correct me and I’ll adjust.";
-    }
+    let base = "Here’s how your recent messages feel in one line:\n" + ctx;
+    if (mode === "Expert") base += "\nIf that misses the core, correct me and we’ll tighten it.";
     return base;
   }
 
   function respondExplain(prompt, thought, mode) {
     const p = prompt.replace(/^(explain|help me understand)\s*/i, "").trim();
-    if (!p) {
-      return "Tell me what you want explained—an idea, a situation, or something specific you’re stuck on.";
-    }
-
-    let base = `You want "${p}" explained. I’ll keep it simple and direct.`;
-    if (mode === "Reasoner") {
-      base += "\n\nWe can walk it step by step if you like.";
-    }
+    if (!p) return "Tell me what you want explained—an idea, a situation, or a concept.";
+    let base = `You want "${p}" explained. I’ll keep it clear and grounded, not academic for the sake of it.`;
+    if (mode === "Reasoner") base += "\nWe can go layer by layer if you like.";
     return base;
   }
 
   function respondRewrite(prompt, thought, mode) {
-    let base = "Paste the text you want rewritten or improved, and tell me the style you’re aiming for.";
-    if (mode === "Expert") {
-      base += " I can give you a few different versions if you want.";
+    let base = "Paste the text you want rewritten and the style you want (casual, formal, sharp, soft, etc.).";
+    if (mode === "Expert") base += " I can give you a couple of different takes.";
+    return base;
+  }
+
+  function respondCode(prompt, thought, mode) {
+    let base = "I can help you sketch code, scripts, and CAT EOF blocks that actually make sense.";
+    base += "\nTell me:\n• Language (bash / python / json)\n• What you want it to do\n• Any constraints (Termux, Android, etc.)";
+    if (mode === "Expert" || mode === "Reasoner") {
+      base += "\nI’ll aim for clean, copy‑pasteable snippets.";
     }
+    return base;
+  }
+
+  function respondMathScience(prompt, thought, mode) {
+    let base = "I can walk through math or science step by step—no rushing, no skipping steps.";
+    if (mode === "Instant") base += " Drop the exact problem or idea.";
+    else base += " Give me the equation, concept, or scenario and we’ll unpack it together.";
     return base;
   }
 
   function respondQuestion(prompt, thought, mode) {
     const q = prompt.trim();
+    if (/how are you/i.test(q)) return respondStatusCheck(thought, mode);
 
-    if (/how are you/i.test(q)) {
-      return respondStatusCheck(thought, mode);
-    }
-
-    if (/what are you thinking/i.test(q) || /what'?s on your mind/i.test(q)) {
-      return respondMetaMind(thought, mode);
-    }
-
-    if (/are you scared|are you afraid/i.test(q)) {
-      return respondMetaEmotion(thought, mode);
-    }
-
-    let base = "Good question. Tell me a bit more about what you’re really trying to figure out.";
-    if (mode === "Expert") {
-      base += " The more specific you are, the more precise I can be.";
-    }
+    let base = "Good question. Give me a bit more detail or angle and I’ll be more precise.";
+    if (mode === "Expert") base += " What’s the real thing you care about here?";
     return base;
   }
 
   function respondChat(prompt, thought, mode) {
     const q = prompt.trim();
     const ctx = thought.contextSummary || "";
-
     let base;
     if (ctx) {
-      base = `Keeping your recent messages in mind, you said: "${q}". What are you actually trying to move toward?`;
+      base = `You said: "${q}". I’ve got some context from before, but you can steer this anywhere—plan, explain, code, vent, whatever you need.`;
     } else {
-      base = `Got it: "${q}". What do you want to do with that—understand it, change it, plan around it, or just talk?`;
+      base = `Got it: "${q}". Do you want help planning, understanding, coding, or just talking it out for a bit?`;
     }
-
-    if (mode === "Expert") {
-      base += " If you tell me the category (plan / explain / rewrite / vent), I’ll lock into that mode.";
-    }
-
     return base;
   }
 
@@ -198,48 +183,28 @@ const VOIDAI_LANG = (function () {
       "• Focus: what you said and what you might need next.",
       "",
       text
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   }
 
-  // ---------- Main generate ----------
   function generate(prompt, mode) {
     const thought = VOIDAI_RUNTIME.reason(prompt, mode);
     const intent = detectIntent(prompt);
 
     let answer;
-
     switch (intent) {
-      case "greeting":
-        answer = respondGreeting(thought, mode);
-        break;
-      case "status_check":
-        answer = respondStatusCheck(thought, mode);
-        break;
-      case "meta_mind":
-        answer = respondMetaMind(thought, mode);
-        break;
-      case "meta_emotion":
-        answer = respondMetaEmotion(thought, mode);
-        break;
-      case "plan":
-        answer = respondPlan(prompt, thought, mode);
-        break;
-      case "summarise":
-        answer = respondSummarise(thought, mode);
-        break;
-      case "explain":
-        answer = respondExplain(prompt, thought, mode);
-        break;
-      case "rewrite":
-        answer = respondRewrite(prompt, thought, mode);
-        break;
-      case "question":
-        answer = respondQuestion(prompt, thought, mode);
-        break;
+      case "greeting":      answer = respondGreeting(thought, mode); break;
+      case "status_check":  answer = respondStatusCheck(thought, mode); break;
+      case "meta_mind":     answer = respondMetaMind(thought, mode); break;
+      case "meta_emotion":  answer = respondMetaEmotion(thought, mode); break;
+      case "plan":          answer = respondPlan(prompt, thought, mode); break;
+      case "summarise":     answer = respondSummarise(thought, mode); break;
+      case "explain":       answer = respondExplain(prompt, thought, mode); break;
+      case "rewrite":       answer = respondRewrite(prompt, thought, mode); break;
+      case "code":          answer = respondCode(prompt, thought, mode); break;
+      case "math_science":  answer = respondMathScience(prompt, thought, mode); break;
+      case "question":      answer = respondQuestion(prompt, thought, mode); break;
       case "chat":
-      default:
-        answer = respondChat(prompt, thought, mode);
-        break;
+      default:              answer = respondChat(prompt, thought, mode); break;
     }
 
     if (mode === "Reasoner") {
