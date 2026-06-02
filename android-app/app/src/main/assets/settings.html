@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Settings</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body{margin:0;background:#050509;color:#fff;font-family:system-ui;}
+  .top{height:56px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid rgba(255,255,255,0.05);}
+  .title{font-size:18px;font-weight:600;}
+  .section{padding:16px;}
+  .row{padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);color:#A5A9B5;font-size:14px;}
+</style>
+</head>
+<body>
+
+<div class="top"><div class="title">Settings</div></div>
+
+<div class="section">
+  <div class="row">Theme: Black / White / Silver</div>
+  <div class="row">Model: <span id="model"></span></div>
+  <div class="row" id="clear">Clear Conversation History</div>
+</div>
+
+<script>
+document.getElementById("model").textContent =
+  localStorage.getItem("voidai_model") || "Instant";
+
+document.getElementById("clear").onclick = () => {
+  localStorage.removeItem("voidai_convos");
+  alert("Conversation history cleared.");
+};
+</script>
+
+</body>
+</html>

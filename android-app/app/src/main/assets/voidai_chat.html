@@ -5,82 +5,39 @@
 <title>VOIDAI GPT</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
-  body {
-    margin: 0;
-    background: #050509;
-    color: #ffffff;
-    font-family: system-ui, sans-serif;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
+  :root {
+    --bg-primary:#050509;
+    --bg-elevated:#10121A;
+    --bg-chip:#151823;
+    --text-primary:#FFFFFF;
+    --text-secondary:#A5A9B5;
+    --text-muted:#6D7280;
+    --silver-dark:#3A3F48;
   }
-  .top {
-    height: 56px;
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    background: #050509;
-    border-bottom: 1px solid rgba(255,255,255,0.05);
-  }
-  .title {
-    flex: 1;
-    font-size: 18px;
-    font-weight: 600;
-  }
-  .chip {
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: #151823;
-    border: 1px solid #3A3F48;
-    color: #A5A9B5;
-    font-size: 13px;
-  }
-  .messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  .msg {
-    max-width: 80%;
-    padding: 10px 12px;
-    border-radius: 12px;
-    font-size: 14px;
-  }
-  .ai { background: #10121A; }
-  .user { background: #151823; margin-left: auto; }
-  .composer {
-    padding: 8px;
-    background: #10121A;
-    display: flex;
-    gap: 8px;
-  }
-  .input {
-    flex: 1;
-    border-radius: 999px;
-    border: 1px solid #3A3F48;
-    background: #151823;
-    padding: 10px 14px;
-    color: #fff;
-  }
-  .btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 999px;
-    background: #151823;
-    border: none;
-    color: #D0D4DC;
-    font-size: 20px;
-  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Roboto",sans-serif;}
+  body{background:var(--bg-primary);color:var(--text-primary);height:100vh;display:flex;flex-direction:column;}
+  .top{height:56px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid rgba(255,255,255,0.05);}
+  .title{flex:1;font-size:18px;font-weight:600;}
+  .chip{padding:6px 10px;border-radius:999px;background:var(--bg-chip);border:1px solid var(--silver-dark);color:var(--text-secondary);font-size:12px;margin-left:6px;}
+  .messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .msg{max-width:80%;padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.4;}
+  .ai{background:var(--bg-elevated);}
+  .user{background:var(--bg-chip);margin-left:auto;}
+  .composer{padding:8px;background:var(--bg-elevated);display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);}
+  .btn{width:40px;height:40px;border-radius:999px;border:none;background:var(--bg-chip);color:#D0D4DC;font-size:18px;}
+  .input{flex:1;border-radius:999px;border:1px solid var(--silver-dark);background:var(--bg-chip);padding:10px 14px;color:var(--text-primary);font-size:14px;outline:none;}
+  .input::placeholder{color:var(--text-muted);}
+  #modelSheet{position:fixed;left:0;right:0;bottom:0;background:var(--bg-elevated);padding:16px;border-top:1px solid rgba(255,255,255,0.05);display:none;}
+  .opt{padding:12px;border-radius:8px;background:var(--bg-chip);border:1px solid var(--silver-dark);color:var(--text-secondary);font-size:14px;margin-bottom:8px;}
 </style>
 </head>
 <body>
 
 <div class="top">
   <div class="title">VOIDAI GPT</div>
-  <div class="chip">Instant</div>
+  <button id="btnHistory" class="chip">History</button>
+  <button id="btnSettings" class="chip">Settings</button>
+  <button id="modelChip" class="chip">Instant</button>
 </div>
 
 <div class="messages" id="messages">
@@ -93,10 +50,19 @@
   <button class="btn" id="send">&#10148;</button>
 </div>
 
+<div id="modelSheet">
+  <div style="font-size:16px;font-weight:600;margin-bottom:12px;">Choose Mode</div>
+  <div class="opt" data-m="Instant">Instant • Fast</div>
+  <div class="opt" data-m="Expert">Expert • Deep</div>
+  <div class="opt" data-m="Reasoner">Reasoner • Step-by-step</div>
+</div>
+
 <script>
 const input = document.getElementById("input");
 const send = document.getElementById("send");
 const messages = document.getElementById("messages");
+const modelChip = document.getElementById("modelChip");
+const modelSheet = document.getElementById("modelSheet");
 
 function add(text, who) {
   const div = document.createElement("div");
@@ -106,13 +72,49 @@ function add(text, who) {
   messages.scrollTop = messages.scrollHeight;
 }
 
+function saveConversationPreview(text) {
+  const convos = JSON.parse(localStorage.getItem("voidai_convos") || "[]");
+  const id = Date.now().toString();
+  convos.push({ id, title:"Chat " + id, preview:text.slice(0,60) });
+  localStorage.setItem("voidai_convos", JSON.stringify(convos));
+}
+
 send.onclick = () => {
   const t = input.value.trim();
   if (!t) return;
   add(t, "user");
   input.value = "";
+  saveConversationPreview(t);
   setTimeout(() => add("VOIDAI GPT: " + t, "ai"), 300);
 };
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); send.click(); }
+});
+
+document.getElementById("btnHistory").onclick = () => {
+  location.href = "conversation_history.html";
+};
+
+document.getElementById("btnSettings").onclick = () => {
+  location.href = "settings.html";
+};
+
+modelChip.onclick = () => {
+  modelSheet.style.display = "block";
+};
+
+document.querySelectorAll(".opt").forEach(o => {
+  o.onclick = () => {
+    const m = o.dataset.m;
+    localStorage.setItem("voidai_model", m);
+    modelChip.textContent = m;
+    modelSheet.style.display = "none";
+  };
+});
+
+const savedModel = localStorage.getItem("voidai_model");
+if (savedModel) modelChip.textContent = savedModel;
 </script>
 
 </body>
