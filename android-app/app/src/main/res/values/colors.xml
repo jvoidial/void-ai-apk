@@ -1,7 +1,7 @@
 <resources>
-    <color name="purple_500">#6200EE</color>
-    <color name="purple_700">#3700B3</color>
-    <color name="teal_200">#03DAC5</color>
-    <color name="black">#000000</color>
-    <color name="white">#FFFFFF</color>
+    <color name="voidai_black">#050509</color>
+    <color name="voidai_white">#FFFFFF</color>
+    <color name="voidai_silver_dark">#3A3F48</color>
+    <color name="voidai_silver_mid">#8A8F99</color>
+    <color name="voidai_silver_light">#D0D4DC</color>
 </resources>
