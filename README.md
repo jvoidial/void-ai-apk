@@ -3,4 +3,4 @@
 Standalone Android APK with:
 - Embedded Python
 - VOID AI backend
-- Odysseus-GPT P2P persona
+- VOIDAI-GPT P2P persona
