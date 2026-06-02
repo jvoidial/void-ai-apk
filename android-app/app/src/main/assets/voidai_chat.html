@@ -52,6 +52,7 @@
   <button class="btn" id="send">&#10148;</button>
 </div>
 
+<script src="voidai_runtime.js"></script>
 <script src="voidai_lang.js"></script>
 <script>
 const input = document.getElementById("input");
@@ -65,6 +66,13 @@ function add(text, who) {
   div.textContent = text;
   messages.appendChild(div);
   messages.scrollTop = messages.scrollHeight;
+
+  if (who === "user") {
+    VOIDAI_RUNTIME.addMessage("user", text);
+  } else {
+    VOIDAI_RUNTIME.addMessage("assistant", text);
+  }
+
   VOIDAI_LANG.addToCorpus(text);
 }
 

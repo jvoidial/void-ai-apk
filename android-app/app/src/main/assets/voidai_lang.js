@@ -1,6 +1,5 @@
-// VOIDAI GPT — Hybrid Markov + Pattern Language Engine
+// VOIDAI_LANG — Hybrid GPT-style generator using VOIDAI_RUNTIME
 // Modes: Instant / Expert / Reasoner
-// Identity: VOIDAI
 
 const VOIDAI_LANG = (function () {
   let corpus = [];
@@ -10,6 +9,7 @@ const VOIDAI_LANG = (function () {
     corpus.push(text);
   }
 
+  // --- Markov backbone for continuity ---
   function buildMarkov() {
     const chain = {};
     const all = corpus.join(" ");
@@ -45,42 +45,50 @@ const VOIDAI_LANG = (function () {
     return out.join(" ");
   }
 
-  function patternExpand(prompt) {
+  // --- GPT-style pattern + persona layer ---
+  function patternExpand(prompt, thought) {
+    const basePersona = thought.persona || "You are VOIDAI.";
     const templates = [
-      `You said "${prompt}". I’m extending that thought.`,
-      `Building on "${prompt}", here’s a continuation.`,
-      `Following your idea "${prompt}", I’ll keep the flow going.`,
-      `Let’s expand on "${prompt}" with a bit more structure.`,
+      `${basePersona} You said "${prompt}". I’ll extend that thought in a focused way.`,
+      `${basePersona} Building on "${prompt}", I’ll keep the reasoning coherent.`,
+      `${basePersona} Following your idea "${prompt}", I’ll continue the line of thought.`,
+      `${basePersona} Let’s unpack "${prompt}" and move it forward.`
     ];
     return templates[Math.floor(Math.random() * templates.length)];
   }
 
-  function reasoningSteps(text) {
+  function reasoningSteps(text, thought) {
+    const mode = thought.mode || "Reasoner";
+    const ctx = thought.contextSummary || "(minimal context)";
     return [
+      `Mode: ${mode}`,
       "Step 1: Interpreting your intent.",
-      "Step 2: Mapping it to patterns I’ve seen.",
+      `Step 2: Reviewing context: ${ctx}`,
       "Step 3: Generating a coherent continuation.",
       "Step 4: Delivering the VOIDAI response.",
       "",
-      text,
+      text
     ].join("\n");
   }
 
   function generate(prompt, mode) {
+    // Ask the runtime (your OS/PHB brain) for a "thought"
+    const thought = VOIDAI_RUNTIME.reason(prompt, mode);
+
     const markov = generateMarkov(prompt, 24);
-    const pattern = patternExpand(prompt);
+    const pattern = patternExpand(prompt, thought);
 
     let base =
       markov.length > 0
         ? `${pattern} ${markov}`
-        : `${pattern} VOIDAI is listening.`;
+        : `${pattern} VOIDAI is listening and responding.`;
 
     if (mode === "Expert") {
-      base += " I’ll make this a bit more structured.";
+      base += " I’ll keep this structured and slightly more detailed.";
     }
 
     if (mode === "Reasoner") {
-      base = reasoningSteps(base);
+      base = reasoningSteps(base, thought);
     }
 
     return "VOIDAI: " + base;
@@ -88,6 +96,6 @@ const VOIDAI_LANG = (function () {
 
   return {
     addToCorpus,
-    generate,
+    generate
   };
 })();
