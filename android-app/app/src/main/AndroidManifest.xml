@@ -2,8 +2,7 @@
 
     <application
         android:label="VOIDAI"
-        android:icon="@mipmap/ic_launcher"
-        android:theme="@style/Theme.VOIDAI">
+        android:icon="@mipmap/ic_launcher">
 
         <activity
             android:name=".MainActivity"
