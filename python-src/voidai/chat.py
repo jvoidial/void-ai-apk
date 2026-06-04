@@ -1,5 +1,6 @@
 from .memory_mesh import classify, store_fragment, recall, summary
 from .knowledge_layer import ingest, summarize_focus, summarize_map
+from .persona_bridge import call_phb_persona
 
 def answer(session_id: str, user_text: str) -> str:
     if user_text.startswith("@focus "):
@@ -11,7 +12,6 @@ def answer(session_id: str, user_text: str) -> str:
 
     kind = classify(user_text)
     frag = store_fragment(kind, user_text)
-
     kg_info = ingest(user_text)
 
     recent_code = recall("code", limit=3)
@@ -40,14 +40,12 @@ kind={kg_info['kind']}
 concepts={kg_info['concepts']}
 \"\"\" + "\\n"
 
-    prompt = f\"\"\"
-VOIDAI AGI Knowledge Layer
+    phb_reply = call_phb_persona(session_id, user_text)
 
-User message:
-{user_text}
+    return f\"\"\"[VOIDAI PERSONA]
+PHB OS reply:
+{phb_reply}
 
-Memory mesh:
+Local context:
 {memory_context}
 \"\"\".strip()
-
-    return f"[VOIDAI AGI]\\n{prompt[:400]}..."
