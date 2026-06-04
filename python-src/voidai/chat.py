@@ -1,6 +1,7 @@
 from .memory_mesh import classify, store_fragment, recall, summary
 from .knowledge_layer import ingest, summarize_focus, summarize_map
 from .jules_continuity import JULES
+from .code_brain import best_code_context
 
 def answer(session_id: str, user_text: str) -> str:
     if user_text.startswith("@focus "):
@@ -28,6 +29,7 @@ def answer(session_id: str, user_text: str) -> str:
     recent_issues = recall("issues", limit=3)
 
     mem_summary = summary()
+    code_ctx = best_code_context(limit=5)
 
     memory_context = ""
     if recent_code:
@@ -37,17 +39,21 @@ def answer(session_id: str, user_text: str) -> str:
     if recent_issues:
         memory_context += "Recent issues:\\n" + "\\n".join(f"- {f['text']}" for f in recent_issues) + "\\n\\n"
 
+    if code_ctx:
+        memory_context += "Code/Math/Science context:\\n" + code_ctx + "\\n\\n"
+
     memory_context += f"Memory mesh summary: {mem_summary}\\n"
     memory_context += f"Continuity topic: {topic}, voxels: {len(JULES.threads[topic])}\\n"
+    memory_context += f"Knowledge ingest: {kg_info}\\n"
 
     prompt = f\"\"\"
-VOIDAI Jules Continuity Engine
+VOIDAI Coding/Math/Science Brain
 
 User message:
 {user_text}
 
-Memory mesh + continuity:
+Context:
 {memory_context}
 \"\"\".strip()
 
-    return f"[VOIDAI JULES]\\n{prompt[:400]}..."
+    return f"[VOIDAI CODE-BRAIN]\\n{prompt[:400]}..."
