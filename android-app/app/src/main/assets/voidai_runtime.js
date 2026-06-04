@@ -6,3 +6,17 @@ window.VOIDAI = {
     return window.VOIDAI_CORTEX.reason(input, this.state);
   }
 };
+
+
+// Copilot-style responsiveness wrapper
+async function sendMessageResponsive() {
+    var input = document.getElementById("message").value;
+
+    VOIDAI_RESPONSIVE.detectCommand(input);
+    VOIDAI_RESPONSIVE.startThinking();
+
+    var reply = await VOIDAI.process(input);
+
+    VOIDAI_RESPONSIVE.stopThinking();
+    appendMessage("VOIDAI", reply);
+}
