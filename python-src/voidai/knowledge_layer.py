@@ -4,8 +4,8 @@ from .memory_mesh import classify
 
 class KnowledgeGraph:
     def __init__(self):
-        self.nodes = {}   # id -> {label, kind}
-        self.edges = []   # {src, rel, dst}
+        self.nodes = {}
+        self.edges = []
 
     def _node_id(self, label, kind):
         return f"{kind}:{label.lower()}"
@@ -71,18 +71,16 @@ def ingest(text: str):
     concepts = extract_concepts(text)
     last = None
     for c in concepts:
-        nid = KG.add_concept(c, kind="concept")
+        KG.add_concept(c)
         if last:
             KG.add_relation(last, "related_to", c)
         last = c
-    if kind == "code":
-        KG.add_relation("code", "mentions", concepts[0] if concepts else "snippet", src_kind="meta", dst_kind="concept")
     return {"kind": kind, "concepts": concepts}
 
 def summarize_focus(term: str):
     neigh = KG.neighbors(term)
     if not neigh:
-        return f"No strong knowledge links yet around '{term}'."
+        return f"No knowledge links yet around '{term}'."
     lines = [f"Knowledge links around '{term}':"]
     for n in neigh[:20]:
         if n["direction"] == "out":

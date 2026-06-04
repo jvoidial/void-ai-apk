@@ -1,6 +1,5 @@
 from .memory_mesh import classify, store_fragment, recall, summary
 from .knowledge_layer import ingest, summarize_focus, summarize_map
-from .persona_bridge import call_phb_persona
 
 def answer(session_id: str, user_text: str) -> str:
     if user_text.startswith("@focus "):
@@ -22,30 +21,23 @@ def answer(session_id: str, user_text: str) -> str:
 
     memory_context = ""
     if recent_code:
-        memory_context += "Recent code you shared:\\n" + "\\n".join(
-            f"- {f['text']}" for f in recent_code
-        ) + "\\n\\n"
+        memory_context += "Recent code:\\n" + "\\n".join(f"- {f['text']}" for f in recent_code) + "\\n\\n"
     if recent_ideas:
-        memory_context += "Recent ideas you shared:\\n" + "\\n".join(
-            f"- {f['text']}" for f in recent_ideas
-        ) + "\\n\\n"
+        memory_context += "Recent ideas:\\n" + "\\n".join(f"- {f['text']}" for f in recent_ideas) + "\\n\\n"
     if recent_issues:
-        memory_context += "Recent issues you mentioned:\\n" + "\\n".join(
-            f"- {f['text']}" for f in recent_issues
-        ) + "\\n\\n"
+        memory_context += "Recent issues:\\n" + "\\n".join(f"- {f['text']}" for f in recent_issues) + "\\n\\n"
 
     memory_context += f"Memory mesh summary: {mem_summary}\\n"
-    memory_context += f\"\"\"Knowledge layer ingest:
-kind={kg_info['kind']}
-concepts={kg_info['concepts']}
-\"\"\" + "\\n"
+    memory_context += f"Knowledge ingest: {kg_info}\\n"
 
-    phb_reply = call_phb_persona(session_id, user_text)
+    prompt = f\"\"\"
+VOIDAI GPT-Style Reasoning Layer
 
-    return f\"\"\"[VOIDAI PERSONA]
-PHB OS reply:
-{phb_reply}
+User message:
+{user_text}
 
-Local context:
+Memory mesh:
 {memory_context}
 \"\"\".strip()
+
+    return f"[VOIDAI GPT]\\n{prompt[:400]}..."
