@@ -3,14 +3,11 @@ from .knowledge_layer import ingest, summarize_focus, summarize_map
 from .jules_continuity import JULES
 from .code_brain import best_code_context
 from .metacognition import think_steps, self_reflect
+from .gpt_client import call_gpt
 
 _last_answer = {}
 
 HELP_TEXT = \"\"\"VOIDAI Help Menu
-
-Core:
-- Type normally to chat.
-- Memory, knowledge, continuity and reasoning run automatically.
 
 Commands:
 - @help          : show this help menu
@@ -18,8 +15,8 @@ Commands:
 - @map           : show global knowledge map
 - @thread TOPIC  : show continuity thread
 - @coherence     : show global continuity overview
-- @reason TEXT   : show human-style reasoning steps
-- @reflect       : reflect on the last answer
+- @reason TEXT   : show reasoning steps
+- @reflect       : reflect on last answer
 \"\"\"
 
 def answer(session_id: str, user_text: str) -> str:
@@ -29,22 +26,19 @@ def answer(session_id: str, user_text: str) -> str:
         return HELP_TEXT
 
     if user_text.startswith("@focus "):
-        term = user_text.replace("@focus ", "").strip()
-        return summarize_focus(term)
+        return summarize_focus(user_text.replace("@focus ", "").strip())
 
     if user_text.strip() == "@map":
         return summarize_map()
 
     if user_text.startswith("@thread "):
-        topic = user_text.replace("@thread ", "").strip()
-        return JULES.continuity_view(topic)
+        return JULES.continuity_view(user_text.replace("@thread ", "").strip())
 
     if user_text.strip() == "@coherence":
         return JULES.global_coherence()
 
     if user_text.startswith("@reason "):
-        q = user_text.replace("@reason ", "").strip()
-        return think_steps(q)
+        return think_steps(user_text.replace("@reason ", "").strip())
 
     if user_text.strip() == "@reflect":
         last = _last_answer.get(session_id, "No previous answer stored.")
@@ -53,13 +47,11 @@ def answer(session_id: str, user_text: str) -> str:
     kind = classify(user_text)
     frag = store_fragment(kind, user_text)
     kg_info = ingest(user_text)
-
     topic, voxel = JULES.add_voxel(kg_info["concepts"], kind, user_text)
 
     recent_code = recall("code", limit=3)
     recent_ideas = recall("ideas", limit=3)
     recent_issues = recall("issues", limit=3)
-
     mem_summary = summary()
     code_ctx = best_code_context(limit=5)
 
@@ -70,7 +62,6 @@ def answer(session_id: str, user_text: str) -> str:
         memory_context += "Recent ideas:\\n" + "\\n".join(f"- {f['text']}" for f in recent_ideas) + "\\n\\n"
     if recent_issues:
         memory_context += "Recent issues:\\n" + "\\n".join(f"- {f['text']}" for f in recent_issues) + "\\n\\n"
-
     if code_ctx:
         memory_context += "Code/Math/Science context:\\n" + code_ctx + "\\n\\n"
 
@@ -79,15 +70,15 @@ def answer(session_id: str, user_text: str) -> str:
     memory_context += f"Knowledge ingest: {kg_info}\\n"
 
     prompt = f\"\"\"
-VOIDAI Brain
+VOIDAI Copilot-Style Brain
 
 User message:
 {user_text}
 
-Context:
+Internal context:
 {memory_context}
 \"\"\".strip()
 
-    answer_text = f"[VOIDAI]\\n{prompt[:400]}..."
-    _last_answer[session_id] = answer_text
-    return answer_text
+    reply = call_gpt(prompt)
+    _last_answer[session_id] = reply
+    return reply
