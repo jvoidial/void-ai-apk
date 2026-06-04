@@ -1,31 +1,9 @@
-// voidai_limbic.js
-// Symbolic emotional weighting
-
-const VOIDAI_LIMBIC = (function () {
-  const state = { valence: 0.0, arousal: 0.5 };
-
-  const NEG = ["stressed", "anxious", "worried", "sad", "tired", "overwhelmed"];
-  const POS = ["excited", "happy", "buzzing", "pumped", "grateful", "proud"];
-
-  function analyse(text) {
-    const t = (text || "").toLowerCase();
-    let score = 0;
-
-    NEG.forEach(w => { if (t.includes(w)) score -= 1; });
-    POS.forEach(w => { if (t.includes(w)) score += 1; });
-
-    if (score > 0) state.valence = Math.min(1, state.valence + 0.2);
-    else if (score < 0) state.valence = Math.max(-1, state.valence - 0.2);
-    else state.valence *= 0.9;
-
-    state.arousal = Math.min(1, Math.max(0, state.arousal + Math.abs(score) * 0.1));
-
-    return { ...state };
+window.VOIDAI_LIMBIC = {
+  tone(input) {
+    const t = (input || "").toLowerCase();
+    if (t.includes("love") || t.includes("thanks")) return "warm";
+    if (t.includes("angry") || t.includes("upset")) return "calm";
+    if (t.includes("tired") || t.includes("exhausted")) return "supportive";
+    return "neutral";
   }
-
-  function snapshot() {
-    return { ...state };
-  }
-
-  return { analyse, snapshot };
-})();
+};
