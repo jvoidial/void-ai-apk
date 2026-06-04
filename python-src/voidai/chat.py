@@ -1,8 +1,11 @@
 from .memory_mesh import classify, store_fragment, recall, summary
+from .knowledge_layer import ingest, summarize_focus
 
 def answer(session_id: str, user_text: str) -> str:
     kind = classify(user_text)
     frag = store_fragment(kind, user_text)
+
+    kg_info = ingest(user_text)
 
     recent_code = recall("code", limit=3)
     recent_ideas = recall("ideas", limit=3)
@@ -25,18 +28,32 @@ def answer(session_id: str, user_text: str) -> str:
         ) + "\\n\\n"
 
     memory_context += f"Memory mesh summary: {mem_summary}\\n"
+    memory_context += f\"\"\"Knowledge layer ingest:
+kind={kg_info['kind']}
+concepts={kg_info['concepts']}
+\"\"\" + "\\n"
+
+    focus_term = kg_info["concepts"][0] if kg_info["concepts"] else None
+    if focus_term:
+        knowledge_view = summarize_focus(focus_term)
+    else:
+        knowledge_view = "No focus term yet for knowledge graph."
 
     prompt = f\"\"\"
-You are VOIDAI with a persistent GPT-style memory mesh.
+You are VOIDAI with:
+- a persistent GPT-style memory mesh
+- a symbolic knowledge graph (concepts + relations)
 
 User message:
 {user_text}
 
 Memory mesh context:
 {memory_context}
+
+Knowledge graph view:
+{knowledge_view}
 \"\"\".strip()
 
-    # Replace this with your GPT/DeepSeek call
-    reply = f"[VOIDAI MEMORY MESH]\\n{prompt[:300]}..."
+    reply = f"[VOIDAI KNOWLEDGE LAYER]\\n{prompt[:400]}..."
 
     return reply
