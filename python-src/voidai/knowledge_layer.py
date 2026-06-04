@@ -1,10 +1,11 @@
 import re
+from collections import defaultdict
 from .memory_mesh import classify
 
 class KnowledgeGraph:
     def __init__(self):
         self.nodes = {}   # id -> {label, kind}
-        self.edges = []   # {src, dst, rel}
+        self.edges = []   # {src, rel, dst}
 
     def _node_id(self, label, kind):
         return f"{kind}:{label.lower()}"
@@ -37,6 +38,28 @@ class KnowledgeGraph:
                 out.append({"direction": "in", "rel": e["rel"], "from": self.nodes[e["src"]]["label"]})
         return out
 
+    def map_view(self):
+        clusters = defaultdict(list)
+        for nid, data in self.nodes.items():
+            clusters[data["kind"]].append(data["label"])
+
+        degrees = defaultdict(int)
+        for e in self.edges:
+            degrees[e["src"]] += 1
+            degrees[e["dst"]] += 1
+
+        important = sorted(
+            [(self.nodes[n]["label"], deg) for n, deg in degrees.items()],
+            key=lambda x: -x[1]
+        )[:10]
+
+        return {
+            "clusters": dict(clusters),
+            "important": important,
+            "edge_count": len(self.edges),
+            "node_count": len(self.nodes)
+        }
+
 KG = KnowledgeGraph()
 
 def extract_concepts(text: str):
@@ -61,9 +84,23 @@ def summarize_focus(term: str):
     if not neigh:
         return f"No strong knowledge links yet around '{term}'."
     lines = [f"Knowledge links around '{term}':"]
-    for n in neigh[:10]:
+    for n in neigh[:20]:
         if n["direction"] == "out":
             lines.append(f"- {term} --{n['rel']}--> {n['to']}")
         else:
             lines.append(f"- {n['from']} --{n['rel']}--> {term}")
     return "\n".join(lines)
+
+def summarize_map():
+    mv = KG.map_view()
+    out = []
+    out.append(f"Knowledge Graph Overview:")
+    out.append(f"- Nodes: {mv['node_count']}")
+    out.append(f"- Edges: {mv['edge_count']}")
+    out.append("\nClusters:")
+    for k, v in mv["clusters"].items():
+        out.append(f"  {k}: {', '.join(v[:10])}")
+    out.append("\nMost connected concepts:")
+    for label, deg in mv["important"]:
+        out.append(f"  {label} (degree {deg})")
+    return "\n".join(out)

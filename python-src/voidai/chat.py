@@ -1,7 +1,14 @@
 from .memory_mesh import classify, store_fragment, recall, summary
-from .knowledge_layer import ingest, summarize_focus
+from .knowledge_layer import ingest, summarize_focus, summarize_map
 
 def answer(session_id: str, user_text: str) -> str:
+    if user_text.startswith("@focus "):
+        term = user_text.replace("@focus ", "").strip()
+        return summarize_focus(term)
+
+    if user_text.strip() == "@map":
+        return summarize_map()
+
     kind = classify(user_text)
     frag = store_fragment(kind, user_text)
 
@@ -33,27 +40,14 @@ kind={kg_info['kind']}
 concepts={kg_info['concepts']}
 \"\"\" + "\\n"
 
-    focus_term = kg_info["concepts"][0] if kg_info["concepts"] else None
-    if focus_term:
-        knowledge_view = summarize_focus(focus_term)
-    else:
-        knowledge_view = "No focus term yet for knowledge graph."
-
     prompt = f\"\"\"
-You are VOIDAI with:
-- a persistent GPT-style memory mesh
-- a symbolic knowledge graph (concepts + relations)
+VOIDAI AGI Knowledge Layer
 
 User message:
 {user_text}
 
-Memory mesh context:
+Memory mesh:
 {memory_context}
-
-Knowledge graph view:
-{knowledge_view}
 \"\"\".strip()
 
-    reply = f"[VOIDAI KNOWLEDGE LAYER]\\n{prompt[:400]}..."
-
-    return reply
+    return f"[VOIDAI AGI]\\n{prompt[:400]}..."
