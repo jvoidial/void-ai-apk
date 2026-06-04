@@ -6,8 +6,27 @@ from .metacognition import think_steps, self_reflect
 
 _last_answer = {}
 
+HELP_TEXT = \"\"\"VOIDAI Help Menu
+
+Core:
+- Type normally to chat.
+- Memory, knowledge, continuity and reasoning run automatically.
+
+Commands:
+- @help          : show this help menu
+- @focus TERM    : zoom in on a concept
+- @map           : show global knowledge map
+- @thread TOPIC  : show continuity thread
+- @coherence     : show global continuity overview
+- @reason TEXT   : show human-style reasoning steps
+- @reflect       : reflect on the last answer
+\"\"\"
+
 def answer(session_id: str, user_text: str) -> str:
     global _last_answer
+
+    if user_text.strip() == "@help":
+        return HELP_TEXT
 
     if user_text.startswith("@focus "):
         term = user_text.replace("@focus ", "").strip()
@@ -60,7 +79,7 @@ def answer(session_id: str, user_text: str) -> str:
     memory_context += f"Knowledge ingest: {kg_info}\\n"
 
     prompt = f\"\"\"
-VOIDAI Human-Style Thinking Layer
+VOIDAI Brain
 
 User message:
 {user_text}
@@ -69,6 +88,6 @@ Context:
 {memory_context}
 \"\"\".strip()
 
-    answer_text = f"[VOIDAI HUMAN-THINK]\\n{prompt[:400]}..."
+    answer_text = f"[VOIDAI]\\n{prompt[:400]}..."
     _last_answer[session_id] = answer_text
     return answer_text
