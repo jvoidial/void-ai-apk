@@ -4,46 +4,99 @@ from .jules_continuity import JULES
 from .code_brain import best_code_context
 from .metacognition import think_steps, self_reflect
 from .gpt_client import call_gpt
+from .code_reasoner import (
+    generate_code,
+    fix_code,
+    improve_code,
+    explain_code,
+    plan_code,
+    convert_code,
+)
 
 _last_answer = {}
 
 HELP_TEXT = \"\"\"VOIDAI Help Menu
 
-Commands:
-- @help          : show this help menu
-- @focus TERM    : zoom in on a concept
-- @map           : show global knowledge map
-- @thread TOPIC  : show continuity thread
-- @coherence     : show global continuity overview
-- @reason TEXT   : show reasoning steps
-- @reflect       : reflect on last answer
+General:
+- @help                 : show this help menu
+
+Knowledge / continuity:
+- @focus TERM           : zoom in on a concept
+- @map                  : show global knowledge map
+- @thread TOPIC         : show continuity thread
+- @coherence            : show global continuity overview
+
+Thinking:
+- @reason TEXT          : show reasoning steps
+- @reflect              : reflect on last answer
+
+Code (all languages):
+- @code SPEC            : generate code from a spec
+- @fix CODE             : fix / debug code
+- @improve CODE         : refactor / improve code
+- @explain CODE         : explain code
+- @plan SPEC            : plan architecture / modules
+- @convert LANG CODE    : convert code to target language
 \"\"\"
 
 def answer(session_id: str, user_text: str) -> str:
     global _last_answer
 
-    if user_text.strip() == "@help":
+    txt = user_text.strip()
+
+    if txt == "@help":
         return HELP_TEXT
 
-    if user_text.startswith("@focus "):
-        return summarize_focus(user_text.replace("@focus ", "").strip())
+    if txt.startswith("@focus "):
+        return summarize_focus(txt.replace("@focus ", "", 1).strip())
 
-    if user_text.strip() == "@map":
+    if txt == "@map":
         return summarize_map()
 
-    if user_text.startswith("@thread "):
-        return JULES.continuity_view(user_text.replace("@thread ", "").strip())
+    if txt.startswith("@thread "):
+        return JULES.continuity_view(txt.replace("@thread ", "", 1).strip())
 
-    if user_text.strip() == "@coherence":
+    if txt == "@coherence":
         return JULES.global_coherence()
 
-    if user_text.startswith("@reason "):
-        return think_steps(user_text.replace("@reason ", "").strip())
+    if txt.startswith("@reason "):
+        return think_steps(txt.replace("@reason ", "", 1).strip())
 
-    if user_text.strip() == "@reflect":
+    if txt == "@reflect":
         last = _last_answer.get(session_id, "No previous answer stored.")
         return self_reflect(last)
 
+    # Code commands
+    if txt.startswith("@code "):
+        spec = txt.replace("@code ", "", 1).strip()
+        return generate_code(spec)
+
+    if txt.startswith("@fix "):
+        code = txt.replace("@fix ", "", 1).strip()
+        return fix_code(code)
+
+    if txt.startswith("@improve "):
+        code = txt.replace("@improve ", "", 1).strip()
+        return improve_code(code)
+
+    if txt.startswith("@explain "):
+        code = txt.replace("@explain ", "", 1).strip()
+        return explain_code(code)
+
+    if txt.startswith("@plan "):
+        spec = txt.replace("@plan ", "", 1).strip()
+        return plan_code(spec)
+
+    if txt.startswith("@convert "):
+        # pattern: @convert TARGET_LANG rest_of_message_is_code
+        parts = txt.split(" ", 2)
+        if len(parts) < 3:
+            return "Usage: @convert TARGET_LANG CODE"
+        target_lang = parts[1]
+        code = parts[2]
+        return convert_code(code, target_lang)
+
+    # Normal chat path with full brain context
     kind = classify(user_text)
     frag = store_fragment(kind, user_text)
     kg_info = ingest(user_text)
