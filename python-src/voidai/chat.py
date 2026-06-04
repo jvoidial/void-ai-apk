@@ -2,8 +2,13 @@ from .memory_mesh import classify, store_fragment, recall, summary
 from .knowledge_layer import ingest, summarize_focus, summarize_map
 from .jules_continuity import JULES
 from .code_brain import best_code_context
+from .metacognition import think_steps, self_reflect
+
+_last_answer = {}
 
 def answer(session_id: str, user_text: str) -> str:
+    global _last_answer
+
     if user_text.startswith("@focus "):
         term = user_text.replace("@focus ", "").strip()
         return summarize_focus(term)
@@ -17,6 +22,14 @@ def answer(session_id: str, user_text: str) -> str:
 
     if user_text.strip() == "@coherence":
         return JULES.global_coherence()
+
+    if user_text.startswith("@reason "):
+        q = user_text.replace("@reason ", "").strip()
+        return think_steps(q)
+
+    if user_text.strip() == "@reflect":
+        last = _last_answer.get(session_id, "No previous answer stored.")
+        return self_reflect(last)
 
     kind = classify(user_text)
     frag = store_fragment(kind, user_text)
@@ -47,7 +60,7 @@ def answer(session_id: str, user_text: str) -> str:
     memory_context += f"Knowledge ingest: {kg_info}\\n"
 
     prompt = f\"\"\"
-VOIDAI Coding/Math/Science Brain
+VOIDAI Human-Style Thinking Layer
 
 User message:
 {user_text}
@@ -56,4 +69,6 @@ Context:
 {memory_context}
 \"\"\".strip()
 
-    return f"[VOIDAI CODE-BRAIN]\\n{prompt[:400]}..."
+    answer_text = f"[VOIDAI HUMAN-THINK]\\n{prompt[:400]}..."
+    _last_answer[session_id] = answer_text
+    return answer_text
