@@ -69,38 +69,49 @@ def answer(session_id: str, user_text: str) -> str:
     # Code commands
     if txt.startswith("@code "):
         spec = txt.replace("@code ", "", 1).strip()
-        return generate_code(spec)
+        reply = generate_code(spec)
+        _last_answer[session_id] = reply
+        return reply
 
     if txt.startswith("@fix "):
         code = txt.replace("@fix ", "", 1).strip()
-        return fix_code(code)
+        reply = fix_code(code)
+        _last_answer[session_id] = reply
+        return reply
 
     if txt.startswith("@improve "):
         code = txt.replace("@improve ", "", 1).strip()
-        return improve_code(code)
+        reply = improve_code(code)
+        _last_answer[session_id] = reply
+        return reply
 
     if txt.startswith("@explain "):
         code = txt.replace("@explain ", "", 1).strip()
-        return explain_code(code)
+        reply = explain_code(code)
+        _last_answer[session_id] = reply
+        return reply
 
     if txt.startswith("@plan "):
         spec = txt.replace("@plan ", "", 1).strip()
-        return plan_code(spec)
+        reply = plan_code(spec)
+        _last_answer[session_id] = reply
+        return reply
 
     if txt.startswith("@convert "):
-        # pattern: @convert TARGET_LANG rest_of_message_is_code
         parts = txt.split(" ", 2)
         if len(parts) < 3:
             return "Usage: @convert TARGET_LANG CODE"
         target_lang = parts[1]
         code = parts[2]
-        return convert_code(code, target_lang)
+        reply = convert_code(code, target_lang)
+        _last_answer[session_id] = reply
+        return reply
 
-    # Normal chat path with full brain context
+    # Normal chat path with full brain context, but UI sees only GPT reply
     kind = classify(user_text)
-    frag = store_fragment(kind, user_text)
+    store_fragment(kind, user_text)
     kg_info = ingest(user_text)
-    topic, voxel = JULES.add_voxel(kg_info["concepts"], kind, user_text)
+    topic, _ = JULES.add_voxel(kg_info["concepts"], kind, user_text)
 
     recent_code = recall("code", limit=3)
     recent_ideas = recall("ideas", limit=3)
@@ -123,7 +134,7 @@ def answer(session_id: str, user_text: str) -> str:
     memory_context += f"Knowledge ingest: {kg_info}\\n"
 
     prompt = f\"\"\"
-VOIDAI Copilot-Style Brain
+You are VOIDAI, a Copilot-style assistant.
 
 User message:
 {user_text}
