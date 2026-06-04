@@ -1,5 +1,22 @@
 R_DEF: Internal format may change without notice
 local
+color voidai_black
+color voidai_silver_dark
+color voidai_silver_light
+color voidai_silver_mid
+color voidai_white
+drawable bg_bot_bubble
+drawable bg_input
+drawable bg_user_bubble
+id inputField
+id messageText
+id messagesRecycler
+id sendButton
+id title
 layout activity_main
+layout item_message_bot
+layout item_message_user
+mipmap ic_launcher
+mipmap ic_launcher_round
 string app_name
-style Theme.VoidAI
+style Theme.VOIDAI

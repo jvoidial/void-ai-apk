@@ -1,7 +1,7 @@
 {
     "logs": [
         {
-            "outputFile": "com.voidai.app-mergeDebugResources-21:/values-pt/values-pt.xml",
+            "outputFile": "com.voidai.app-mergeDebugResources-30:/values-pt/values-pt.xml",
             "map": [
                 {
                     "source": "/data/data/com.termux/files/home/.gradle/caches/9.5.1/transforms/3b963766efb3c6c4c0581093345a9b1e/transformed/core-1.13.1/res/values-pt/values-pt.xml",
