@@ -60,7 +60,7 @@
       if (!v) return;
       addMsg('You: ' + v, 'user');
       input.value = '';
-      addMsg('VOIDAI (fallback): thinking about "' + v + '"...', 'ai');
+      addMsg('VOIDAI (brain): ' + (window.VOIDAI?.process(v) || 'no brain output'), 'ai');
     });
 
     plus.addEventListener('click', () => {
@@ -86,5 +86,17 @@
     // Initial marker so we know JS ran
     addMsg('✅ JS runtime loaded inside WebView.', 'ai');
   </script>
+
+<script src="voidai_runtime.js"></script>
+<script src="voidai_synapse.js"></script>
+<script src="voidai_cortex.js"></script>
+<script src="voidai_hippocampus.js"></script>
+<script src="voidai_thalamus.js"></script>
+<script src="voidai_limbic.js"></script>
+<script src="voidai_brain_mesh.js"></script>
+<script src="voidai_lang.js"></script>
+<script src="voidai_cortex_hook.js"></script>
+<script src="voidai_synapse_hook.js"></script>
+
 </body>
 </html>
