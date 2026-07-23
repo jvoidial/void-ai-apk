@@ -44,7 +44,7 @@
         }
         .user { background: #2a2a2a; align-self: flex-end; margin-left: auto; border-bottom-right-radius: 4px; }
         .ai { background: #1a3a1a; align-self: flex-start; margin-right: auto; border-bottom-left-radius: 4px; }
-        .timestamp { font-size: 10px; color: #666; margin-top: 4px; text-align: right; }
+        .error { background: #3a1a1a; color: #f88; }
         #input-area {
             display: flex;
             gap: 8px;
@@ -82,7 +82,7 @@
             padding: 20px;
             color: #888;
         }
-        .spinner {
+        #loader .spinner {
             border: 2px solid #333;
             border-top: 2px solid #6f6;
             border-radius: 50%;
@@ -93,20 +93,69 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        #settings-panel {
+            display: none;
+            background: #1a1a1a;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        #settings-panel input, #settings-panel select {
+            width: 100%;
+            padding: 8px;
+            margin: 6px 0;
+            border-radius: 8px;
+            border: none;
+            background: #222;
+            color: #fff;
+        }
+        #settings-btn {
+            background: #333;
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 14px;
+        }
+        .model-selector {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .model-selector select {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
 
 <div id="header">
     <h1>🧠 VOIDAI</h1>
-    <span id="status">⚡ offline</span>
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="status">⚡ offline</span>
+        <button id="settings-btn">⚙️</button>
+    </div>
+</div>
+
+<div id="settings-panel">
+    <h3 style="margin-bottom: 8px;">Model Settings</h3>
+    <div class="model-selector">
+        <select id="model-select">
+            <option value="TinyLlama-1.1B-Chat-v1.0-q4f32_1">TinyLlama (1.1B, ~700MB)</option>
+            <option value="Phi-3-mini-4k-instruct-q4f16_1" selected>Phi-3-mini (3.8B, ~2.5GB)</option>
+            <option value="Qwen2.5-1.5B-Instruct-q4f32_1">Qwen2.5 (1.5B, ~1GB)</option>
+        </select>
+        <button id="apply-model">Apply</button>
+    </div>
+    <div style="margin-top: 8px; font-size: 12px; color: #888;">
+        ⚠️ Model downloads once. Ensure you have a stable internet connection.
+    </div>
 </div>
 
 <div id="chat"></div>
 
 <div id="loader">
     <div class="spinner"></div>
-    <div style="margin-top: 8px;">Loading model...</div>
+    <div style="margin-top: 8px;" id="loader-text">Loading model...</div>
 </div>
 
 <div id="input-area">
@@ -133,14 +182,19 @@
     const voiceBtn = document.getElementById('voice-btn');
     const statusEl = document.getElementById('status');
     const loaderEl = document.getElementById('loader');
+    const loaderText = document.getElementById('loader-text');
+    const settingsPanel = document.getElementById('settings-panel');
+    const settingsBtn = document.getElementById('settings-btn');
+    const modelSelect = document.getElementById('model-select');
+    const applyModelBtn = document.getElementById('apply-model');
 
     // ---------- State ----------
     let engine = null;
-    let modelName = 'TinyLlama-1.1B-Chat-v1.0-q4f32_1'; // good, fast, ~700MB
-    // Alternatives: 'Phi-3-mini-4k-instruct-q4f16_1' (larger, better)
+    let modelName = 'Phi-3-mini-4k-instruct-q4f16_1';
     let conversation = [];
     let isGenerating = false;
     let isRecording = false;
+    let isLoading = false;
 
     // ---------- Speech recognition ----------
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -191,9 +245,10 @@
     }
 
     // ---------- UI helpers ----------
-    function addMessage(role, text) {
+    function addMessage(role, text, isError = false) {
         const div = document.createElement('div');
         div.className = `msg ${role}`;
+        if (isError) div.classList.add('error');
         div.textContent = text;
         chatEl.appendChild(div);
         chatEl.scrollTop = chatEl.scrollHeight;
@@ -203,15 +258,16 @@
         statusEl.textContent = text;
     }
 
-    function setLoading(loading) {
+    function setLoading(loading, msg = 'Loading model...') {
+        isLoading = loading;
         loaderEl.style.display = loading ? 'block' : 'none';
+        loaderText.textContent = msg;
         sendBtn.disabled = loading;
         inputEl.disabled = loading;
     }
 
     // ---------- Build prompt ----------
     function buildPrompt(messages) {
-        // Simple chat template for TinyLlama / Phi
         let prompt = '';
         for (const msg of messages) {
             if (msg.role === 'user') prompt += `<|user|>\n${msg.content}\n`;
@@ -224,15 +280,14 @@
     // ---------- Chat handler ----------
     async function handleSend() {
         const text = inputEl.value.trim();
-        if (!text || isGenerating) return;
+        if (!text || isGenerating || isLoading) return;
         inputEl.value = '';
 
-        // Add user message
         addMessage('user', text);
         conversation.push({ role: 'user', content: text });
 
         if (!engine) {
-            addMessage('ai', 'Model not loaded yet. Please wait.');
+            addMessage('ai', 'Model not loaded yet. Please wait for it to finish loading.', true);
             return;
         }
 
@@ -241,9 +296,7 @@
         sendBtn.disabled = true;
 
         try {
-            // Build prompt from conversation (last 10 exchanges)
             const recent = conversation.slice(-20);
-            const prompt = buildPrompt(recent);
             const response = await engine.chat.completions.create({
                 messages: recent.map(m => ({ role: m.role, content: m.content })),
                 temperature: 0.7,
@@ -253,10 +306,9 @@
             const reply = response.choices[0].message.content;
             addMessage('ai', reply);
             conversation.push({ role: 'assistant', content: reply });
-            // Optionally speak
             speak(reply);
         } catch (err) {
-            addMessage('ai', 'Error: ' + err.message);
+            addMessage('ai', 'Error: ' + err.message, true);
             console.error(err);
         } finally {
             isGenerating = false;
@@ -268,21 +320,53 @@
 
     // ---------- Load engine ----------
     async function initEngine() {
-        setLoading(true);
-        setStatus('⏳ loading model...');
+        if (isLoading) return;
+        setLoading(true, `Loading ${modelName}... (first time may take a few minutes)`);
+        setStatus('⏳ downloading model...');
+
         try {
+            // Check if WebGPU is available
+            if (!navigator.gpu) {
+                throw new Error('WebGPU not supported in this browser/WebView. Try a different browser or update your system.');
+            }
+
             engine = new webllm.ChatModule();
             await engine.reload(modelName);
             setStatus('✅ model ready');
             addMessage('ai', `VOIDAI: ready. I am running locally with ${modelName}. Ask me anything.`);
         } catch (err) {
-            setStatus('❌ model load failed: ' + err.message);
-            addMessage('ai', 'Error loading model: ' + err.message);
+            const errorMsg = err.message || 'Unknown error';
+            setStatus('❌ model load failed');
+            addMessage('ai', `Error loading model: ${errorMsg}`, true);
+            addMessage('ai', '💡 Try:\n1. Switch to a smaller model (e.g., TinyLlama) in Settings.\n2. Check your internet connection for the initial download.\n3. Ensure this browser supports WebGPU.', true);
             console.error(err);
         } finally {
             setLoading(false);
         }
     }
+
+    // ---------- Settings ----------
+    settingsBtn.addEventListener('click', () => {
+        settingsPanel.style.display = settingsPanel.style.display === 'block' ? 'none' : 'block';
+    });
+
+    applyModelBtn.addEventListener('click', () => {
+        const newModel = modelSelect.value;
+        if (newModel === modelName) {
+            addMessage('ai', `Already using ${newModel}`, true);
+            return;
+        }
+        if (engine) {
+            // Reset engine
+            engine = null;
+        }
+        modelName = newModel;
+        conversation = [];
+        chatEl.innerHTML = '';
+        addMessage('ai', `Switching to ${modelName}...`);
+        initEngine();
+        settingsPanel.style.display = 'none';
+    });
 
     // ---------- Start ----------
     sendBtn.addEventListener('click', handleSend);
@@ -293,10 +377,9 @@
         }
     });
 
-    // First load
+    // Initial load
+    addMessage('ai', '🔄 Loading VOIDAI... Please wait for the model to download (this may take a few minutes on first launch).');
     initEngine();
-
-    // If model fails, user can reload page to retry.
 </script>
 </body>
 </html>
