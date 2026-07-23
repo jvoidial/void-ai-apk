@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VOIDAI – Local GPT</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #222;
+        }
+        #header h1 { font-size: 20px; font-weight: 300; letter-spacing: 1px; color: #6f6; }
+        #status { font-size: 12px; color: #888; }
+        #chat {
+            flex: 1;
+            overflow-y: auto;
+            margin: 12px 0;
+            padding-right: 4px;
+            scroll-behavior: smooth;
+        }
+        .msg {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 16px;
+            max-width: 85%;
+            word-wrap: break-word;
+            line-height: 1.5;
+            animation: fadeIn 0.2s ease;
+        }
+        .user { background: #2a2a2a; align-self: flex-end; margin-left: auto; border-bottom-right-radius: 4px; }
+        .ai { background: #1a3a1a; align-self: flex-start; margin-right: auto; border-bottom-left-radius: 4px; }
+        .timestamp { font-size: 10px; color: #666; margin-top: 4px; text-align: right; }
+        #input-area {
+            display: flex;
+            gap: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #222;
+        }
+        #input {
+            flex: 1;
+            padding: 12px 16px;
+            border-radius: 24px;
+            border: none;
+            background: #1a1a1a;
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+        }
+        #input::placeholder { color: #555; }
+        button {
+            background: #6f6;
+            color: #000;
+            border: none;
+            border-radius: 24px;
+            padding: 12px 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        button:disabled { opacity: 0.5; pointer-events: none; }
+        button.voice-btn { background: #446; color: #fff; }
+        button.voice-btn.recording { background: #c44; }
+        #loader {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #888;
+        }
+        .spinner {
+            border: 2px solid #333;
+            border-top: 2px solid #6f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h1>🧠 VOIDAI</h1>
+    <span id="status">⚡ offline</span>
+</div>
+
+<div id="chat"></div>
+
+<div id="loader">
+    <div class="spinner"></div>
+    <div style="margin-top: 8px;">Loading model...</div>
+</div>
+
+<div id="input-area">
+    <input id="input" placeholder="Ask VOIDAI..." autofocus>
+    <button id="voice-btn" class="voice-btn">🎤</button>
+    <button id="send-btn">Send</button>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "webllm": "https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.66/dist/web-llm.js"
+    }
+}
+</script>
+
+<script type="module">
+    import * as webllm from 'webllm';
+
+    // ---------- DOM refs ----------
+    const chatEl = document.getElementById('chat');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send-btn');
+    const voiceBtn = document.getElementById('voice-btn');
+    const statusEl = document.getElementById('status');
+    const loaderEl = document.getElementById('loader');
+
+    // ---------- State ----------
+    let engine = null;
+    let modelName = 'TinyLlama-1.1B-Chat-v1.0-q4f32_1'; // good, fast, ~700MB
+    // Alternatives: 'Phi-3-mini-4k-instruct-q4f16_1' (larger, better)
+    let conversation = [];
+    let isGenerating = false;
+    let isRecording = false;
+
+    // ---------- Speech recognition ----------
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+    if (recognition) {
+        recognition.lang = 'en-US';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.onresult = (e) => {
+            const transcript = e.results[0][0].transcript;
+            inputEl.value = transcript;
+            handleSend();
+        };
+        recognition.onerror = (e) => {
+            console.error('Speech error:', e.error);
+            voiceBtn.classList.remove('recording');
+            isRecording = false;
+        };
+        recognition.onend = () => {
+            voiceBtn.classList.remove('recording');
+            isRecording = false;
+        };
+    } else {
+        voiceBtn.style.display = 'none';
+    }
+
+    voiceBtn.addEventListener('click', () => {
+        if (!recognition) return;
+        if (isRecording) {
+            recognition.stop();
+            voiceBtn.classList.remove('recording');
+            isRecording = false;
+            return;
+        }
+        recognition.start();
+        voiceBtn.classList.add('recording');
+        isRecording = true;
+    });
+
+    // ---------- Speech output ----------
+    function speak(text) {
+        if (!window.speechSynthesis) return;
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        utterance.volume = 1;
+        window.speechSynthesis.speak(utterance);
+    }
+
+    // ---------- UI helpers ----------
+    function addMessage(role, text) {
+        const div = document.createElement('div');
+        div.className = `msg ${role}`;
+        div.textContent = text;
+        chatEl.appendChild(div);
+        chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function setStatus(text) {
+        statusEl.textContent = text;
+    }
+
+    function setLoading(loading) {
+        loaderEl.style.display = loading ? 'block' : 'none';
+        sendBtn.disabled = loading;
+        inputEl.disabled = loading;
+    }
+
+    // ---------- Build prompt ----------
+    function buildPrompt(messages) {
+        // Simple chat template for TinyLlama / Phi
+        let prompt = '';
+        for (const msg of messages) {
+            if (msg.role === 'user') prompt += `<|user|>\n${msg.content}\n`;
+            else prompt += `<|assistant|>\n${msg.content}\n`;
+        }
+        prompt += `<|assistant|>\n`;
+        return prompt;
+    }
+
+    // ---------- Chat handler ----------
+    async function handleSend() {
+        const text = inputEl.value.trim();
+        if (!text || isGenerating) return;
+        inputEl.value = '';
+
+        // Add user message
+        addMessage('user', text);
+        conversation.push({ role: 'user', content: text });
+
+        if (!engine) {
+            addMessage('ai', 'Model not loaded yet. Please wait.');
+            return;
+        }
+
+        isGenerating = true;
+        setStatus('⏳ thinking...');
+        sendBtn.disabled = true;
+
+        try {
+            // Build prompt from conversation (last 10 exchanges)
+            const recent = conversation.slice(-20);
+            const prompt = buildPrompt(recent);
+            const response = await engine.chat.completions.create({
+                messages: recent.map(m => ({ role: m.role, content: m.content })),
+                temperature: 0.7,
+                max_tokens: 512,
+                stream: false
+            });
+            const reply = response.choices[0].message.content;
+            addMessage('ai', reply);
+            conversation.push({ role: 'assistant', content: reply });
+            // Optionally speak
+            speak(reply);
+        } catch (err) {
+            addMessage('ai', 'Error: ' + err.message);
+            console.error(err);
+        } finally {
+            isGenerating = false;
+            setStatus('⚡ ready');
+            sendBtn.disabled = false;
+            inputEl.focus();
+        }
+    }
+
+    // ---------- Load engine ----------
+    async function initEngine() {
+        setLoading(true);
+        setStatus('⏳ loading model...');
+        try {
+            engine = new webllm.ChatModule();
+            await engine.reload(modelName);
+            setStatus('✅ model ready');
+            addMessage('ai', `VOIDAI: ready. I am running locally with ${modelName}. Ask me anything.`);
+        } catch (err) {
+            setStatus('❌ model load failed: ' + err.message);
+            addMessage('ai', 'Error loading model: ' + err.message);
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    // ---------- Start ----------
+    sendBtn.addEventListener('click', handleSend);
+    inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+        }
+    });
+
+    // First load
+    initEngine();
+
+    // If model fails, user can reload page to retry.
+</script>
+</body>
+</html>
