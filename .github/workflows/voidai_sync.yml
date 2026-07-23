@@ -36,5 +36,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: VOIDAI-synced-apk
-          # Use the correct APK name (renamed in build.gradle)
           path: android-app/app/build/outputs/apk/debug/VOIDAI.apk
