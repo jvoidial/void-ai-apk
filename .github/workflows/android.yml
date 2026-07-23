@@ -10,16 +10,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+
+      - name: Copy WebLLM index.html to Android assets
+        run: |
+          mkdir -p android-app/app/src/main/assets
+          cp app/src/main/assets/index.html android-app/app/src/main/assets/index.html
+          echo "✅ Copied index.html to Android assets"
+
       - name: Grant execute permission for gradlew
         run: chmod +x android-app/gradlew
+
       - name: Build Debug APK
         working-directory: android-app
         run: ./gradlew assembleDebug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
