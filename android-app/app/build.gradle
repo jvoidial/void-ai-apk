@@ -4,7 +4,6 @@ plugins {
 }
 
 android {
-    archivesBaseName = "VOIDAI"
     namespace "com.voidai.app"
     compileSdkVersion 34
 
@@ -14,6 +13,12 @@ android {
         targetSdkVersion 34
         versionCode 1
         versionName "1.0"
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "VOIDAI.apk"
+        }
     }
 
     buildTypes {
