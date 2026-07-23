@@ -9,30 +9,32 @@ jobs:
   sync-build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: CAT EOF • Checkout
         uses: actions/checkout@v4
 
-      - name: Inject PHB API URL
-        run: |
-          echo "PHB_API_BASE_URL=${{ secrets.PHB_API_URL }}" > android-app/app/src/main/assets/phb_api_env.txt
-
-      - name: Set up JDK
+      - name: CAT EOF • JDK
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
+      - name: CAT EOF • Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Gradle permission
+      - name: CAT EOF • Verify index.html exists
+        run: |
+          echo "Checking index.html in android-app/app/src/main/assets:"
+          ls -la android-app/app/src/main/assets/index.html || echo "File missing!"
+          head -10 android-app/app/src/main/assets/index.html || echo "File empty"
+
+      - name: CAT EOF • Gradle Exec
         run: chmod +x android-app/gradlew
 
-      - name: Build APK
+      - name: CAT EOF • Build APK
         working-directory: android-app
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew clean assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: CAT EOF • Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: VOIDAI-synced-apk
