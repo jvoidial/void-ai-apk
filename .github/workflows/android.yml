@@ -21,7 +21,6 @@ jobs:
         run: |
           mkdir -p android-app/app/src/main/assets
           cp app/src/main/assets/index.html android-app/app/src/main/assets/index.html
-          echo "✅ Copied index.html to Android assets"
 
       - name: Grant execute permission for gradlew
         run: chmod +x android-app/gradlew
