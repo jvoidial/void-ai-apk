@@ -1,5 +1,4 @@
 name: CAT-EOF-VOIDAI-SYNC
-
 on:
   workflow_dispatch:
   repository_dispatch:
@@ -9,43 +8,33 @@ on:
 jobs:
   sync-build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: CAT EOF • Checkout
-      uses: actions/checkout@v4
+      - name: CAT EOF • Checkout
+        uses: actions/checkout@v4
 
-    - name: CAT EOF • Inject PHB API URL
-      run: |
-        echo "PHB_API_BASE_URL=${{ secrets.PHB_API_URL }}" > android-app/app/src/main/assets/phb_api_env.txt
+      - name: CAT EOF • Inject PHB API URL
+        run: |
+          echo "PHB_API_BASE_URL=${{ secrets.PHB_API_URL }}" > android-app/app/src/main/assets/phb_api_env.txt
 
-    - name: CAT EOF • JDK
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 17
+      - name: CAT EOF • JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-    - name: CAT EOF • Android SDK
-      uses: android-actions/setup-android@v3
+      - name: CAT EOF • Android SDK
+        uses: android-actions/setup-android@v3
 
-    - name: CAT EOF • Gradle Exec
-      run: chmod +x android-app/gradlew
+      - name: CAT EOF • Gradle Exec
+        run: chmod +x android-app/gradlew
 
-    - name: CAT EOF • Build APK
-      working-directory: android-app
-      run: ./gradlew assembleDebug --stacktrace
+      - name: CAT EOF • Build APK
+        working-directory: android-app
+        run: ./gradlew assembleDebug --stacktrace
 
-    - name: CAT EOF • Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: VOIDAI-synced-apk
-        path: android-app/app/build/outputs/apk/debug/app-debug.apk
-
-    - name: CAT EOF • Release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: v${{ github.run_number }}
-        name: VOIDAI Sync Build ${{ github.run_number }}
-        files: android-app/app/build/outputs/apk/debug/app-debug.apk
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      - name: CAT EOF • Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOIDAI-synced-apk
+          # Use the correct APK name (renamed in build.gradle)
+          path: android-app/app/build/outputs/apk/debug/VOIDAI.apk
