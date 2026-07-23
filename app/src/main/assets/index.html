@@ -325,11 +325,9 @@
         setStatus('⏳ downloading model...');
 
         try {
-            // Check if WebGPU is available
             if (!navigator.gpu) {
-                throw new Error('WebGPU not supported in this browser/WebView. Try a different browser or update your system.');
+                throw new Error('WebGPU not supported. Try using a different browser or device.');
             }
-
             engine = new webllm.ChatModule();
             await engine.reload(modelName);
             setStatus('✅ model ready');
@@ -357,7 +355,6 @@
             return;
         }
         if (engine) {
-            // Reset engine
             engine = null;
         }
         modelName = newModel;
