@@ -1,0 +1,9 @@
+requests
+openai
+networkx
+pandas
+numpy
+scipy
+matplotlib
+flask
+flask-cors
