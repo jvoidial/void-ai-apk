@@ -4,6 +4,7 @@ plugins {
 }
 
 android {
+    archivesBaseName = "VOIDAI"
     namespace "com.voidai.app"
     compileSdkVersion 34
 
