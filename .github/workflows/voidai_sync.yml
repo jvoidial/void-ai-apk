@@ -21,11 +21,11 @@ jobs:
       - name: CAT EOF • Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: CAT EOF • Verify index.html exists
+      - name: CAT EOF • Verify index.html
         run: |
-          echo "Checking index.html in android-app/app/src/main/assets:"
-          ls -la android-app/app/src/main/assets/index.html || echo "File missing!"
-          head -10 android-app/app/src/main/assets/index.html || echo "File empty"
+          echo "=== index.html content (first 5 lines) ==="
+          head -5 android-app/app/src/main/assets/index.html
+          echo "==========================================="
 
       - name: CAT EOF • Gradle Exec
         run: chmod +x android-app/gradlew
