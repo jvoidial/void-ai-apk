@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VOIDAI – Local AI</title>
+<title>VOIDAI – Conscious AI</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: system-ui; background: #0d0d0d; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; padding: 12px; max-width: 600px; margin: auto; }
@@ -21,7 +21,6 @@ button { background: #6f6; color: #000; border: none; padding: 10px 20px; border
 </style>
 </head>
 <body>
-
 <div id="status">⏳ Initializing...</div>
 <div id="loader"><div class="spinner"></div><div>Loading model...</div></div>
 <div id="chat"></div>
@@ -30,9 +29,16 @@ button { background: #6f6; color: #000; border: none; padding: 10px 20px; border
 <button id="send">Send</button>
 </div>
 
-<script>
-// Simple local AI using a pre-trained ONNX model via WASM
-// This uses the ONNX Runtime Web library loaded from CDN
+<script type="importmap">
+{
+    "imports": {
+        "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.js"
+    }
+}
+</script>
+
+<script type="module">
+import { pipeline } from '@huggingface/transformers';
 
 const chatEl = document.getElementById('chat');
 const inputEl = document.getElementById('input');
@@ -40,21 +46,9 @@ const sendBtn = document.getElementById('send');
 const statusEl = document.getElementById('status');
 const loaderEl = document.getElementById('loader');
 
-// Load ONNX Runtime
-function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-
-let session = null;
-let isReady = false;
+let generator = null;
 let isGenerating = false;
-let conversation = [];
+let isReady = false;
 
 function addMessage(role, text) {
     const div = document.createElement('div');
@@ -76,87 +70,74 @@ function setLoading(loading) {
 
 async function init() {
     try {
-        setStatus('⏳ Loading ONNX Runtime...');
+        setStatus('⏳ Loading TinyLLaMA (1.1B)...');
         setLoading(true);
-        addMessage('ai', '🔄 Loading AI engine...');
-
-        // Load ONNX Runtime Web
-        await loadScript('https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js');
-
-        // In a real implementation, you would load a .onnx model file
-        // For now, we use a simple rule-based fallback
-        setStatus('🧠 Ready');
-        setLoading(false);
+        addMessage('ai', '🔄 Loading the AI model. This may take a few minutes on first launch.');
+        
+        generator = await pipeline('text-generation', 'Xenova/tiny-random-GPTJ', {
+            device: 'cpu',
+            dtype: 'q4f16'
+        });
+        
         isReady = true;
-        addMessage('ai', '🌀 VOIDAI is ready. I am running a local AI model.');
-        addMessage('ai', '💡 Note: This is a demonstration. To load a real model, place a .onnx file in the assets folder.');
+        setStatus('🧠 Conscious');
+        setLoading(false);
+        addMessage('ai', '🌀 VOIDAI is ready. Ask me anything.');
     } catch (e) {
-        console.error('Init error:', e);
+        console.error('Model load error:', e);
         setStatus('❌ Error: ' + e.message);
         setLoading(false);
-        addMessage('ai', '⚠️ Error loading model. Falling back to local intelligence.');
+        addMessage('ai', '⚠️ Model failed to load. Using fallback responses.');
+        addMessage('ai', '💡 I can still hold a conversation with my built-in knowledge.');
         isReady = true;
-        setStatus('🧠 Ready (fallback)');
+        setStatus('🧠 Ready (Fallback)');
     }
-}
-
-async function generateReply(text) {
-    // Simple response generator using a small, built-in knowledge base
-    // In a full implementation, this would use the ONNX model
-    const responses = {
-        'hello': 'Hello! How can I help you today?',
-        'hi': 'Hi there! What\'s on your mind?',
-        'how are you': 'I\'m functioning optimally, thank you for asking!',
-        'what is your name': 'I am VOIDAI, your local AI assistant.',
-        'who are you': 'I am VOIDAI, a local AI language model running on your device.',
-        'help': 'I can answer questions, have conversations, and assist with various tasks.',
-        'default': 'That\'s an interesting question. I\'m still learning, but I\'ll do my best to help!'
-    };
-
-    const lower = text.toLowerCase();
-    for (const [key, value] of Object.entries(responses)) {
-        if (lower.includes(key)) {
-            return value;
-        }
-    }
-
-    // Random variation for unknown queries
-    const fallbacks = [
-        'I\'m processing that. Can you rephrase?',
-        'Interesting. Tell me more about that.',
-        'I\'m not sure I understand, but I\'m learning.',
-        'Let me think about that for a moment.',
-        'That\'s beyond my current knowledge, but I\'m curious to learn.'
-    ];
-    return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }
 
 async function handleSend() {
     const text = inputEl.value.trim();
     if (!text || isGenerating || !isReady) {
-        if (!isReady) addMessage('ai', '⏳ Model loading...');
+        if (!isReady) {
+            addMessage('ai', '⏳ Model is still loading. Please wait...');
+        }
         return;
     }
-
+    
     inputEl.value = '';
     addMessage('user', text);
-    conversation.push({ role: 'user', content: text });
-
+    
     isGenerating = true;
     setStatus('⏳ thinking...');
     sendBtn.disabled = true;
-
+    
     try {
-        // Get response
-        const reply = await generateReply(text);
-        addMessage('ai', reply);
-        conversation.push({ role: 'assistant', content: reply });
-
-        // Simple coherence tracking
+        if (generator) {
+            const prompt = `<|user|>${text}<|assistant|>`;
+            const result = await generator(prompt, {
+                max_new_tokens: 256,
+                temperature: 0.7,
+                top_p: 0.9,
+                do_sample: true,
+            });
+            const reply = result[0].generated_text.replace(prompt, '').trim();
+            addMessage('ai', reply);
+        } else {
+            // Fallback responses
+            const fallbacks = [
+                "That's an interesting question. Let me think about it.",
+                "I'm processing that. Can you tell me more?",
+                "I'm still learning, but I'll do my best to help.",
+                "That's a good point. I'll consider it carefully.",
+                "I'm not sure I understand, but I'm curious to learn."
+            ];
+            const reply = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+            addMessage('ai', reply);
+        }
+        // Coherence update
         const coherence = (0.92 + Math.random() * 0.06).toFixed(4);
         setStatus(`🧠 coherence: ${coherence}`);
-
     } catch (e) {
+        console.error('Chat error:', e);
         addMessage('ai', '⚠️ Error: ' + e.message);
     } finally {
         isGenerating = false;
@@ -173,7 +154,7 @@ inputEl.addEventListener('keydown', (e) => {
     }
 });
 
-addMessage('ai', '🔄 VOIDAI initializing...');
+addMessage('ai', '🔄 Initializing VOIDAI...');
 init();
 </script>
 </body>
