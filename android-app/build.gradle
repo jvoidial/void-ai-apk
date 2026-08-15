@@ -1,4 +1,4 @@
-// Top-level build file for Gradle 9.7.0
+// Top-level build file
 buildscript {
     repositories {
         google()
@@ -7,13 +7,6 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.7.0'
         classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.20'
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
     }
 }
 
