@@ -17,12 +17,25 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Copy WebLLM index.html to Android assets
+      - name: Copy and VERIFY WebLLM index.html
         run: |
+          echo "=== Checking source index.html ==="
+          head -3 app/src/main/assets/index.html
+          echo ""
+          echo "=== Copying to Android assets ==="
           mkdir -p android-app/app/src/main/assets
           cp app/src/main/assets/index.html android-app/app/src/main/assets/index.html
-          echo "✅ Copied index.html to Android assets"
-          head -5 android-app/app/src/main/assets/index.html
+          echo "=== Verifying copied file ==="
+          head -3 android-app/app/src/main/assets/index.html
+          echo ""
+          echo "=== Full content check (first 10 lines) ==="
+          head -10 android-app/app/src/main/assets/index.html
+          if grep -q "webllm" android-app/app/src/main/assets/index.html; then
+            echo "✅ WebLLM index.html successfully placed!"
+          else
+            echo "❌ ERROR: index.html does NOT contain WebLLM!"
+            exit 1
+          fi
 
       - name: Grant execute permission for gradlew
         run: chmod +x android-app/gradlew
