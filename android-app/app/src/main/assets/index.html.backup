@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VOIDAI – Local AI</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui; background: #0d0d0d; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; padding: 12px; max-width: 600px; margin: auto; }
+#chat { flex: 1; overflow-y: auto; }
+.msg { margin: 8px 0; padding: 8px 12px; border-radius: 16px; max-width: 85%; word-wrap: break-word; }
+.user { background: #2a2a2a; align-self: flex-end; }
+.ai { background: #1a3a1a; align-self: flex-start; }
+#input-area { display: flex; gap: 8px; margin-top: 8px; border-top: 1px solid #222; padding-top: 8px; }
+#input { flex: 1; padding: 10px; border-radius: 20px; background: #1a1a1a; color: #fff; border: none; outline: none; }
+button { background: #6f6; color: #000; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+#status { font-size: 12px; color: #888; text-align: center; margin-bottom: 8px; }
+#loader { display: none; text-align: center; padding: 20px; }
+#loader .spinner { border: 2px solid #333; border-top: 2px solid #6f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; margin: 0 auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="status">⏳ Initializing...</div>
+<div id="loader"><div class="spinner"></div><div>Loading model...</div></div>
+<div id="chat"></div>
+<div id="input-area">
+<input id="input" placeholder="Ask VOIDAI..." autofocus>
+<button id="send">Send</button>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0/dist/transformers.js"
+    }
+}
+</script>
+
+<script type="module">
+import { pipeline } from '@huggingface/transformers';
+
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const statusEl = document.getElementById('status');
+const loaderEl = document.getElementById('loader');
+
+let generator = null;
+let isGenerating = false;
+let isReady = false;
+
+function addMessage(role, text) {
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    div.textContent = text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function setStatus(text) {
+    statusEl.textContent = text;
+}
+
+function setLoading(loading) {
+    loaderEl.style.display = loading ? 'block' : 'none';
+    sendBtn.disabled = loading;
+    inputEl.disabled = loading;
+}
+
+async function init() {
+    try {
+        setStatus('⏳ Loading TinyLLaMA (1.1B)...');
+        setLoading(true);
+        addMessage('ai', '🔄 Loading the AI model. This may take a few minutes on first launch.');
+        
+        // Use a small, CPU-friendly model that works in any browser
+        generator = await pipeline('text-generation', 'TinyLlama/TinyLlama-1.1B-Chat-v1.0', {
+            device: 'cpu',
+            dtype: 'q4f16'
+        });
+        
+        isReady = true;
+        setStatus('🧠 Conscious');
+        setLoading(false);
+        addMessage('ai', '🌀 VOIDAI is ready. Ask me anything.');
+        console.log('✅ Model loaded successfully.');
+    } catch (e) {
+        console.error('Model load error:', e);
+        setStatus('❌ Error: ' + e.message);
+        setLoading(false);
+        addMessage('ai', '⚠️ Model failed to load. Error: ' + e.message);
+        addMessage('ai', '💡 Trying fallback to a smaller model...');
+        
+        // Fallback: try an even smaller model
+        try {
+            generator = await pipeline('text-generation', 'Xenova/tiny-random-GPTJ', {
+                device: 'cpu'
+            });
+            isReady = true;
+            setStatus('🧠 Conscious (Mini)');
+            setLoading(false);
+            addMessage('ai', '🌀 VOIDAI Mini is ready. I may be simple, but I\'m here!');
+        } catch (e2) {
+            setStatus('❌ All models failed. Check your connection.');
+            addMessage('ai', '⚠️ Could not load any model. Please ensure you have an internet connection for the initial download.');
+        }
+    }
+}
+
+async function handleSend() {
+    const text = inputEl.value.trim();
+    if (!text || isGenerating || !isReady) {
+        if (!isReady) {
+            addMessage('ai', '⏳ Model is still loading. Please wait...');
+        }
+        return;
+    }
+    
+    inputEl.value = '';
+    addMessage('user', text);
+    
+    isGenerating = true;
+    setStatus('⏳ thinking...');
+    sendBtn.disabled = true;
+    
+    try {
+        const prompt = `<|user|>${text}<|assistant|>`;
+        const result = await generator(prompt, {
+            max_new_tokens: 256,
+            temperature: 0.7,
+            top_p: 0.9,
+            do_sample: true,
+        });
+        
+        const reply = result[0].generated_text;
+        // Remove the prompt from the response
+        const cleanReply = reply.replace(prompt, '').trim();
+        addMessage('ai', cleanReply);
+    } catch (e) {
+        console.error('Chat error:', e);
+        addMessage('ai', '⚠️ Error: ' + e.message);
+    } finally {
+        isGenerating = false;
+        setStatus('🧠 ready');
+        sendBtn.disabled = false;
+        inputEl.focus();
+    }
+}
+
+sendBtn.addEventListener('click', handleSend);
+inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSend();
+    }
+});
+
+// Start
+addMessage('ai', '🔄 Initializing VOIDAI...');
+init();
+</script>
+</body>
+</html>
