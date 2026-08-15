@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
             webViewClient = WebViewClient()
             webChromeClient = WebChromeClient()
 
-            loadUrl("file:///android_asset/voidai_chat.html")
+            loadUrl("file:///android_asset/index.html")
         }
 
         setContentView(web)
