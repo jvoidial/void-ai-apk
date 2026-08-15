@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace 'com.voidai.void'
+    namespace 'com.voidai.app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.voidai.void"
+        applicationId "com.voidai.app"
         minSdk 21
         targetSdk 34
         versionCode 1
