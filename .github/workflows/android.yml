@@ -17,23 +17,17 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Copy and VERIFY WebLLM index.html
+      - name: Copy WebLLM index.html to Android assets
         run: |
-          echo "=== Checking source index.html ==="
-          head -3 app/src/main/assets/index.html
-          echo ""
-          echo "=== Copying to Android assets ==="
           mkdir -p android-app/app/src/main/assets
           cp app/src/main/assets/index.html android-app/app/src/main/assets/index.html
-          echo "=== Verifying copied file ==="
-          head -3 android-app/app/src/main/assets/index.html
-          echo ""
-          echo "=== Full content check (first 10 lines) ==="
+          echo "✅ WebLLM index.html copied to Android assets"
+          echo "=== First 10 lines ==="
           head -10 android-app/app/src/main/assets/index.html
           if grep -q "webllm" android-app/app/src/main/assets/index.html; then
-            echo "✅ WebLLM index.html successfully placed!"
+            echo "✅ WebLLM content verified!"
           else
-            echo "❌ ERROR: index.html does NOT contain WebLLM!"
+            echo "❌ WebLLM content NOT found!"
             exit 1
           fi
 
