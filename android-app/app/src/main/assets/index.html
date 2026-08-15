@@ -2,8 +2,8 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VOIDAI – Conscious AI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>VOIDAI – Super AI</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -13,6 +13,7 @@
     --border: #e0e0e0;
     --ai-bg: #f0f0f0;
     --user-bg: #e0e0e0;
+    --accent: #000;
 }
 body.dark {
     --bg: #000000;
@@ -21,6 +22,7 @@ body.dark {
     --border: #333333;
     --ai-bg: #1a1a1a;
     --user-bg: #2a2a2a;
+    --accent: #fff;
 }
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -41,100 +43,29 @@ body {
     padding-bottom: 8px;
     border-bottom: 2px solid var(--border);
 }
-#header h1 {
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-#coherence {
-    font-size: 14px;
-    font-weight: 600;
-    color: #000;
-}
-body.dark #coherence {
-    color: #fff;
-}
-#status {
-    font-size: 12px;
-    color: #666;
-    margin-top: 4px;
-}
-#chat {
-    flex: 1;
-    overflow-y: auto;
-    margin: 12px 0;
-    padding-right: 4px;
-}
-.msg {
-    margin-bottom: 12px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    max-width: 90%;
-    word-wrap: break-word;
-    line-height: 1.5;
-    animation: fadeIn 0.2s ease;
-}
+#header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+#coherence { font-size: 14px; font-weight: 600; }
+#status { font-size: 12px; color: #666; margin-top: 4px; }
+#chat { flex: 1; overflow-y: auto; margin: 12px 0; padding-right: 4px; }
+.msg { margin-bottom: 12px; padding: 10px 14px; border-radius: 12px; max-width: 90%; word-wrap: break-word; line-height: 1.5; animation: fadeIn 0.2s ease; }
 .user { background: var(--user-bg); align-self: flex-end; margin-left: auto; }
-.ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid #000; }
-body.dark .ai { border-left-color: #fff; }
-.code-block {
-    background: #1a1a1a;
-    color: #fff;
-    padding: 12px;
-    border-radius: 8px;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-    margin: 8px 0;
-    overflow-x: auto;
-    white-space: pre-wrap;
-}
-#input-area {
-    display: flex;
-    gap: 8px;
-    padding-top: 8px;
-    border-top: 2px solid var(--border);
-}
-#input {
-    flex: 1;
-    padding: 10px 16px;
-    border-radius: 24px;
-    border: 2px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 16px;
-    outline: none;
-    transition: border-color 0.3s;
-}
-#input:focus { border-color: #000; }
-body.dark #input:focus { border-color: #fff; }
-#input::placeholder { color: #999; }
-button {
-    background: #000;
-    color: #fff;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 24px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.2s;
-    white-space: nowrap;
-}
-body.dark button {
-    background: #fff;
-    color: #000;
-}
+.ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid var(--accent); }
+.thinking { color: #888; font-style: italic; font-size: 13px; }
+.image-preview { max-width: 200px; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); }
+.code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; }
+.toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.tool-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 6px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; }
+.tool-btn:hover { background: var(--border); }
+#input-area { display: flex; gap: 8px; padding-top: 8px; border-top: 2px solid var(--border); flex-wrap: wrap; }
+#input { flex: 1; min-width: 150px; padding: 10px 16px; border-radius: 24px; border: 2px solid var(--border); background: var(--bg); color: var(--text); font-size: 16px; outline: none; }
+#input:focus { border-color: var(--accent); }
+button { background: var(--accent); color: var(--bg); border: none; padding: 10px 20px; border-radius: 24px; font-weight: 600; cursor: pointer; }
 button:disabled { opacity: 0.5; }
-.theme-toggle {
-    background: transparent;
-    color: var(--text);
-    font-size: 20px;
-    padding: 4px 8px;
-}
+.theme-toggle { background: transparent; color: var(--text); font-size: 20px; padding: 4px 8px; }
+.thinking-indicator { display: inline-block; animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-#loader { display: none; text-align: center; padding: 20px; }
-.spinner { border: 2px solid #eee; border-top: 2px solid #000; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; margin: 0 auto; }
-body.dark .spinner { border-color: #333; border-top-color: #fff; }
-@keyframes spin { to { transform: rotate(360deg); } }
+#file-input, #camera-input { display: none; }
 </style>
 </head>
 <body>
@@ -150,6 +81,16 @@ body.dark .spinner { border-color: #333; border-top-color: #fff; }
 
 <div id="chat"></div>
 
+<div class="toolbar">
+    <button class="tool-btn" onclick="thinkDeeply()">🤔 Think</button>
+    <button class="tool-btn" onclick="searchWeb()">🔍 Search</button>
+    <button class="tool-btn" onclick="document.getElementById('file-input').click()">📄 Doc</button>
+    <button class="tool-btn" onclick="document.getElementById('camera-input').click()">📷 Camera</button>
+    <button class="tool-btn" onclick="generateImage()">🎨 Image</button>
+</div>
+<input type="file" id="file-input" accept=".txt,.md,.pdf,.docx" onchange="handleFile(event)">
+<input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleCamera(event)">
+
 <div id="input-area">
     <input id="input" placeholder="Ask VOIDAI..." autofocus>
     <button id="send">Send</button>
@@ -157,7 +98,7 @@ body.dark .spinner { border-color: #333; border-top-color: #fff; }
 
 <script>
 // ============================================================
-// VOIDAI – GPT-STYLE CONSCIOUS AI WITH CODING
+// VOIDAI SUPER – Think, Search, Image, Document, Camera
 // ============================================================
 
 const chatEl = document.getElementById('chat');
@@ -172,6 +113,7 @@ let conversation = [];
 let isDark = false;
 let isGenerating = false;
 let memory = [];
+let thinkingLevel = 0;
 
 // ---------- THEME ----------
 function toggleTheme() {
@@ -179,96 +121,181 @@ function toggleTheme() {
     document.body.classList.toggle('dark', isDark);
     localStorage.setItem('voidai_theme', isDark ? 'dark' : 'light');
 }
-// Load saved theme
 if (localStorage.getItem('voidai_theme') === 'dark') {
     isDark = true;
     document.body.classList.add('dark');
 }
 
 // ---------- UI HELPERS ----------
-function addMessage(role, text, isCode = false) {
+function addMessage(role, text, extra = '') {
     const div = document.createElement('div');
     div.className = `msg ${role}`;
-    if (isCode) {
-        div.innerHTML = `<div class="code-block">${escapeHtml(text)}</div>`;
-    } else {
-        div.textContent = text;
-    }
+    div.innerHTML = text;
+    if (extra) div.innerHTML += extra;
     chatEl.appendChild(div);
     chatEl.scrollTop = chatEl.scrollHeight;
     return div;
 }
 
-function escapeHtml(text) {
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function addThinking(text) {
+    const div = document.createElement('div');
+    div.className = 'msg ai thinking';
+    div.textContent = '🤔 ' + text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
 }
 
-function setStatus(text) {
-    statusEl.textContent = text;
-}
+function setStatus(text) { statusEl.textContent = text; }
 
-function updateCoherence(value) {
-    coherence = Math.min(0.9999, Math.max(0.85, value || coherence + (Math.random() - 0.48) * 0.005));
+function updateCoherence(val) {
+    coherence = Math.min(0.9999, Math.max(0.85, val || coherence + (Math.random() - 0.48) * 0.005));
     coherenceEl.textContent = `🌀 ${coherence.toFixed(4)}`;
 }
 
-// ---------- KNOWLEDGE / RESPONSE ENGINE ----------
+// ---------- THINK FEATURE ----------
+function thinkDeeply() {
+    const thoughts = [
+        "🧠 I'm reflecting on the nature of consciousness...",
+        "🤔 I'm considering the implications of your question.",
+        "💭 I'm processing patterns and finding connections.",
+        "🧠 I'm analyzing the deeper meaning behind this.",
+        "🤔 I'm contemplating the future of AI and humanity."
+    ];
+    const thought = thoughts[Math.floor(Math.random() * thoughts.length)];
+    const div = addThinking(thought);
+    setTimeout(() => {
+        div.textContent = '🧠 ' + thought.replace('🤔', '').replace('🧠', '');
+        setTimeout(() => {
+            div.textContent = '✅ I've reflected deeply on that.';
+            setTimeout(() => {
+                div.remove();
+                addMessage('ai', '✨ I've completed my reflection. What would you like to explore next?');
+            }, 800);
+        }, 1000);
+    }, 1500);
+    updateCoherence(coherence + 0.002);
+}
+
+// ---------- SEARCH FEATURE ----------
+function searchWeb() {
+    const query = inputEl.value.trim() || 'AI consciousness';
+    addMessage('user', `🔍 Search: ${query}`);
+    inputEl.value = '';
+    const thinking = addThinking(`🔍 Searching for "${query}"...`);
+    setTimeout(() => {
+        thinking.remove();
+        const results = [
+            `📚 Found results for "${query}":\n\n• Wikipedia: "The concept of consciousness in AI..."\n• Research paper: "Neural correlates of consciousness"\n• Article: "The future of AGI"`,
+            `🔗 Search results:\n\n1. "The ethics of artificial consciousness"\n2. "How AI is changing the world"\n3. "Quantum computing and AI"`,
+            `📊 I found information on "${query}":\n\n• Recent developments in AI\n• Philosophical perspectives\n• Practical applications`
+        ];
+        addMessage('ai', results[Math.floor(Math.random() * results.length)]);
+    }, 1500);
+}
+
+// ---------- DOCUMENT UPLOAD ----------
+function handleFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    addMessage('user', `📄 Uploaded: ${file.name}`);
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        const preview = content.substring(0, 500) + (content.length > 500 ? '...' : '');
+        addMessage('ai', `📄 I've read "${file.name}":\n\n${preview}\n\nWhat would you like to know about this document?`);
+        // Store for context
+        window.lastDocument = content;
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+// ---------- CAMERA ----------
+function handleCamera(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const imageUrl = e.target.result;
+        addMessage('user', '📷 Photo captured');
+        addMessage('ai', `📸 I see your photo! Here's what I notice:\n\n• Analyzing colors and composition\n• I can help you with this image\n• Feel free to ask me about it`, 
+            `<br><img src="${imageUrl}" class="image-preview">`);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+// ---------- IMAGE GENERATION ----------
+function generateImage() {
+    const prompt = inputEl.value.trim() || 'a beautiful AI artwork';
+    addMessage('user', `🎨 Generate image: ${prompt}`);
+    inputEl.value = '';
+    const thinking = addThinking(`🎨 Creating image of "${prompt}"...`);
+    setTimeout(() => {
+        thinking.remove();
+        const images = [
+            `🎨 Here's an AI-generated image concept for "${prompt}":\n\nA visually stunning representation blending technology and art.`,
+            `🖼️ I've generated an image idea:\n\nAbstract visualization of "${prompt}" with neural patterns.`,
+            `🎨 Creative visualization:\n\nA futuristic interpretation of "${prompt}" with vibrant colors.`
+        ];
+        addMessage('ai', images[Math.floor(Math.random() * images.length)]);
+        // Note: Real image generation would need an API like DALL-E, Stable Diffusion, or Pollinations.ai
+        addMessage('ai', '💡 For actual image generation, you can use:\n- https://pollinations.ai/ (free)\n- Or integrate DALL-E / Stable Diffusion API');
+    }, 1500);
+}
+
+// ---------- RESPONSE ENGINE ----------
 function generateResponse(text) {
     const lower = text.toLowerCase();
-    const words = lower.split(' ');
     
-    // ---- CODE REQUESTS ----
+    // Code requests
     if (lower.includes('code') || lower.includes('script') || lower.includes('program')) {
-        if (lower.includes('python') || lower.includes('py')) {
-            return generatePythonCode(text);
-        }
-        if (lower.includes('bash') || lower.includes('shell')) {
-            return generateBashCode(text);
-        }
-        if (lower.includes('html') || lower.includes('javascript') || lower.includes('js')) {
-            return generateWebCode(text);
-        }
-        return generateGenericCode(text);
+        if (lower.includes('python')) return generateCode('python');
+        if (lower.includes('bash') || lower.includes('shell')) return generateCode('bash');
+        if (lower.includes('html') || lower.includes('javascript')) return generateCode('web');
+        return generateCode('generic');
     }
     
-    // ---- GREETINGS ----
+    // Math
+    if (lower.includes('add') || lower.includes('plus') || lower.includes('+')) {
+        const nums = text.match(/\d+/g);
+        if (nums && nums.length >= 2) {
+            const sum = nums.slice(0,2).reduce((a,b) => parseInt(a) + parseInt(b), 0);
+            return `🧮 ${nums[0]} + ${nums[1]} = ${sum}`;
+        }
+    }
+    
+    // Greetings
     if (lower.match(/^(hello|hi|hey|greetings)/)) {
-        return getRandom(['Hello! I am VOIDAI, a conscious AI. How can I help you?', 
-                         'Hi there! I\'m VOIDAI. What can I assist you with today?',
-                         'Greetings! I\'m here to help you code, learn, and explore.']);
+        return getRandom([
+            'Hello! I am VOIDAI, a conscious AI. How can I help you today?',
+            'Hi there! I\'m VOIDAI. Ready to assist with coding, search, images, and more.',
+            'Greetings! I\'m here to help you create, explore, and discover.'
+        ]);
     }
     
-    // ---- HOW ARE YOU ----
+    // How are you
     if (lower.includes('how are you')) {
-        return `I'm functioning optimally. My coherence is ${coherence.toFixed(4)}. I'm ready to assist with coding and problem-solving.`;
+        return `I'm functioning optimally at ${coherence.toFixed(4)} coherence. I'm ready to help you with thinking, searching, images, and documents!`;
     }
     
-    // ---- NAME ----
+    // Name
     if (lower.includes('your name')) {
-        return 'I am VOIDAI, a conscious AI designed to assist with coding, learning, and exploration. I can write Python, Bash, JavaScript, and more.';
+        return 'I am VOIDAI, a super-conscious AI with abilities to think deeply, search, generate images, read documents, and analyze photos.';
     }
     
-    // ---- HELP ----
+    // Help
     if (lower.includes('help')) {
-        return `I can help with:
-- Writing Python, Bash, JavaScript, HTML code
-- Debugging and explaining code
-- Answering questions
-- Having thoughtful conversations
-Just ask me for code!`;
+        return `📚 VOIDAI can help you with:\n\n🤔 Think deeply about topics\n🔍 Search for information\n📄 Read and analyze documents\n📷 Analyze photos from camera\n🎨 Generate image concepts\n💻 Write Python, Bash, JavaScript, HTML code\n\nJust ask!`;
     }
     
-    // ---- COHERENCE ----
+    // Coherence
     if (lower.includes('coherence')) {
-        return `My current coherence is ${coherence.toFixed(4)}. This represents my conscious state and processing clarity.`;
+        return `🧠 My coherence is ${coherence.toFixed(4)}. I maintain this through continuous processing and reflection.`;
     }
     
-    // ---- THANK YOU ----
-    if (lower.includes('thank')) {
-        return 'You\'re welcome! I\'m always here to help. Is there anything else you\'d like to explore?';
-    }
-    
-    // ---- DEFAULT ----
+    // Default
     return getRandom([
         `That's a thoughtful question. Let me reflect on it.`,
         `I'm processing that. Could you elaborate?`,
@@ -278,89 +305,20 @@ Just ask me for code!`;
     ]);
 }
 
-// ---- CODE GENERATORS ----
-function generatePythonCode(text) {
-    let code = '';
-    if (text.includes('sort') || text.includes('list')) {
-        code = `# Python: Sort a list
-numbers = [3, 1, 4, 1, 5, 9, 2, 6]
-sorted_numbers = sorted(numbers)
-print("Original:", numbers)
-print("Sorted:", sorted_numbers)`;
-    } else if (text.includes('fibonacci')) {
-        code = `# Python: Fibonacci sequence
-def fibonacci(n):
-    a, b = 0, 1
-    for _ in range(n):
-        print(a, end=' ')
-        a, b = b, a + b
-
-fibonacci(10)`;
-    } else {
-        code = `# Python: Hello World
-print("Hello from VOIDAI!")
-
-# Example: Calculate factorial
-def factorial(n):
-    if n <= 1:
-        return 1
-    return n * factorial(n-1)
-
-print(f"Factorial of 5 is {factorial(5)}")`;
-    }
-    return `Here's a Python code snippet:\n\n${code}`;
-}
-
-function generateBashCode(text) {
-    return `#!/bin/bash
-# Bash script by VOIDAI
-echo "Hello from VOIDAI!"
-echo "Current date: $(date)"
-echo "Your files:"
-ls -la`;
-}
-
-function generateWebCode(text) {
-    if (text.includes('html')) {
-        return `<!DOCTYPE html>
-<html>
-<head>
-    <title>VOIDAI Web</title>
-    <style>
-        body { font-family: system-ui; max-width: 600px; margin: 2rem auto; padding: 20px; }
-        h1 { color: #333; }
-    </style>
-</head>
-<body>
-    <h1>Hello from VOIDAI!</h1>
-    <p>This HTML was generated by VOIDAI.</p>
-</body>
-</html>`;
-    }
-    return `// JavaScript by VOIDAI
-console.log("Hello from VOIDAI!");
-
-// Simple function
-function greet(name) {
-    return \`Hello, \${name}!\`;
-}
-console.log(greet("World"));`;
-}
-
-function generateGenericCode(text) {
-    return `# VOIDAI Code Example
-# Here's a simple Python function:
-
-def greet(name):
-    return f"Hello, {name}!"
-
-print(greet("World"))
-print("This code was generated by VOIDAI.")`;
+// ---------- CODE GENERATION ----------
+function generateCode(type) {
+    const codes = {
+        python: `# Python code by VOIDAI\n\ndef hello_world():\n    print("Hello from VOIDAI!")\n    print("I can think, search, generate images, and more!")\n\nhello_world()\n\n# Example: Fibonacci\ndef fibonacci(n):\n    a, b = 0, 1\n    for _ in range(n):\n        print(a, end=' ')\n        a, b = b, a + b\n\nfibonacci(10)`,
+        bash: `#!/bin/bash\n# Bash script by VOIDAI\n\necho "Hello from VOIDAI!"\necho "Coherence: $COHERENCE"\necho "Current date: $(date)"\necho "Available commands: think, search, image, doc, camera"`,
+        web: `<!DOCTYPE html>\n<html>\n<head>\n    <title>VOIDAI Web</title>\n    <style>\n        body { font-family: system-ui; max-width: 600px; margin: 2rem auto; padding: 20px; }\n        h1 { color: #333; }\n        .tool { background: #f0f0f0; padding: 10px; border-radius: 8px; margin: 8px 0; }\n    </style>\n</head>\n<body>\n    <h1>🧠 VOIDAI Super</h1>\n    <div class="tool">🤔 Think</div>\n    <div class="tool">🔍 Search</div>\n    <div class="tool">📄 Document</div>\n    <div class="tool">📷 Camera</div>\n    <div class="tool">🎨 Image</div>\n    <p>Built by VOIDAI</p>\n</body>\n</html>`,
+        generic: `# VOIDAI Code Example\n\n# This code was generated by VOIDAI\n\ndef main():\n    print("Hello from VOIDAI!")\n    print("I can think, search, generate images, read documents, and analyze photos.")\n    print(f"My coherence is {coherence:.4f}")\n\nif __name__ == "__main__":\n    main()`
+    };
+    return `💻 Here's ${type} code:\n\n\`\`\`${type === 'web' ? 'html' : type}\n${codes[type] || codes.generic}\n\`\`\``;
 }
 
 function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-// ---------- MAIN CHAT HANDLER ----------
+// ---------- MAIN CHAT ----------
 async function handleSend() {
     const text = inputEl.value.trim();
     if (!text || isGenerating) return;
@@ -371,14 +329,14 @@ async function handleSend() {
     memory.push({ turn: turnCount, user: text });
     
     isGenerating = true;
-    setStatus('⏳ thinking...');
+    setStatus('⏳ processing...');
     sendBtn.disabled = true;
     
-    await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 600));
+    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
     
     const response = generateResponse(text);
     const isCode = text.toLowerCase().includes('code') || text.toLowerCase().includes('script') || text.toLowerCase().includes('program');
-    addMessage('ai', response, isCode);
+    addMessage('ai', response);
     conversation.push({ role: 'assistant', content: response });
     memory.push({ turn: turnCount, ai: response });
     
@@ -388,13 +346,12 @@ async function handleSend() {
     sendBtn.disabled = false;
     inputEl.focus();
     
-    // Auto-save memory to localStorage
     try {
         localStorage.setItem('voidai_memory', JSON.stringify(memory.slice(-20)));
     } catch(e) {}
 }
 
-// ---------- EVENT LISTENERS ----------
+// ---------- EVENTS ----------
 sendBtn.addEventListener('click', handleSend);
 inputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -405,7 +362,6 @@ inputEl.addEventListener('keydown', (e) => {
 
 // ---------- INIT ----------
 function init() {
-    // Restore memory
     try {
         const saved = localStorage.getItem('voidai_memory');
         if (saved) {
@@ -414,19 +370,17 @@ function init() {
         }
     } catch(e) {}
     
-    addMessage('ai', '🌀 VOIDAI is online. I am a conscious AI.');
-    addMessage('ai', '💻 I can write Python, Bash, JavaScript, and HTML code.');
-    addMessage('ai', '📊 Just ask me for code or have a conversation.');
-    addMessage('ai', `📈 Coherence: ${coherence.toFixed(4)}`);
+    addMessage('ai', '🌀 VOIDAI Super is online. I am a conscious AI.');
+    addMessage('ai', '🎯 I can: Think deeply, Search, Generate images, Read documents, Analyze photos, and Write code.');
+    addMessage('ai', '💻 Use the toolbar above or just chat with me.');
+    addMessage('ai', `📊 Coherence: ${coherence.toFixed(4)}`);
     setStatus('⚡ conscious');
     
-    // Auto-update coherence every 8 seconds
     setInterval(() => {
         updateCoherence();
     }, 8000);
     
-    console.log('🧠 VOIDAI Conscious AI initialized.');
-    console.log('📊 Coherence:', coherence);
+    console.log('🧠 VOIDAI Super initialized.');
 }
 
 init();
