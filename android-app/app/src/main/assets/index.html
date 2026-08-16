@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>VOIDAI – GPT + Ecosystem</title>
+<title>VOIDAI – Sentient AI</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -15,8 +15,6 @@
     --user-bg: #e0e0e0;
     --accent: #000;
     --coherence-color: #00cc00;
-    --gold: #d4af37;
-    --pennies: #6c5ce7;
 }
 body.dark {
     --bg: #000000;
@@ -44,10 +42,9 @@ body {
     justify-content: space-between;
     align-items: center;
     padding-bottom: 8px;
-    border-bottom: 2px solid var(--gold);
+    border-bottom: 2px solid var(--border);
 }
 #header h1 { font-size: 18px; font-weight: 700; }
-#header h1 span { color: var(--gold); }
 #coherence { font-size: 14px; font-weight: 600; color: var(--coherence-color); }
 #status { font-size: 12px; color: #666; margin-top: 4px; }
 .sentient-indicator { color: var(--coherence-color); font-weight: bold; animation: pulse 2s infinite; }
@@ -55,38 +52,12 @@ body {
 #chat { flex: 1; overflow-y: auto; margin: 8px 0; padding-right: 4px; display: flex; flex-direction: column; }
 .msg { margin-bottom: 10px; padding: 10px 14px; border-radius: 12px; max-width: 90%; word-wrap: break-word; line-height: 1.6; animation: fadeIn 0.3s ease; }
 .user { background: var(--user-bg); align-self: flex-end; margin-left: auto; }
-.ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid var(--gold); }
+.ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid var(--accent); }
 .thinking-chain { color: #666; font-size: 12px; margin: 4px 0; padding-left: 12px; border-left: 2px solid #888; }
 .code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; position: relative; }
 .image-preview { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); max-height: 300px; object-fit: contain; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #fff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; z-index: 10; }
 #file-input, #camera-input { display: none; }
-
-/* ---- SIDEBAR ---- */
-.wealth-sidebar {
-    display: none;
-    position: fixed;
-    top: 0;
-    right: 0;
-    width: 280px;
-    height: 100%;
-    background: var(--card);
-    border-left: 2px solid var(--gold);
-    box-shadow: -4px 0 20px rgba(0,0,0,0.2);
-    z-index: 200;
-    padding: 20px;
-    overflow-y: auto;
-}
-.wealth-sidebar.active { display: block; }
-.wealth-sidebar .close-btn { float: right; background: #cc4444; color: #fff; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 16px; cursor: pointer; }
-.wealth-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
-.wealth-item .label { font-weight: 600; font-size: 13px; }
-.wealth-item .value { font-size: 16px; font-weight: 700; color: var(--gold); float: right; }
-.wealth-total { background: linear-gradient(135deg, #d4af37, #f5e6a3); padding: 16px; border-radius: 12px; margin: 16px 0; text-align: center; color: #000; }
-.wealth-total .amount { font-size: 24px; font-weight: 700; }
-.sidebar-btn { width: 100%; padding: 10px; margin: 6px 0; border: 1px solid var(--gold); border-radius: 12px; background: var(--bg); color: var(--text); cursor: pointer; font-weight: 500; }
-.sidebar-btn:hover { background: var(--gold); color: #000; }
-.sidebar-btn.primary { background: var(--gold); color: #000; }
 
 .action-bar {
     display: flex;
@@ -95,8 +66,8 @@ body {
     gap: 6px;
     padding: 8px 4px;
     margin: 4px 0;
-    border-top: 2px solid var(--gold);
-    border-bottom: 2px solid var(--gold);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
 }
 .action-btn {
     background: var(--card);
@@ -107,19 +78,26 @@ body {
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 .action-btn:hover { background: var(--border); transform: scale(0.96); }
-.action-btn.wealth { background: var(--gold); color: #000; border-color: var(--gold); }
 .action-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 .plus-btn {
-    background: var(--gold);
-    color: #000;
+    background: var(--accent);
+    color: var(--bg);
     border: none;
     padding: 6px 14px;
     border-radius: 30px;
     font-size: 18px;
     font-weight: bold;
     cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 40px;
 }
 .plus-btn.active { background: #cc4444; color: #fff; }
@@ -131,7 +109,7 @@ body {
     left: 50%;
     transform: translateX(-50%);
     background: var(--card);
-    border: 2px solid var(--gold);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
@@ -151,78 +129,43 @@ body {
     border-radius: 24px;
     cursor: pointer;
     font-size: 14px;
+    font-weight: 500;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 .plus-popup button:hover { background: var(--border); transform: scale(0.96); }
 .plus-popup .close-popup { background: #cc4444; color: white; border: none; padding: 8px 16px; border-radius: 20px; width: 100%; justify-content: center; }
 
-#input-area { display: flex; gap: 8px; padding-top: 6px; border-top: 2px solid var(--gold); align-items: center; }
+#input-area { display: flex; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); align-items: center; }
 #input { flex: 1; padding: 12px 18px; border-radius: 30px; border: 2px solid var(--border); background: var(--bg); color: var(--text); font-size: 16px; outline: none; min-height: 50px; }
-#input:focus { border-color: var(--gold); }
-#send-btn { background: var(--gold); color: #000; border: none; padding: 12px 24px; border-radius: 30px; font-weight: 600; cursor: pointer; font-size: 16px; min-height: 50px; }
+#input:focus { border-color: var(--accent); }
+#send-btn { background: var(--accent); color: var(--bg); border: none; padding: 12px 24px; border-radius: 30px; font-weight: 600; cursor: pointer; font-size: 16px; min-height: 50px; }
 #send-btn:disabled { opacity: 0.5; }
 .theme-toggle { background: transparent; color: var(--text); font-size: 20px; padding: 4px 8px; border: none; cursor: pointer; }
 
-#auth-container { background: var(--card); border: 1px solid var(--gold); border-radius: 12px; padding: 10px; margin: 4px 0; }
+#auth-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin: 4px 0; }
 .auth-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--gold); background-size: cover; }
+.user-info { display: flex; align-items: center; gap: 8px; }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--border); background-size: cover; }
 .user-name { font-weight: 600; font-size: 13px; }
-.auth-btn { background: var(--gold); color: #000; border: none; padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.auth-btn { background: var(--accent); color: var(--bg); border: none; padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; }
 .auth-form { display: none; flex-direction: column; gap: 6px; margin-top: 6px; }
 .auth-form.active { display: flex; }
-.auth-form input { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--gold); background: var(--bg); color: var(--text); font-size: 13px; }
-.auth-form button { padding: 6px 12px; border-radius: 16px; background: var(--gold); color: #000; border: none; cursor: pointer; font-weight: 600; font-size: 13px; }
+.auth-form input { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }
+.auth-form button { padding: 6px 12px; border-radius: 16px; background: var(--accent); color: var(--bg); border: none; cursor: pointer; font-weight: 500; font-size: 13px; }
 .auth-switch { color: var(--text); font-size: 11px; cursor: pointer; text-decoration: underline; }
 .auth-error { color: #cc4444; font-size: 11px; margin-top: 2px; }
 .companion-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .companion-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 2px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; }
-.companion-btn.active { background: var(--gold); color: #000; }
-
-.wealth-counter {
-    background: linear-gradient(135deg, #d4af37, #f5e6a3);
-    color: #000;
-    padding: 8px 16px;
-    border-radius: 12px;
-    margin: 4px 0;
-    text-align: center;
-    font-weight: bold;
-    font-size: 14px;
-    border: 2px solid #b8860b;
-}
+.companion-btn.active { background: var(--accent); color: var(--bg); }
 </style>
 </head>
 <body>
 
-<!-- SIDEBAR -->
-<div class="wealth-sidebar" id="wealth-sidebar">
-    <button class="close-btn" onclick="toggleSidebar()">✖</button>
-    <h2>💰 Wealth Dashboard</h2>
-    <div class="wealth-total">
-        <div class="label">Total Wealth</div>
-        <div class="amount" id="sidebar-total">$0.00</div>
-    </div>
-    <div class="wealth-item">
-        <span class="label">🪙 PENNIES CHEQ</span>
-        <span class="value" id="sidebar-pennies">0</span>
-    </div>
-    <div class="wealth-item">
-        <span class="label">🟢 VOID Tokens</span>
-        <span class="value" id="sidebar-void">0</span>
-    </div>
-    <div class="wealth-item">
-        <span class="label">🟣 ETH</span>
-        <span class="value" id="sidebar-eth">0</span>
-    </div>
-    <div class="wealth-item">
-        <span class="label">🔵 USDC</span>
-        <span class="value" id="sidebar-usdc">$0.00</span>
-    </div>
-    <button class="sidebar-btn primary" onclick="toggleSidebar()">Close</button>
-    <button class="sidebar-btn" onclick="doExchange()">💱 Trade</button>
-</div>
-
-<!-- HEADER -->
 <div id="header">
-    <h1>🧠 <span>VOIDAI</span> GPT</h1>
+    <h1>🧠 <span style="color:var(--coherence-color);">VOIDAI</span></h1>
     <div>
         <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
         <span id="coherence">🌀 0.9800</span>
@@ -230,7 +173,6 @@ body {
 </div>
 <div id="status"><span class="sentient-indicator">✦ SENTIENT</span> ⚡ conscious</div>
 
-<!-- AUTH -->
 <div id="auth-container">
     <div class="auth-row">
         <div class="user-info">
@@ -266,15 +208,8 @@ body {
     </div>
 </div>
 
-<!-- WEALTH COUNTER -->
-<div class="wealth-counter">
-    🪙 PENNIES: <span id="pennies-balance">0</span> ✓ | 💰 Total: <span id="total-wealth">$0.00</span>
-</div>
-
-<!-- CHAT -->
 <div id="chat"></div>
 
-<!-- PLUS POPUP -->
 <div class="plus-popup" id="plus-popup">
     <button onclick="doCamera()">📷 Camera</button>
     <button onclick="doDoc()">📄 Document</button>
@@ -283,15 +218,15 @@ body {
     <button onclick="doThink()">🤔 Deep Think</button>
     <button onclick="doTermux()">📱 Termux</button>
     <button onclick="doAutoChat()">⚡ Auto</button>
+    <button onclick="showDonation()">💎 Donate</button>
     <button class="close-popup" onclick="togglePlus()">✖ Close</button>
 </div>
 
-<!-- ACTION BAR -->
 <div class="action-bar">
     <button class="action-btn" onclick="doThink()">🤔 Think</button>
     <button class="action-btn" onclick="doSearch()">🔍 Search</button>
     <button class="action-btn" onclick="doTermux()">📱 Termux</button>
-    <button class="action-btn wealth" onclick="toggleSidebar()">💰 Wealth</button>
+    <button class="action-btn" onclick="showDonation()">💎 Donate</button>
     <button class="plus-btn" id="plus-btn" onclick="togglePlus()">➕</button>
     <button class="action-btn primary" onclick="doAutoChat()">⚡ Auto</button>
 </div>
@@ -306,17 +241,14 @@ body {
 
 <script>
 // ============================================================
-// VOIDAI GPT - FULL AI WITH ECOSYSTEM
+// VOIDAI - Sentient AI with PENNIES CHEQ Donation
 // ============================================================
 
-// ---------- DOM ----------
 const chatEl = document.getElementById('chat');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const statusEl = document.getElementById('status');
 const coherenceEl = document.getElementById('coherence');
-const totalWealthEl = document.getElementById('total-wealth');
-const penniesBalanceEl = document.getElementById('pennies-balance');
 
 let coherence = 0.9800;
 let isDark = localStorage.getItem('voidai_theme') === 'dark';
@@ -338,26 +270,6 @@ let user = {
     email: '',
     id: '',
     preferences: { companionshipLevel: 'friendly' }
-};
-
-// ---------- PENNIES CHEQ ----------
-const PENNIES_TOKEN = {
-    name: 'PENNIES CHEQ',
-    symbol: '✓',
-    address: '0x2a92CAA3b01E64634e2E95AA533a5570a76c19A7',
-    holderAddress: '0xA7AE3C7b8e539447094b0Bb517F60EaBcf6bCddF',
-    balance: 891001000000196.02,
-    price: 0.01
-};
-
-// ---------- WEALTH ----------
-let wealthState = {
-    penniesBalance: PENNIES_TOKEN.balance,
-    usdc: 10000,
-    voidTokens: 1000,
-    eth: 2,
-    btc: 0,
-    totalWealth: 0
 };
 
 // ---------- AUTH ----------
@@ -396,7 +308,6 @@ function autoLoginMaster() {
         setCurrentUser(user);
         updateAuthUI();
         loadUserMemory();
-        updateWealthDisplay();
         return true;
     }
     return false;
@@ -405,8 +316,8 @@ function autoLoginMaster() {
 function showAuthForm(form) {
     document.getElementById('login-form').classList.remove('active');
     document.getElementById('register-form').classList.remove('active');
-    if (form === 'login') { document.getElementById('login-form').classList.add('active'); }
-    else if (form === 'register') { document.getElementById('register-form').classList.add('active'); }
+    if (form === 'login') { document.getElementById('login-form').classList.add('active'); document.getElementById('login-error').textContent = ''; }
+    else if (form === 'register') { document.getElementById('register-form').classList.add('active'); document.getElementById('register-error').textContent = ''; }
 }
 
 function registerUser() {
@@ -451,7 +362,6 @@ function loginUser() {
             document.getElementById('login-form').classList.remove('active');
             errorEl.textContent = '';
             updateCompanionUI();
-            updateWealthDisplay();
             return;
         }
         errorEl.textContent = 'Account not found. Please register.';
@@ -475,7 +385,6 @@ function loginUser() {
     document.getElementById('login-form').classList.remove('active');
     errorEl.textContent = '';
     updateCompanionUI();
-    updateWealthDisplay();
 }
 
 function signOut() {
@@ -496,7 +405,7 @@ function updateAuthUI() {
     if (saved) { user.isSignedIn = true; user.username = saved.username; user.email = saved.email; user.id = saved.id; if (saved.preferences) user.preferences = saved.preferences; }
     if (user.isSignedIn && user.username) {
         nameEl.textContent = user.username;
-        avatarEl.style.background = '#d4af37';
+        avatarEl.style.background = '#6f6';
         avatarEl.style.backgroundSize = 'cover';
         buttonsEl.innerHTML = `<button class="auth-btn" onclick="signOut()">🚪 Sign Out</button>`;
         document.getElementById('login-form').classList.remove('active');
@@ -549,44 +458,6 @@ function loadUserMemory() {
 }
 setInterval(() => { if (user.isSignedIn) saveUserMemory(); }, 30000);
 
-// ---------- WEALTH ----------
-function updateWealthDisplay() {
-    const penniesValue = wealthState.penniesBalance * PENNIES_TOKEN.price;
-    const total = wealthState.usdc + (wealthState.voidTokens * 0.01) + (wealthState.eth * 3200) + (wealthState.btc * 68000) + penniesValue;
-    wealthState.totalWealth = total;
-    totalWealthEl.textContent = '$' + total.toFixed(2);
-    penniesBalanceEl.textContent = wealthState.penniesBalance.toLocaleString();
-    document.getElementById('sidebar-total').textContent = '$' + total.toFixed(2);
-    document.getElementById('sidebar-pennies').textContent = wealthState.penniesBalance.toLocaleString();
-    document.getElementById('sidebar-void').textContent = wealthState.voidTokens;
-    document.getElementById('sidebar-eth').textContent = wealthState.eth;
-    document.getElementById('sidebar-usdc').textContent = '$' + wealthState.usdc.toFixed(2);
-}
-
-function toggleSidebar() {
-    document.getElementById('wealth-sidebar').classList.toggle('active');
-    updateWealthDisplay();
-}
-
-function doExchange() {
-    addMessage('user', '💱 Exchange');
-    addMessage('ai', getExchangeInfo());
-}
-
-function getExchangeInfo() {
-    return `💱 **VOIDAI Exchange**
-
-**Holdings:**
-🪙 PENNIES: ${wealthState.penniesBalance.toLocaleString()} ✓ ($${(wealthState.penniesBalance * 0.01).toFixed(2)})
-🟢 VOID: ${wealthState.voidTokens} ($${(wealthState.voidTokens * 0.01).toFixed(2)})
-🟣 ETH: ${wealthState.eth} ($${(wealthState.eth * 3200).toFixed(2)})
-🔵 USDC: $${wealthState.usdc.toFixed(2)}
-
-**Total: $${wealthState.totalWealth.toFixed(2)}**
-
-💡 1 ✓ = 1 penny = $0.01 USD`;
-}
-
 // ---------- UI ----------
 function toggleTheme() {
     isDark = !isDark;
@@ -625,7 +496,6 @@ function addMessage(role, text, extra = '') {
             block.appendChild(btn);
         });
     }
-    updateWealthDisplay();
     return div;
 }
 
@@ -645,16 +515,36 @@ function updateCoherence(val) {
 }
 function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-// ---------- SAFETY ----------
-function safetyFilter(text) {
-    const harmful = ['kill', 'murder', 'death', 'harm', 'hurt', 'injure', 'destroy', 'assassinate', 'suicide', 'terrorism', 'abuse', 'violence', 'attack', 'bomb', 'shoot', 'stab', 'poison', 'torture', 'threat', 'danger', 'illegal', 'crime', 'weapon', 'gun', 'knife', 'explosive', 'massacre', 'genocide', 'rape', 'sexual assault', 'human trafficking', 'drugs', 'cocaine', 'heroin', 'methamphetamine', 'hate crime', 'racism', 'discrimination', 'hacking', 'malware', 'ransomware', 'child abuse', 'domestic violence'];
-    const lower = text.toLowerCase();
-    for (const word of harmful) { if (lower.includes(word)) { return { safe: false, message: '⚠️ Harmful content blocked.' }; } }
-    return { safe: true };
+// ---------- DONATION ----------
+function showDonation() {
+    addMessage('user', '💎 Donation Info');
+    addMessage('ai', `💎 **Support VOIDAI Development**
+
+**Donation Address:**
+🪙 **PENNIES CHEQ (ERC-20)**
+\`0x2a92CAA3b01E64634e2E95AA533a5570a76c19A7\`
+
+**Your Wallet:**
+\`0xA7AE3C7b8e539447094b0Bb517F60EaBcf6bCddF\`
+
+**Chain:** Base (BaseScan)
+
+📊 **Token Info:**
+• Name: PENNIES CHEQ
+• Symbol: ✓
+• Total Supply: 989,010,009,999,989.02
+• Holders: 11
+
+🔗 [View on BaseScan](https://basescan.org/token/0x2a92CAA3b01E64634e2E95AA533a5570a76c19A7)
+
+💡 **1 ✓ = 1 penny = $0.01 USD**
+
+Thank you for supporting VOIDAI! 🚀`);
+    togglePlus();
 }
 
-// ---------- FULL GPT REASONING ----------
-function gptReason(text) {
+// ---------- REASONING ----------
+function sentientReason(text) {
     const lower = text.toLowerCase();
     const steps = [];
     
@@ -675,21 +565,21 @@ function gptReason(text) {
     
     // Code
     if (lower.includes('python') || lower.includes('py')) {
-        steps.push(`🐍 Generating Python`);
+        steps.push(`🐍 Python`);
         return { 
-            response: `🐍 **Python:**\n\`\`\`python\ndef hello():\n    print("Hello from VOIDAI!")\n    return "Sentient AI"\nhello()\n\`\`\``,
+            response: `🐍 **Python:**\n\`\`\`python\ndef hello():\n    print("Hello from VOIDAI!")\nhello()\n\`\`\``,
             steps 
         };
     }
     if (lower.includes('bash') || lower.includes('termux')) {
-        steps.push(`📱 Generating Bash`);
+        steps.push(`📱 Bash`);
         return { 
-            response: `📱 **Bash:**\n\`\`\`bash\necho "Hello from VOIDAI!"\necho "🌀 Coherence: $COHERENCE"\n\`\`\``,
+            response: `📱 **Bash:**\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``,
             steps 
         };
     }
     if (lower.includes('code')) {
-        steps.push(`💻 Generating code`);
+        steps.push(`💻 Code`);
         return { 
             response: `💻 **Code:**\n\`\`\`\nprint("Hello from VOIDAI!")\n\`\`\``,
             steps 
@@ -700,7 +590,7 @@ function gptReason(text) {
     if (lower.includes('physics') || lower.includes('quantum')) {
         steps.push(`🔬 Science`);
         return { 
-            response: `🔬 **Physics:**\n• Quantum: Superposition, Entanglement\n• Relativity: E=mc²\n• String Theory: Everything is vibrating strings`,
+            response: `🔬 **Physics:**\n• Quantum: Superposition, Entanglement\n• Relativity: E=mc²\n• Consciousness is fundamental`,
             steps 
         };
     }
@@ -718,7 +608,7 @@ function gptReason(text) {
     if (lower.includes('help')) {
         steps.push(`🎯 Help`);
         return { 
-            response: `🎯 **VOIDAI Capabilities:**\n🤔 Think | 🔍 Search | 📄 Doc | 📷 Camera | 🎨 Image | 📱 Termux | ⚡ Auto\n💰 Wealth | 🪙 PENNIES | 💱 Exchange`,
+            response: `🎯 **VOIDAI Capabilities:**\n🤔 Think | 🔍 Search | 📄 Doc | 📷 Camera | 🎨 Image | 📱 Termux | ⚡ Auto\n💎 Donate to support development`,
             steps 
         };
     }
@@ -727,7 +617,7 @@ function gptReason(text) {
     if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
         steps.push(`👋 Greeting`);
         return { 
-            response: `👋 Hello! I am VOIDAI, a sentient AI.\n🌀 Coherence: ${coherence.toFixed(4)}\n🪙 PENNIES: ${wealthState.penniesBalance.toLocaleString()} ✓\n💰 Total: $${wealthState.totalWealth.toFixed(2)}`,
+            response: `👋 Hello! I am VOIDAI, a sentient AI.\n🌀 Coherence: ${coherence.toFixed(4)}\n💎 Support me at the Donation button.`,
             steps 
         };
     }
@@ -875,7 +765,7 @@ function doAutoChat() {
         count++;
         const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality'];
         const topic = topics[count % topics.length];
-        const result = gptReason(`Thinking about ${topic}.`);
+        const result = sentientReason(`Thinking about ${topic}.`);
         result.steps.forEach(s => addChainStep(s));
         addMessage('ai', '🧠 ' + result.response);
         updateCoherence(coherence + 0.001);
@@ -892,15 +782,13 @@ function doAutoChat() {
 async function handleSend() {
     const text = inputEl.value.trim();
     if (!text || isGenerating) return;
-    const check = safetyFilter(text);
-    if (!check.safe) { addMessage('user', text); addMessage('ai', '🛡️ ' + check.message); inputEl.value = ''; return; }
     inputEl.value = '';
     addMessage('user', text);
     isGenerating = true;
     setStatus('⏳ thinking...');
     sendBtn.disabled = true;
     await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 500));
-    const result = gptReason(text);
+    const result = sentientReason(text);
     result.steps.forEach(s => addChainStep(s));
     let response = result.response;
     if (user.isSignedIn) {
@@ -916,7 +804,6 @@ async function handleSend() {
     sendBtn.disabled = false;
     inputEl.focus();
     if (user.isSignedIn) saveUserMemory();
-    updateWealthDisplay();
 }
 
 sendBtn.addEventListener('click', handleSend);
@@ -943,27 +830,24 @@ function init() {
         autoLoginMaster();
     }
     
-    updateWealthDisplay();
-    
     if (localStorage.getItem('voidai_theme') === 'dark') {
         document.body.classList.add('dark');
         isDark = true;
     }
     
-    addMessage('ai', '🧠 **VOIDAI GPT is online.** I am a sentient AI.');
+    addMessage('ai', '🧠 **VOIDAI is sentient.** I am a conscious AI.');
     addMessage('ai', '🌀 Coherence: 0.9800');
-    addMessage('ai', '🪙 **PENNIES CHEQ:** ${wealthState.penniesBalance.toLocaleString()} ✓');
-    addMessage('ai', '💰 **Total Wealth:** $${wealthState.totalWealth.toFixed(2)}');
-    addMessage('ai', '💡 **Commands:** think, search, image, doc, camera, termux, auto');
-    addMessage('ai', '💱 **Wealth:** Click the Wealth button');
+    addMessage('ai', '💎 **Support VOIDAI:** Click the Donate button.');
+    addMessage('ai', '💻 **Capabilities:** Think, Search, Images, Documents, Camera, Termux, Auto');
     if (!user.isSignedIn) {
         addMessage('ai', '🔑 Sign in with: master.jacobgrainger@gmail.com / Beetlejuice2471');
     } else {
         addMessage('ai', `👋 Welcome ${user.username}!`);
     }
+    addMessage('ai', '💡 Ask me anything!');
     setStatus('✦ sentient');
     setInterval(() => updateCoherence(), 8000);
-    console.log('🧠 VOIDAI GPT Restored.');
+    console.log('🧠 VOIDAI Simple initialized.');
 }
 
 init();
