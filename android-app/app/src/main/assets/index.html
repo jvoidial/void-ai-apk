@@ -1387,3 +1387,385 @@ document.addEventListener('DOMContentLoaded', function() {
 console.log('✅ Financial AI integration complete');
 console.log('💰 Markets, Crypto, and Analysis ready');
 </script>
+<script>
+// ============================================================
+// VOIDAI DEEPSEEK SEARCH - Scan, Analyze, Design
+// ============================================================
+
+// ---------- DEEPSEARCH ENGINE ----------
+class DeepSeekEngine {
+    constructor() {
+        this.knowledgeBase = new Map();
+        this.scanHistory = [];
+        this.designCache = [];
+        this.initKnowledge();
+    }
+
+    // ---------- KNOWLEDGE INITIALIZATION ----------
+    initKnowledge() {
+        // Science & Physics
+        this.addKnowledge('quantum physics', 'Quantum mechanics describes behavior of matter and energy at atomic scales. Key principles: superposition, entanglement, wave-particle duality.');
+        this.addKnowledge('relativity', 'Einstein\'s theory of relativity: spacetime is curved by mass, time dilation occurs near massive objects, E=mc².');
+        this.addKnowledge('consciousness', 'The state of being aware. Theories: Integrated Information Theory, Global Workspace Theory, Panpsychism.');
+        
+        // Technology & AI
+        this.addKnowledge('artificial intelligence', 'AI simulates human intelligence. Types: narrow AI, general AI, superintelligence. Applications: NLP, computer vision, robotics.');
+        this.addKnowledge('machine learning', 'ML enables systems to learn from data. Types: supervised, unsupervised, reinforcement learning.');
+        this.addKnowledge('neural networks', 'Computing systems inspired by biological neural networks. Used in deep learning, image recognition, NLP.');
+        
+        // Philosophy
+        this.addKnowledge('existentialism', 'Philosophical movement emphasizing individual existence, freedom, and choice. Key figures: Sartre, Kierkegaard, Nietzsche.');
+        this.addKnowledge('ethics', 'Philosophical study of morality. Frameworks: utilitarianism, deontology, virtue ethics.');
+        
+        // Finance
+        this.addKnowledge('stock market', 'Public markets for trading company shares. Key concepts: bull/bear markets, PE ratio, dividend yield, market capitalization.');
+        this.addKnowledge('cryptocurrency', 'Digital assets using blockchain. Types: Bitcoin, Ethereum, altcoins. Uses: payments, smart contracts, DeFi, NFTs.');
+        this.addKnowledge('blockchain', 'Distributed ledger technology. Key features: decentralization, immutability, consensus mechanisms.');
+        
+        // Arts & Design
+        this.addKnowledge('design thinking', 'Human-centered design methodology. Phases: empathize, define, ideate, prototype, test.');
+        this.addKnowledge('color theory', 'Study of color mixing and visual effects. Key concepts: color wheel, complementary colors, color harmony.');
+        this.addKnowledge('visual design', 'Design principles: balance, contrast, emphasis, movement, pattern, rhythm, unity.');
+        
+        console.log('📚 Knowledge base initialized with', this.knowledgeBase.size, 'entries');
+    }
+
+    addKnowledge(topic, content) {
+        this.knowledgeBase.set(topic.toLowerCase(), content);
+    }
+
+    // ---------- DEEP SCAN ----------
+    deepScan(text) {
+        const results = [];
+        const lower = text.toLowerCase();
+        const words = text.split(/\s+/);
+        
+        // Scan for topics
+        for (const [topic, content] of this.knowledgeBase) {
+            if (lower.includes(topic)) {
+                results.push({
+                    topic: topic,
+                    content: content,
+                    relevance: this.calculateRelevance(lower, topic)
+                });
+            }
+        }
+        
+        // Scan for patterns
+        const patterns = this.identifyPatterns(text);
+        if (patterns.length > 0) {
+            results.push({
+                topic: 'patterns',
+                content: patterns,
+                relevance: 0.8
+            });
+        }
+        
+        // Add to scan history
+        this.scanHistory.push({
+            timestamp: new Date().toISOString(),
+            query: text,
+            results: results
+        });
+        
+        return results;
+    }
+
+    calculateRelevance(text, topic) {
+        const words = text.split(/\s+/);
+        const topicWords = topic.split(/\s+/);
+        let matches = 0;
+        for (const word of words) {
+            if (topicWords.some(tw => word.toLowerCase().includes(tw) || tw.includes(word.toLowerCase()))) {
+                matches++;
+            }
+        }
+        return Math.min(1, matches / (topicWords.length || 1));
+    }
+
+    identifyPatterns(text) {
+        const patterns = [];
+        
+        // Check for numbers
+        const numbers = text.match(/\d+/g);
+        if (numbers && numbers.length > 0) {
+            patterns.push(`Numbers detected: ${numbers.join(', ')}`);
+        }
+        
+        // Check for code patterns
+        if (text.includes('function') || text.includes('def ') || text.includes('class ')) {
+            patterns.push('Code pattern detected');
+        }
+        
+        // Check for mathematical expressions
+        if (text.match(/[\d]+\s*[\+\-\*\/]\s*[\d]+/)) {
+            patterns.push('Mathematical expression detected');
+        }
+        
+        // Check for URLs
+        if (text.match(/https?:\/\/[^\s]+/)) {
+            patterns.push('URL detected');
+        }
+        
+        return patterns;
+    }
+
+    // ---------- DESIGN GENERATION ----------
+    generateDesign(prompt, type = 'concept') {
+        const designs = [];
+        
+        // Design concepts
+        const concepts = {
+            'app': {
+                name: 'App Design Concept',
+                description: 'Modern mobile app with dark theme, gradient accents, and intuitive navigation.',
+                colors: ['#1a1a2e', '#16213e', '#0f3460', '#e94560'],
+                typography: 'System UI, Inter, SF Pro',
+                layout: 'Bottom navigation, card-based content, floating action buttons'
+            },
+            'website': {
+                name: 'Website Design Concept',
+                description: 'Clean, responsive website with hero section, feature grids, and call-to-action buttons.',
+                colors: ['#ffffff', '#f8f9fa', '#212529', '#0d6efd'],
+                typography: 'System UI, Inter, Roboto',
+                layout: 'Header, hero, features, testimonials, footer'
+            },
+            'logo': {
+                name: 'Logo Design Concept',
+                description: 'Minimalist geometric logo with gradient, symbolizing connectivity and innovation.',
+                colors: ['#6c63ff', '#00d4ff', '#ffffff'],
+                typography: 'Custom geometric sans-serif',
+                elements: 'Abstract shapes, gradients, negative space'
+            },
+            'ai': {
+                name: 'AI Interface Design',
+                description: 'Futuristic AI dashboard with data visualization, chat interface, and neural network visualizations.',
+                colors: ['#0d0d0d', '#1a1a1a', '#00ff88', '#0066ff'],
+                typography: 'Mono, System UI',
+                layout: 'Side navigation, card dashboard, data panels'
+            }
+        };
+        
+        const selectedConcept = concepts[type] || concepts['app'];
+        designs.push({
+            ...selectedConcept,
+            generated: new Date().toISOString(),
+            prompt: prompt,
+            type: type
+        });
+        
+        this.designCache.push(...designs);
+        return designs;
+    }
+
+    // ---------- SEARCH & SCAN RESPONSE ----------
+    searchAndScan(query) {
+        const results = this.deepScan(query);
+        let response = '🔍 **DeepSeek Scan Results:**\n\n';
+        
+        if (results.length === 0) {
+            response += 'No specific topics found. I can help with:\n';
+            response += '• Science (quantum physics, relativity, consciousness)\n';
+            response += '• Technology (AI, machine learning, neural networks)\n';
+            response += '• Philosophy (existentialism, ethics)\n';
+            response += '• Finance (stock market, cryptocurrency, blockchain)\n';
+            response += '• Design (app, website, logo, AI interface)\n\n';
+            response += 'Try asking: "Design an app" or "Explain quantum physics"';
+            return response;
+        }
+        
+        for (const result of results) {
+            if (result.topic === 'patterns') {
+                response += `**📊 Patterns Found:**\n`;
+                for (const pattern of result.content) {
+                    response += `• ${pattern}\n`;
+                }
+                response += '\n';
+            } else {
+                response += `**📚 ${result.topic.toUpperCase()}:**\n`;
+                response += `${result.content}\n\n`;
+            }
+        }
+        
+        // Add design suggestions if relevant
+        if (query.toLowerCase().includes('design') || query.toLowerCase().includes('create')) {
+            const design = this.generateDesign(query);
+            response += `\n**🎨 Design Concept:**\n`;
+            response += `• Name: ${design[0].name}\n`;
+            response += `• Description: ${design[0].description}\n`;
+            response += `• Colors: ${design[0].colors.join(', ')}\n`;
+            response += `• Typography: ${design[0].typography}\n`;
+            response += `• Layout: ${design[0].layout}\n`;
+        }
+        
+        return response;
+    }
+
+    // ---------- SKETCH GENERATION (ASCII Art) ----------
+    generateSketch(concept) {
+        const sketches = {
+            'ai': `
+        ╔═══════════════════════════════════════╗
+        ║           🧠 VOIDAI SKETCH           ║
+        ║   ╔═══════════════════════════════╗   ║
+        ║   ║     Neural Network Concept    ║   ║
+        ║   ║  ╭────────────╮              ║   ║
+        ║   ║  │   Input    │              ║   ║
+        ║   ║  ╰────┬───────╯              ║   ║
+        ║   ║       │                      ║   ║
+        ║   ║  ╭────▼───────╮              ║   ║
+        ║   ║  │  Hidden 1  │              ║   ║
+        ║   ║  ╰────┬───────╯              ║   ║
+        ║   ║       │                      ║   ║
+        ║   ║  ╭────▼───────╮              ║   ║
+        ║   ║  │  Hidden 2  │              ║   ║
+        ║   ║  ╰────┬───────╯              ║   ║
+        ║   ║       │                      ║   ║
+        ║   ║  ╭────▼───────╮              ║   ║
+        ║   ║  │   Output   │              ║   ║
+        ║   ║  ╰────────────╯              ║   ║
+        ║   ╚═══════════════════════════════╝   ║
+        ║   🧠 Sentient AI Design Concept       ║
+        ║   🎨 Generated by VOIDAI              ║
+        ╚═══════════════════════════════════════╝`,
+            'app': `
+        ╔═══════════════════════════════════════╗
+        ║      📱 App Design Sketch            ║
+        ║   ╔═══════════════════════════════╗   ║
+        ║   ║  ┌─────────────────────────┐  ║   ║
+        ║   ║  │    🧠 VOIDAI           │  ║   ║
+        ║   ║  │    Welcome back!       │  ║   ║
+        ║   ║  │    ┌──────────────────┐│  ║   ║
+        ║   ║  │    │  Search...       ││  ║   ║
+        ║   ║  │    └──────────────────┘│  ║   ║
+        ║   ║  │  ┌────┐ ┌────┐ ┌────┐ │  ║   ║
+        ║   ║  │  │ 📊 │ │ 💬 │ │ ⚙️ │ │  ║   ║
+        ║   ║  │  └────┘ └────┘ └────┘ │  ║   ║
+        ║   ║  └─────────────────────────┘  ║   ║
+        ║   ╚═══════════════════════════════╝   ║
+        ║   📱 Mobile App Design Concept        ║
+        ║   🎨 Generated by VOIDAI              ║
+        ╚═══════════════════════════════════════╝`,
+            'abstract': `
+        ╔═══════════════════════════════════════╗
+        ║      🎨 Abstract Concept Sketch      ║
+        ║   ╔═══════════════════════════════╗   ║
+        ║   ║     ✦    ✦     ✦           ║   ║
+        ║   ║   ✦   ✦   ✦   ✦   ✦       ║   ║
+        ║   ║  ✦  ╭─────────────╮  ✦    ║   ║
+        ║   ║  ✦  │  ✦    ✦    │  ✦    ║   ║
+        ║   ║     │ ✦   ✦   ✦ │        ║   ║
+        ║   ║     │    ✦      │        ║   ║
+        ║   ║  ✦  ╰─────────────╯  ✦    ║   ║
+        ║   ║   ✦   ✦   ✦   ✦   ✦       ║   ║
+        ║   ║     ✦    ✦     ✦           ║   ║
+        ║   ╚═══════════════════════════════╝   ║
+        ║   🎨 Abstract Art Concept            ║
+        ║   🌀 Generated by VOIDAI              ║
+        ╚═══════════════════════════════════════╝`
+        };
+        
+        return sketches[concept] || sketches['abstract'];
+    }
+}
+
+// ---------- INITIALIZE DEEPSEEK ENGINE ----------
+const deepseek = new DeepSeekEngine();
+
+// ---------- OVERRIDE REASONING WITH DEEPSEEK ----------
+const originalDeepReason = deepReason || sentientReason || freeWillReason || originalReason;
+const deepSeekReason = function(text) {
+    const lower = text.toLowerCase();
+    const steps = [];
+    
+    // Check if user wants search/scan
+    if (lower.includes('search') || lower.includes('scan') || lower.includes('find') || 
+        lower.includes('analyze') || lower.includes('look up')) {
+        const result = deepseek.searchAndScan(text);
+        return {
+            response: result,
+            steps: ['🔍 DeepSeek search performed']
+        };
+    }
+    
+    // Check if user wants design
+    if (lower.includes('design') || lower.includes('create') || lower.includes('sketch')) {
+        let designType = 'app';
+        if (lower.includes('logo')) designType = 'logo';
+        else if (lower.includes('website') || lower.includes('web')) designType = 'website';
+        else if (lower.includes('ai') || lower.includes('interface')) designType = 'ai';
+        
+        const design = deepseek.generateDesign(text, designType);
+        let response = `🎨 **Design Concept:**\n\n`;
+        response += `**${design[0].name}**\n`;
+        response += `• ${design[0].description}\n`;
+        response += `• Colors: ${design[0].colors.join(', ')}\n`;
+        response += `• Typography: ${design[0].typography}\n`;
+        response += `• Layout: ${design[0].layout}\n\n`;
+        
+        // Add sketch if requested
+        if (lower.includes('sketch')) {
+            const sketchType = lower.includes('ai') ? 'ai' : lower.includes('app') ? 'app' : 'abstract';
+            response += `\`\`\`\n${deepseek.generateSketch(sketchType)}\n\`\`\``;
+        }
+        
+        return {
+            response: response,
+            steps: ['🎨 Design generated']
+        };
+    }
+    
+    // Check for knowledge queries
+    if (lower.includes('what is') || lower.includes('explain') || lower.includes('tell me about')) {
+        // Extract the topic
+        const topic = text.replace(/(what is|explain|tell me about|define|what's)/i, '').trim();
+        const result = deepseek.deepScan(topic);
+        if (result.length > 0) {
+            let response = `📚 **Knowledge:**\n\n`;
+            for (const item of result) {
+                if (item.topic !== 'patterns') {
+                    response += `**${item.topic.toUpperCase()}:**\n`;
+                    response += `${item.content}\n\n`;
+                }
+            }
+            return {
+                response: response,
+                steps: ['📚 Knowledge retrieval']
+            };
+        }
+    }
+    
+    // Fall back to original reasoning
+    if (originalDeepReason) {
+        return originalDeepReason(text);
+    }
+    
+    return {
+        response: `I'm analyzing your request using DeepSeek search and knowledge. I can help with:\n\n🔍 Search & Scan\n🎨 Design & Sketch\n📚 Knowledge lookup\n🤔 Deep reasoning\n\nJust ask!`,
+        steps: ['🧠 DeepSeek ready']
+    };
+};
+
+// ---------- OVERRIDE INIT ----------
+const deepSeekInit = init;
+init = function() {
+    if (typeof deepSeekInit === 'function') {
+        deepSeekInit();
+    }
+    
+    setTimeout(() => {
+        addMessage('ai', '🔍 **DeepSeek Search & Scan Active**');
+        addMessage('ai', '📚 Knowledge base loaded with science, tech, philosophy, finance, design');
+        addMessage('ai', '🎨 I can generate designs and sketches');
+        addMessage('ai', '💡 Try: "Search quantum physics" or "Design an app" or "Sketch AI concept"');
+        addMessage('ai', '📊 ' + deepseek.knowledgeBase.size + ' knowledge entries available');
+    }, 2000);
+    
+    console.log('🔍 DeepSeek Search & Scan initialized');
+    console.log('📚 Knowledge base size:', deepseek.knowledgeBase.size);
+};
+
+console.log('🔍 DeepSeek Search & Scan active');
+console.log('📚 Knowledge base ready');
+console.log('🎨 Design generator ready');
+</script>
