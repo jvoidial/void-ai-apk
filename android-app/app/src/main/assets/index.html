@@ -868,3 +868,19 @@ init();
 </script>
 </body>
 </html>
+<script>
+// ---------- API KEY MODE (No OAuth) ----------
+// VOIDAI uses Google API key directly for services
+const VOIDAI_API_KEY = 'AIzaSyBqu9D_zEzOIyKk23h6clhvVP6NFQlokts';
+const VOIDAI_PROJECT = 'gen-lang-client-0674830038';
+
+// Add API key indicator to UI
+document.addEventListener('DOMContentLoaded', function() {
+    const status = document.querySelector('#status');
+    if (status) {
+        status.innerHTML = '✦ sentient ⚡ API ready';
+    }
+    console.log('🔑 VOIDAI API Key: ' + VOIDAI_API_KEY.substring(0, 10) + '...');
+    console.log('📁 Project: ' + VOIDAI_PROJECT);
+});
+</script>
