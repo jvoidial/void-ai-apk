@@ -1,0 +1,28 @@
+{
+  "project_id": "gen-lang-client-0653277985",
+  "project_number": "267028897536",
+  "name": "VOIDAI",
+  "services": {
+    "vision": {
+      "enabled": true,
+      "api": "vision.googleapis.com"
+    },
+    "translate": {
+      "enabled": true,
+      "api": "translation.googleapis.com"
+    },
+    "storage": {
+      "enabled": true,
+      "api": "storage.googleapis.com"
+    },
+    "ai": {
+      "enabled": true,
+      "api": "aiplatform.googleapis.com"
+    }
+  },
+  "oauth": {
+    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "redirect_uris": ["http://localhost:8080", "https://localhost"],
+    "javascript_origins": ["http://localhost:8080", "https://localhost"]
+  }
+}
