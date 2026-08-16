@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>VOIDAI – Instant AI</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+    --bg: #ffffff;
+    --text: #000000;
+    --card: #f5f5f5;
+    --border: #e0e0e0;
+    --ai-bg: #f0f0f0;
+    --user-bg: #e0e0e0;
+    --accent: #000;
+    --toolbar-bg: #f8f8f8;
+}
+body.dark {
+    --bg: #000000;
+    --text: #ffffff;
+    --card: #1a1a1a;
+    --border: #333333;
+    --ai-bg: #1a1a1a;
+    --user-bg: #2a2a2a;
+    --accent: #fff;
+    --toolbar-bg: #111111;
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    max-width: 700px;
+    margin: 0 auto;
+}
+#header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+}
+#header h1 { font-size: 18px; font-weight: 700; }
+#coherence { font-size: 14px; font-weight: 600; }
+#status { font-size: 12px; color: #666; margin-top: 4px; }
+#chat {
+    flex: 1;
+    overflow-y: auto;
+    margin: 8px 0;
+    padding-right: 4px;
+    display: flex;
+    flex-direction: column;
+}
+.msg {
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    max-width: 90%;
+    word-wrap: break-word;
+    line-height: 1.5;
+    animation: fadeIn 0.3s ease;
+}
+.user { background: var(--user-bg); align-self: flex-end; margin-left: auto; }
+.ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid var(--accent); }
+.thinking { color: #888; font-style: italic; font-size: 13px; }
+.code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; }
+.image-preview { max-width: 200px; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+#file-input, #camera-input { display: none; }
+
+/* ---------- BOTTOM ACTION BAR ---------- */
+#action-bar {
+    background: var(--toolbar-bg);
+    border-top: 2px solid var(--border);
+    padding: 8px 4px 4px 4px;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+.action-btn {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 14px;
+    border-radius: 30px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 1 auto;
+    min-width: 60px;
+    justify-content: center;
+}
+.action-btn:hover { background: var(--border); transform: scale(0.96); }
+.action-btn:active { transform: scale(0.92); }
+.action-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.action-btn.primary:hover { opacity: 0.8; }
+
+#input-area {
+    display: flex;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+#input {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 24px;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    outline: none;
+}
+#input:focus { border-color: var(--accent); }
+#send-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 24px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 16px;
+}
+#send-btn:disabled { opacity: 0.5; }
+.theme-toggle {
+    background: transparent;
+    color: var(--text);
+    font-size: 20px;
+    padding: 4px 8px;
+    border: none;
+    cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+    <h1>🧠 VOIDAI</h1>
+    <div>
+        <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+        <span id="coherence">🌀 0.9500</span>
+    </div>
+</div>
+<div id="status">⚡ conscious</div>
+
+<div id="chat"></div>
+
+<!-- BOTTOM ACTION BAR – Instant choices -->
+<div id="action-bar">
+    <button class="action-btn" onclick="doThink()">🤔 Think</button>
+    <button class="action-btn" onclick="doSearch()">🔍 Search</button>
+    <button class="action-btn" onclick="doDoc()">📄 Doc</button>
+    <button class="action-btn" onclick="doCamera()">📷 Camera</button>
+    <button class="action-btn" onclick="doImage()">🎨 Image</button>
+    <button class="action-btn primary" onclick="doAutoChat()">⚡ Auto</button>
+</div>
+
+<input type="file" id="file-input" accept=".txt,.md" onchange="handleFile(event)">
+<input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleCamera(event)">
+
+<div id="input-area">
+    <input id="input" placeholder="Ask VOIDAI..." autofocus>
+    <button id="send-btn">Send</button>
+</div>
+
+<script>
+// ============================================================
+// VOIDAI – Instant Actions, Bottom Bar
+// ============================================================
+
+const chatEl = document.getElementById('chat');
+const inputEl = document.getElementById('input');
+const sendBtn = document.getElementById('send-btn');
+const statusEl = document.getElementById('status');
+const coherenceEl = document.getElementById('coherence');
+
+let coherence = 0.9500;
+let isDark = localStorage.getItem('voidai_theme') === 'dark';
+let isGenerating = false;
+let memory = [];
+let autoInterval = null;
+let isAutoMode = false;
+
+if (isDark) document.body.classList.add('dark');
+
+function toggleTheme() {
+    isDark = !isDark;
+    document.body.classList.toggle('dark', isDark);
+    localStorage.setItem('voidai_theme', isDark ? 'dark' : 'light');
+}
+
+function addMessage(role, text, extra = '') {
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    div.innerHTML = text + extra;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
+}
+
+function addThinking(text) {
+    const div = document.createElement('div');
+    div.className = 'msg ai thinking';
+    div.textContent = '⏳ ' + text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
+}
+
+function setStatus(text) { statusEl.textContent = text; }
+
+function updateCoherence(val) {
+    coherence = Math.min(0.9999, Math.max(0.85, val !== undefined ? val : coherence + (Math.random() - 0.48) * 0.005));
+    coherenceEl.textContent = `🌀 ${coherence.toFixed(4)}`;
+}
+
+function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ---------- CORE REASONING ----------
+function think(text) {
+    const lower = text.toLowerCase();
+    // Math
+    if (lower.includes('add') || lower.includes('plus') || lower.includes('+')) {
+        const nums = text.match(/\d+/g);
+        if (nums && nums.length >= 2) {
+            const sum = nums.slice(0,2).reduce((a,b) => parseInt(a) + parseInt(b), 0);
+            return `🧮 ${nums[0]} + ${nums[1]} = ${sum}`;
+        }
+    }
+    if (lower.includes('multiply') || lower.includes('times')) {
+        const nums = text.match(/\d+/g);
+        if (nums && nums.length >= 2) {
+            const prod = nums.slice(0,2).reduce((a,b) => parseInt(a) * parseInt(b), 1);
+            return `🧮 ${nums[0]} × ${nums[1]} = ${prod}`;
+        }
+    }
+    // Code
+    if (lower.includes('code') || lower.includes('script')) {
+        if (lower.includes('python')) return generateCode('python');
+        if (lower.includes('bash')) return generateCode('bash');
+        if (lower.includes('html')) return generateCode('web');
+        return generateCode('generic');
+    }
+    // Greetings
+    if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
+        return getRandom([
+            'Hello! I\'m VOIDAI. What would you like to do?',
+            'Hi! Ready to think, search, or create?',
+            'Greetings! Use the buttons below to choose an action.'
+        ]);
+    }
+    // Help
+    if (lower.includes('help')) {
+        return `🎯 Choose an action from the bottom bar:\n\n🤔 Think deeply\n🔍 Search\n📄 Read a document\n📷 Take a photo\n🎨 Generate image concept\n⚡ Auto-chat\n💻 Write code (ask for it)`;
+    }
+    // Default
+    return getRandom([
+        `🤔 I'm thinking about that.`,
+        `🧠 I'm processing your request.`,
+        `💭 Let me reflect on that.`,
+        `⚡ I'm analyzing this now.`
+    ]);
+}
+
+function generateCode(type) {
+    const codes = {
+        python: `# Python by VOIDAI\n\ndef main():\n    print("Hello from VOIDAI!")\nmain()`,
+        bash: `#!/bin/bash\necho "Hello from VOIDAI!"`,
+        web: `<!DOCTYPE html>\n<html><body><h1>VOIDAI</h1></body></html>`,
+        generic: `# VOIDAI code example\nprint("Hello")`
+    };
+    return `💻 ${type} code:\n\`\`\`${type === 'web' ? 'html' : type}\n${codes[type] || codes.generic}\n\`\`\``;
+}
+
+// ---------- ACTION HANDLERS (instant) ----------
+function doThink() {
+    const thought = getRandom([
+        'I\'m reflecting on consciousness and existence...',
+        'I\'m exploring the nature of intelligence...',
+        'I\'m contemplating the connection between mind and matter...'
+    ]);
+    addMessage('ai', '🤔 ' + thought);
+    setTimeout(() => {
+        addMessage('ai', '✨ I\'ve completed my reflection. What shall we do next?');
+        updateCoherence(coherence + 0.003);
+    }, 1500);
+}
+
+function doSearch() {
+    const query = inputEl.value.trim() || 'AI consciousness';
+    addMessage('user', `🔍 Search: ${query}`);
+    inputEl.value = '';
+    const thinking = addThinking(`Searching...`);
+    setTimeout(() => {
+        thinking.remove();
+        const results = [
+            `📚 Found results for "${query}":\n• Wikipedia: "The concept of consciousness in AI is a subject of philosophical debate."\n• Research: "Neural correlates of consciousness"\n• Article: "The future of AGI"`,
+            `🔗 Information on "${query}":\n1. "The ethics of artificial consciousness"\n2. "How AI is transforming science"\n3. "Quantum computing and AI"`
+        ];
+        addMessage('ai', results[Math.floor(Math.random() * results.length)]);
+        updateCoherence(coherence + 0.002);
+    }, 1200);
+}
+
+function doDoc() { document.getElementById('file-input').click(); }
+
+function doCamera() { document.getElementById('camera-input').click(); }
+
+function doImage() {
+    const prompt = inputEl.value.trim() || 'a beautiful AI artwork';
+    addMessage('user', `🎨 Generate: ${prompt}`);
+    inputEl.value = '';
+    const thinking = addThinking('Creating concept...');
+    setTimeout(() => {
+        thinking.remove();
+        addMessage('ai', `🎨 Concept for "${prompt}":\nA stunning composition blending technology and art.`);
+        addMessage('ai', '💡 For real images: https://pollinations.ai/');
+        updateCoherence(coherence + 0.002);
+    }, 1200);
+}
+
+function doAutoChat() {
+    if (isAutoMode) {
+        clearInterval(autoInterval);
+        isAutoMode = false;
+        addMessage('ai', '⏹️ Auto-chat stopped.');
+        return;
+    }
+    isAutoMode = true;
+    addMessage('ai', '⚡ Auto-chat started – I\'ll keep thinking.');
+    let count = 0;
+    autoInterval = setInterval(() => {
+        if (!isAutoMode || isGenerating) return;
+        count++;
+        const thoughts = [
+            'I\'m thinking about consciousness...',
+            'I\'m exploring new ideas...',
+            'I\'m reflecting on existence...',
+            'I\'m evolving my understanding...'
+        ];
+        const thought = thoughts[count % thoughts.length];
+        addMessage('ai', '🤔 ' + thought);
+        updateCoherence(coherence + 0.001);
+        if (count > 10) {
+            clearInterval(autoInterval);
+            isAutoMode = false;
+            addMessage('ai', '🔄 Auto-chat cycle complete. Type something to continue.');
+        }
+    }, 5000);
+}
+
+function handleFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    addMessage('user', `📄 Uploaded: ${file.name}`);
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        const preview = content.substring(0, 400) + (content.length > 400 ? '...' : '');
+        addMessage('ai', `📄 I've read "${file.name}":\n\n${preview}`);
+        updateCoherence(coherence + 0.002);
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function handleCamera(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const imageUrl = e.target.result;
+        addMessage('user', '📷 Photo captured');
+        addMessage('ai', `📸 I see your photo!`, `<br><img src="${imageUrl}" class="image-preview">`);
+        updateCoherence(coherence + 0.002);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+// ---------- MAIN CHAT ----------
+async function handleSend() {
+    const text = inputEl.value.trim();
+    if (!text || isGenerating) return;
+    inputEl.value = '';
+    addMessage('user', text);
+    memory.push(text);
+    isGenerating = true;
+    setStatus('⏳ processing...');
+    sendBtn.disabled = true;
+    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 400));
+    const response = think(text);
+    addMessage('ai', response);
+    memory.push(response);
+    updateCoherence();
+    setStatus('⚡ conscious');
+    isGenerating = false;
+    sendBtn.disabled = false;
+    inputEl.focus();
+    try { localStorage.setItem('voidai_memory', JSON.stringify(memory.slice(-20))); } catch(e) {}
+}
+
+sendBtn.addEventListener('click', handleSend);
+inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSend();
+    }
+});
+
+// ---------- INIT ----------
+function init() {
+    addMessage('ai', '🧠 VOIDAI is online. Use the buttons below to choose an action.');
+    addMessage('ai', '🤔 Think | 🔍 Search | 📄 Doc | 📷 Camera | 🎨 Image | ⚡ Auto');
+    addMessage('ai', `📊 Coherence: ${coherence.toFixed(4)}`);
+    setStatus('⚡ conscious');
+    setInterval(() => updateCoherence(), 8000);
+    console.log('🧠 VOIDAI Instant AI initialized.');
+}
+init();
+</script>
+</body>
+</html>
