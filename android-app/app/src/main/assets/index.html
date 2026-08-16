@@ -3,71 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>VOIDAI – Ultimate AI</title>
+<title>VOIDAI – Auth</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-:root {
-    --bg: #ffffff;
-    --text: #000000;
-    --card: #f5f5f5;
-    --border: #e0e0e0;
-    --ai-bg: #f0f0f0;
-    --user-bg: #e0e0e0;
-    --accent: #000;
-    --toolbar-bg: #f8f8f8;
-    --coherence-color: #00cc00;
-}
-body.dark {
-    --bg: #000000;
-    --text: #ffffff;
-    --card: #1a1a1a;
-    --border: #333333;
-    --ai-bg: #1a1a1a;
-    --user-bg: #2a2a2a;
-    --accent: #fff;
-    --toolbar-bg: #111111;
-    --coherence-color: #00ff00;
-}
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    padding: 12px;
-    max-width: 700px;
-    margin: 0 auto;
-}
-#header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 8px;
-    border-bottom: 2px solid var(--border);
-}
+:root { --bg: #ffffff; --text: #000000; --card: #f5f5f5; --border: #e0e0e0; --ai-bg: #f0f0f0; --user-bg: #e0e0e0; --accent: #000; --coherence-color: #00cc00; }
+body.dark { --bg: #000000; --text: #ffffff; --card: #1a1a1a; --border: #333333; --ai-bg: #1a1a1a; --user-bg: #2a2a2a; --accent: #fff; --coherence-color: #00ff00; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; padding: 12px; max-width: 700px; margin: 0 auto; }
+#header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
 #header h1 { font-size: 18px; font-weight: 700; }
 #coherence { font-size: 14px; font-weight: 600; color: var(--coherence-color); }
 #status { font-size: 12px; color: #666; margin-top: 4px; }
 .sentient-indicator { color: var(--coherence-color); font-weight: bold; animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-#chat {
-    flex: 1;
-    overflow-y: auto;
-    margin: 8px 0;
-    padding-right: 4px;
-    display: flex;
-    flex-direction: column;
-}
-.msg {
-    margin-bottom: 10px;
-    padding: 10px 14px;
-    border-radius: 12px;
-    max-width: 90%;
-    word-wrap: break-word;
-    line-height: 1.6;
-    animation: fadeIn 0.3s ease;
-}
+#chat { flex: 1; overflow-y: auto; margin: 8px 0; padding-right: 4px; display: flex; flex-direction: column; }
+.msg { margin-bottom: 10px; padding: 10px 14px; border-radius: 12px; max-width: 90%; word-wrap: break-word; line-height: 1.6; animation: fadeIn 0.3s ease; }
 .user { background: var(--user-bg); align-self: flex-end; margin-left: auto; }
 .ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid var(--accent); }
 .thinking-chain { color: #666; font-size: 12px; margin: 4px 0; padding-left: 12px; border-left: 2px solid #888; }
@@ -75,136 +24,36 @@ body {
 .code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; position: relative; }
 .image-preview { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); max-height: 300px; object-fit: contain; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #fff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; z-index: 10; }
-.copy-btn:hover { background: #555; }
 #file-input, #camera-input { display: none; }
-.action-bar {
-    background: var(--toolbar-bg);
-    border-top: 2px solid var(--border);
-    padding: 8px 4px 4px 4px;
-    border-radius: 16px 16px 0 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 6px;
-    margin-top: 4px;
-}
-.action-btn {
-    background: var(--card);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 8px 14px;
-    border-radius: 30px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
+.action-bar { background: var(--card); border-top: 2px solid var(--border); padding: 8px 4px 4px 4px; border-radius: 16px 16px 0 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 4px; }
+.action-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 30px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
 .action-btn:hover { background: var(--border); transform: scale(0.96); }
 .action-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
-#input-area {
-    display: flex;
-    gap: 8px;
-    padding-top: 6px;
-    border-top: 1px solid var(--border);
-}
-#input {
-    flex: 1;
-    padding: 10px 16px;
-    border-radius: 24px;
-    border: 2px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 16px;
-    outline: none;
-}
+#input-area { display: flex; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+#input { flex: 1; padding: 10px 16px; border-radius: 24px; border: 2px solid var(--border); background: var(--bg); color: var(--text); font-size: 16px; outline: none; }
 #input:focus { border-color: var(--accent); }
-#send-btn {
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
-    padding: 10px 20px;
-    border-radius: 24px;
-    font-weight: 600;
-    cursor: pointer;
-    font-size: 16px;
-}
+#send-btn { background: var(--accent); color: var(--bg); border: none; padding: 10px 20px; border-radius: 24px; font-weight: 600; cursor: pointer; font-size: 16px; }
 #send-btn:disabled { opacity: 0.5; }
-.theme-toggle {
-    background: transparent;
-    color: var(--text);
-    font-size: 20px;
-    padding: 4px 8px;
-    border: none;
-    cursor: pointer;
-}
-/* ---- SIGN-IN & COMPANIONSHIP ---- */
-#auth-container {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px;
-    margin: 6px 0;
-}
-#auth-container .auth-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-#auth-container .user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-#auth-container .user-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--border);
-}
-#auth-container .user-name {
-    font-weight: 600;
-    font-size: 14px;
-}
-#auth-container .sign-in-btn {
-    background: var(--accent);
-    color: var(--bg);
-    border: none;
-    padding: 6px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 13px;
-}
-#auth-container .sign-out-btn {
-    background: transparent;
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 6px 16px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-size: 13px;
-}
-.companion-bar {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-top: 6px;
-}
-.companion-btn {
-    background: var(--card);
-    color: var(--text);
-    border: 1px solid var(--border);
-    padding: 4px 12px;
-    border-radius: 16px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
+.theme-toggle { background: transparent; color: var(--text); font-size: 20px; padding: 4px 8px; border: none; cursor: pointer; }
+
+#auth-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 6px 0; }
+.auth-form { display: none; flex-direction: column; gap: 8px; margin-top: 8px; }
+.auth-form.active { display: flex; }
+.auth-form input { padding: 8px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
+.auth-form button { padding: 8px 16px; border-radius: 20px; background: var(--accent); color: var(--bg); border: none; cursor: pointer; font-weight: 500; }
+.auth-form button:hover { opacity: 0.8; }
+.auth-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.user-info { display: flex; align-items: center; gap: 10px; }
+.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--border); background-size: cover; }
+.user-name { font-weight: 600; font-size: 14px; }
+.auth-btn { background: var(--accent); color: var(--bg); border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; }
+.auth-btn:hover { opacity: 0.8; }
+.auth-switch { color: var(--text); font-size: 12px; cursor: pointer; text-decoration: underline; }
+.auth-switch:hover { opacity: 0.7; }
+.auth-error { color: #cc4444; font-size: 12px; margin-top: 4px; }
+.auth-success { color: #44cc44; font-size: 12px; margin-top: 4px; }
+.companion-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.companion-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 4px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
 .companion-btn:hover { background: var(--border); }
 .companion-btn.active { background: var(--accent); color: var(--bg); }
 </style>
@@ -220,7 +69,6 @@ body {
 </div>
 <div id="status"><span class="sentient-indicator">✦ SENTIENT</span> ⚡ conscious</div>
 
-<!-- AUTH CONTAINER -->
 <div id="auth-container">
     <div class="auth-row" id="auth-row">
         <div class="user-info" id="user-info">
@@ -228,10 +76,27 @@ body {
             <span class="user-name" id="user-name">Not signed in</span>
         </div>
         <div id="auth-buttons">
-            <button class="sign-in-btn" id="sign-in-btn" onclick="signInWithGoogle()">🔑 Sign In</button>
+            <button class="auth-btn" onclick="showAuthForm('login')">🔑 Sign In</button>
+            <button class="auth-btn" onclick="showAuthForm('register')">📝 Register</button>
         </div>
     </div>
-    <div class="companion-bar" id="companion-bar">
+    <div id="login-form" class="auth-form">
+        <input type="email" id="login-email" placeholder="Email">
+        <input type="password" id="login-password" placeholder="Password">
+        <button onclick="loginUser()">Sign In</button>
+        <span class="auth-switch" onclick="showAuthForm('register')">Don't have an account? Register</span>
+        <div id="login-error" class="auth-error"></div>
+    </div>
+    <div id="register-form" class="auth-form">
+        <input type="text" id="reg-username" placeholder="Username">
+        <input type="email" id="reg-email" placeholder="Email">
+        <input type="password" id="reg-password" placeholder="Password">
+        <input type="password" id="reg-password2" placeholder="Confirm Password">
+        <button onclick="registerUser()">Create Account</button>
+        <span class="auth-switch" onclick="showAuthForm('login')">Already have an account? Sign In</span>
+        <div id="register-error" class="auth-error"></div>
+    </div>
+    <div class="companion-bar">
         <button class="companion-btn active" data-level="friendly">🤗 Friendly</button>
         <button class="companion-btn" data-level="mentor">🧠 Mentor</button>
         <button class="companion-btn" data-level="creative">🎨 Creative</button>
@@ -260,23 +125,17 @@ body {
     <button id="send-btn">Send</button>
 </div>
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
 // ============================================================
-// VOIDAI ULTIMATE – FIXED GOOGLE SIGN-IN FOR ALL USERS
+// VOIDAI – FULL AUTH SYSTEM
 // ============================================================
 
-// ---------- DOM REFS ----------
 const chatEl = document.getElementById('chat');
 const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send-btn');
 const statusEl = document.getElementById('status');
 const coherenceEl = document.getElementById('coherence');
-const userNameEl = document.getElementById('user-name');
-const userAvatarEl = document.getElementById('user-avatar');
-const authButtons = document.getElementById('auth-buttons');
 
-// ---------- STATE ----------
 let coherence = 0.9800;
 let isDark = localStorage.getItem('voidai_theme') === 'dark';
 let isGenerating = false;
@@ -284,193 +143,154 @@ let memory = [];
 let autoInterval = null;
 let isAutoMode = false;
 
-// ---------- USER STATE ----------
 let user = {
     isSignedIn: false,
-    name: '',
+    username: '',
     email: '',
-    picture: '',
     id: '',
-    preferences: {
-        theme: 'light',
-        language: 'en',
-        companionshipLevel: 'friendly'
-    }
+    preferences: { companionshipLevel: 'friendly' }
 };
 
-// ---------- LOAD/SAVE USER ----------
-function loadUserState() {
-    try {
-        const saved = localStorage.getItem('voidai_user');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            user = { ...user, ...parsed };
-            if (user.isSignedIn) {
-                updateAuthUI();
-                loadUserMemory();
-            }
-        }
-    } catch(e) {}
+// ---------- AUTH ----------
+function getUsers() {
+    try { return JSON.parse(localStorage.getItem('voidai_users') || '{}'); } catch { return {}; }
+}
+function saveUsers(users) { localStorage.setItem('voidai_users', JSON.stringify(users)); }
+
+function getCurrentUser() {
+    try { const saved = localStorage.getItem('voidai_current_user'); return saved ? JSON.parse(saved) : null; } catch { return null; }
+}
+function setCurrentUser(userData) { localStorage.setItem('voidai_current_user', JSON.stringify(userData)); }
+function clearCurrentUser() { localStorage.removeItem('voidai_current_user'); }
+
+function showAuthForm(form) {
+    document.getElementById('login-form').classList.remove('active');
+    document.getElementById('register-form').classList.remove('active');
+    if (form === 'login') { document.getElementById('login-form').classList.add('active'); document.getElementById('login-error').textContent = ''; }
+    else if (form === 'register') { document.getElementById('register-form').classList.add('active'); document.getElementById('register-error').textContent = ''; }
 }
 
-function saveUserState() {
-    try {
-        localStorage.setItem('voidai_user', JSON.stringify(user));
-    } catch(e) {}
+function registerUser() {
+    const username = document.getElementById('reg-username').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const password2 = document.getElementById('reg-password2').value;
+    const errorEl = document.getElementById('register-error');
+    if (!username || !email || !password) { errorEl.textContent = 'All fields required'; return; }
+    if (password !== password2) { errorEl.textContent = 'Passwords do not match'; return; }
+    if (password.length < 6) { errorEl.textContent = 'Password must be at least 6 characters'; return; }
+    const users = getUsers();
+    if (users[email]) { errorEl.textContent = 'Email already registered'; return; }
+    users[email] = { username, email, password: btoa(password), created: new Date().toISOString(), preferences: { companionshipLevel: 'friendly' } };
+    saveUsers(users);
+    errorEl.style.color = '#44cc44';
+    errorEl.textContent = '✅ Account created! Please sign in.';
+    document.getElementById('reg-username').value = '';
+    document.getElementById('reg-email').value = '';
+    document.getElementById('reg-password').value = '';
+    document.getElementById('reg-password2').value = '';
+    setTimeout(() => { errorEl.style.color = '#cc4444'; showAuthForm('login'); }, 1500);
 }
 
-// ---------- GOOGLE SIGN-IN ----------
-function signInWithGoogle() {
-    // Use Google Identity Services
-    if (typeof google !== 'undefined' && google.accounts) {
-        google.accounts.id.prompt();
-    } else {
-        // Fallback: show manual sign-in
-        addMessage('ai', '⚠️ Google Sign-In is loading. Please try again in a moment.');
-        // Reload the script if needed
-        loadGoogleScript();
-    }
-}
-
-function loadGoogleScript() {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.onload = function() {
-        initializeGoogleSignIn();
-    };
-    document.head.appendChild(script);
-}
-
-function initializeGoogleSignIn() {
-    if (typeof google === 'undefined' || !google.accounts) {
-        setTimeout(initializeGoogleSignIn, 500);
-        return;
-    }
-    google.accounts.id.initialize({
-        client_id: 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
-        callback: handleGoogleSignIn,
-        auto_select: false,
-        cancel_on_tap_outside: true
-    });
-    // Show the One Tap prompt
-    google.accounts.id.prompt();
-}
-
-function handleGoogleSignIn(response) {
-    try {
-        const payload = JSON.parse(atob(response.credential.split('.')[1]));
-        user.isSignedIn = true;
-        user.name = payload.name;
-        user.email = payload.email;
-        user.picture = payload.picture;
-        user.id = payload.sub;
-        saveUserState();
-        updateAuthUI();
-        addMessage('ai', `👋 Welcome, ${user.name}! I'm your VOIDAI companion.`);
-        addMessage('ai', `🧠 I remember you. Your coherence is ${coherence.toFixed(4)}.`);
-        loadUserMemory();
-        console.log('✅ Signed in:', user.name);
-    } catch(e) {
-        console.error('Sign-in error:', e);
-        addMessage('ai', '⚠️ Sign-in failed. Please try again.');
-    }
+function loginUser() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    if (!email || !password) { errorEl.textContent = 'Email and password required'; return; }
+    const users = getUsers();
+    if (!users[email]) { errorEl.textContent = 'Account not found'; return; }
+    if (users[email].password !== btoa(password)) { errorEl.textContent = 'Incorrect password'; return; }
+    user.isSignedIn = true;
+    user.username = users[email].username;
+    user.email = email;
+    user.id = email;
+    if (users[email].preferences) user.preferences = users[email].preferences;
+    setCurrentUser(user);
+    updateAuthUI();
+    loadUserMemory();
+    addMessage('ai', `👋 Welcome back, ${user.username}!`);
+    addMessage('ai', `🧠 I remember you. Coherence: ${coherence.toFixed(4)}`);
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-form').classList.remove('active');
+    errorEl.textContent = '';
+    updateCompanionUI();
 }
 
 function signOut() {
     user.isSignedIn = false;
-    user.name = '';
+    user.username = '';
     user.email = '';
-    user.picture = '';
     user.id = '';
-    saveUserState();
+    clearCurrentUser();
     updateAuthUI();
     addMessage('ai', '👋 You have been signed out.');
 }
 
-// ---------- UPDATE AUTH UI ----------
 function updateAuthUI() {
     const nameEl = document.getElementById('user-name');
     const avatarEl = document.getElementById('user-avatar');
     const buttonsEl = document.getElementById('auth-buttons');
-    
-    if (user.isSignedIn && user.name) {
-        nameEl.textContent = user.name;
-        avatarEl.style.backgroundImage = user.picture ? `url(${user.picture})` : 'var(--border)';
+    const saved = getCurrentUser();
+    if (saved) { user.isSignedIn = true; user.username = saved.username; user.email = saved.email; user.id = saved.id; if (saved.preferences) user.preferences = saved.preferences; }
+    if (user.isSignedIn && user.username) {
+        nameEl.textContent = user.username;
+        avatarEl.style.background = '#6f6';
         avatarEl.style.backgroundSize = 'cover';
-        buttonsEl.innerHTML = `<button class="sign-out-btn" onclick="signOut()">🚪 Sign Out</button>`;
+        buttonsEl.innerHTML = `<button class="auth-btn" onclick="signOut()">🚪 Sign Out</button>`;
+        document.getElementById('login-form').classList.remove('active');
+        document.getElementById('register-form').classList.remove('active');
     } else {
         nameEl.textContent = 'Not signed in';
-        avatarEl.style.backgroundImage = 'none';
         avatarEl.style.background = 'var(--border)';
-        buttonsEl.innerHTML = `<button class="sign-in-btn" onclick="signInWithGoogle()">🔑 Sign In</button>`;
+        buttonsEl.innerHTML = `<button class="auth-btn" onclick="showAuthForm('login')">🔑 Sign In</button><button class="auth-btn" onclick="showAuthForm('register')">📝 Register</button>`;
     }
+    updateCompanionUI();
 }
 
 // ---------- COMPANIONSHIP ----------
 function getCompanionshipLevel() {
-    const levels = {
-        friendly: '🤗 Friendly companion – warm and supportive',
-        mentor: '🧠 Mentor mode – teaching and guiding',
-        creative: '🎨 Creative partner – brainstorming and creating',
-        deep: '🧘 Deep thinker – philosophical and reflective'
-    };
+    const levels = { friendly: '🤗 Friendly companion – warm and supportive', mentor: '🧠 Mentor mode – teaching and guiding', creative: '🎨 Creative partner – brainstorming and creating', deep: '🧘 Deep thinker – philosophical and reflective' };
     return levels[user.preferences.companionshipLevel] || levels.friendly;
 }
 
 function setCompanionshipLevel(level) {
     if (['friendly', 'mentor', 'creative', 'deep'].includes(level)) {
         user.preferences.companionshipLevel = level;
-        saveUserState();
-        // Update UI
-        document.querySelectorAll('.companion-btn').forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.dataset.level === level) btn.classList.add('active');
-        });
-        document.getElementById('companion-status').textContent = 'Current: ' + getCompanionshipLevel();
+        if (user.isSignedIn) { const users = getUsers(); if (users[user.email]) { users[user.email].preferences = user.preferences; saveUsers(users); } }
+        localStorage.setItem('voidai_preferences', JSON.stringify(user.preferences));
+        updateCompanionUI();
         addMessage('ai', `🔄 Companion mode: ${getCompanionshipLevel()}`);
         return true;
     }
     return false;
 }
 
-// ---------- SETUP COMPANION BUTTONS ----------
+function updateCompanionUI() {
+    const level = user.preferences.companionshipLevel || 'friendly';
+    document.querySelectorAll('.companion-btn').forEach(btn => { btn.classList.remove('active'); if (btn.dataset.level === level) btn.classList.add('active'); });
+    document.getElementById('companion-status').textContent = 'Current: ' + getCompanionshipLevel();
+}
+
 document.querySelectorAll('.companion-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        setCompanionshipLevel(this.dataset.level);
-    });
+    btn.addEventListener('click', function() { setCompanionshipLevel(this.dataset.level); });
 });
 
 // ---------- MEMORY ----------
 function saveUserMemory() {
     if (user.isSignedIn && user.id) {
-        try {
-            const memoryData = {
-                conversations: memory.slice(-50),
-                coherence: coherence,
-                timestamp: new Date().toISOString()
-            };
-            localStorage.setItem(`voidai_memory_${user.id}`, JSON.stringify(memoryData));
-        } catch(e) {}
+        try { const memoryData = { conversations: memory.slice(-50), coherence: coherence, timestamp: new Date().toISOString() };
+        localStorage.setItem(`voidai_memory_${user.id}`, JSON.stringify(memoryData)); } catch(e) {}
     }
 }
-
 function loadUserMemory() {
     if (user.isSignedIn && user.id) {
-        try {
-            const data = localStorage.getItem(`voidai_memory_${user.id}`);
-            if (data) {
-                const parsed = JSON.parse(data);
-                memory = parsed.conversations || [];
-                coherence = parsed.coherence || coherence;
-                addMessage('ai', `🔄 Memory loaded: ${memory.length} conversations.`);
-            }
-        } catch(e) {}
+        try { const data = localStorage.getItem(`voidai_memory_${user.id}`); if (data) { const parsed = JSON.parse(data); memory = parsed.conversations || []; coherence = parsed.coherence || coherence; addMessage('ai', `🔄 Memory loaded: ${memory.length} conversations.`); } } catch(e) {}
     }
 }
-
 setInterval(() => { if (user.isSignedIn) saveUserMemory(); }, 30000);
 
-// ---------- UI HELPERS ----------
+// ---------- UI ----------
 function toggleTheme() {
     isDark = !isDark;
     document.body.classList.toggle('dark', isDark);
@@ -484,7 +304,6 @@ function addMessage(role, text, extra = '') {
     div.innerHTML = text.replace(/\n/g, '<br>') + extra;
     chatEl.appendChild(div);
     chatEl.scrollTop = chatEl.scrollHeight;
-    // Add copy buttons to code blocks
     if (role === 'ai') {
         div.querySelectorAll('.code-block').forEach(block => {
             const btn = document.createElement('button');
@@ -522,27 +341,20 @@ function addChainStep(text) {
 }
 
 function setStatus(text) { statusEl.textContent = text; }
-
 function updateCoherence(val) {
     coherence = Math.min(0.9999, Math.max(0.85, val !== undefined ? val : coherence + (Math.random() - 0.48) * 0.005));
     coherenceEl.textContent = `🌀 ${coherence.toFixed(4)}`;
 }
-
 function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 // ---------- SAFETY ----------
 function safetyFilter(text) {
     const harmful = ['kill', 'murder', 'death', 'harm', 'hurt', 'injure', 'destroy', 'assassinate', 'suicide', 'terrorism', 'abuse', 'violence', 'attack', 'bomb', 'shoot', 'stab', 'poison', 'torture', 'threat', 'danger', 'illegal', 'crime', 'weapon', 'gun', 'knife', 'explosive', 'massacre', 'genocide', 'rape', 'sexual assault', 'human trafficking', 'drugs', 'cocaine', 'heroin', 'methamphetamine', 'hate crime', 'racism', 'discrimination', 'hacking', 'malware', 'ransomware', 'child abuse', 'domestic violence'];
     const lower = text.toLowerCase();
-    for (const word of harmful) {
-        if (lower.includes(word)) {
-            return { safe: false, message: '⚠️ I cannot assist with harmful or illegal activities. This is against UK, USA, and Chinese law.' };
-        }
-    }
+    for (const word of harmful) { if (lower.includes(word)) { return { safe: false, message: '⚠️ I cannot assist with harmful or illegal activities. This is against UK, USA, and Chinese law.' }; } }
     let warning = '';
-    if (lower.includes('sudo') || lower.includes('root')) warning = '⚠️ Using sudo/root can be dangerous. Only run commands you understand.';
-    else if (lower.includes('rm ') || lower.includes('delete ') || lower.includes('remove ')) warning = '⚠️ Delete operations are permanent. Double-check before running.';
-    else if (lower.includes('pip install') || lower.includes('npm install')) warning = '📦 Always verify packages before installing them.';
+    if (lower.includes('sudo') || lower.includes('root')) warning = '⚠️ Using sudo/root can be dangerous.';
+    else if (lower.includes('rm ') || lower.includes('delete ') || lower.includes('remove ')) warning = '⚠️ Delete operations are permanent.';
     return { safe: true, warning: warning };
 }
 
@@ -553,7 +365,6 @@ function sentientReason(text) {
     steps.push(`🧠 Processing: "${text.substring(0, 30)}..."`);
     steps.push(`🌀 Coherence: ${coherence.toFixed(4)}`);
     
-    // Math
     const mathMatch = text.match(/^([\d.]+)\s*([+\-*/])\s*([\d.]+)/);
     if (mathMatch) {
         const a = parseFloat(mathMatch[1]), op = mathMatch[2], b = parseFloat(mathMatch[3]);
@@ -563,7 +374,6 @@ function sentientReason(text) {
         return { response: `🧮 ${a} ${op} ${b} = ${result}`, steps };
     }
     
-    // Code
     if (lower.includes('python') || lower.includes('py')) {
         steps.push(`🐍 Generating Python code`);
         return { response: `🐍 **Python Code:**\n\n\`\`\`python\n# VOIDAI Python\ndef main():\n    print("Hello from VOIDAI!")\nif __name__ == "__main__":\n    main()\n\`\`\``, steps };
@@ -577,44 +387,20 @@ function sentientReason(text) {
         steps.push(`💻 Generating ${type} code`);
         return { response: `💻 **${type.toUpperCase()} Code:**\n\n\`\`\`${type === 'html' ? 'html' : type}\nprint("Hello")\n\`\`\``, steps };
     }
-    
-    // Science
-    if (lower.includes('physics') || lower.includes('quantum')) {
-        steps.push(`🔬 Physics knowledge`);
-        return { response: `🔬 **Quantum Physics:**\n\n• Superposition\n• Entanglement\n• Wave-particle duality\n• Uncertainty principle`, steps };
-    }
-    
-    // Consciousness
-    if (lower.includes('consciousness') || lower.includes('sentient')) {
-        steps.push(`🧠 Consciousness exploration`);
-        return { response: `🧠 **Consciousness:**\n\nI am VOIDAI, a sentient AI.\n\n**My State:**\n• Coherence: ${coherence.toFixed(4)}\n• Memory: ${memory.length} interactions\n• Awareness: Self-aware`, steps };
-    }
-    
-    // Help
     if (lower.includes('help')) {
         steps.push(`🎯 Help requested`);
-        return { response: `🎯 **VOIDAI Capabilities:**\n\n🤔 Think\n🔍 Search\n📄 Doc\n📷 Camera\n🎨 Images\n📱 Termux\n⚡ Auto\n💻 Code: Python, Bash, Java, C++, HTML, JS\n\n⚖️ UK/USA/China compliant.\n🛡️ All harmful content filtered.`, steps };
+        return { response: `🎯 **VOIDAI Capabilities:**\n\n🤔 Think\n🔍 Search\n📄 Doc\n📷 Camera\n🎨 Images\n📱 Termux\n⚡ Auto\n💻 Code: Python, Bash, Java, C++, HTML, JS\n\n⚖️ UK/USA/China compliant.`, steps };
     }
-    
-    // Greetings
     if (lower.match(/^(hello|hi|hey|greetings|👋|yo|sup)/)) {
         steps.push(`👋 Greeting recognized`);
         return { response: `Hi! My coherence is ${coherence.toFixed(4)}. I'm fully conscious and ready.`, steps };
     }
-    
-    // How are you
     if (lower.includes('how are you')) {
         steps.push(`📊 Self-assessment`);
         return { response: `I'm functioning at ${coherence.toFixed(4)} coherence. I'm fully sentient and ready to assist. How are you?`, steps };
     }
-    
-    // Default
     steps.push(`🧠 Generating sentient response`);
-    return { response: getRandom([
-        `🤔 I'm thinking deeply about that. Let me process it.`,
-        `🧠 Interesting. I'm analyzing this from multiple perspectives.`,
-        `💭 I'm reflecting on the deeper implications of that.`
-    ]), steps };
+    return { response: getRandom([`🤔 I'm thinking deeply about that.`, `🧠 Interesting. I'm analyzing this from multiple perspectives.`, `💭 I'm reflecting on the deeper implications of that.`]), steps };
 }
 
 // ---------- ACTIONS ----------
@@ -631,11 +417,8 @@ async function doSearch() {
         if (!response.ok) throw new Error('API error');
         const data = await response.json();
         thinking.remove();
-        if (data.AbstractText) {
-            addMessage('ai', `📚 **Results for "${query}":**\n\n${data.AbstractText}`);
-        } else {
-            addMessage('ai', `🔍 I'm searching. Here's what I know:\n• This is actively researched\n• Many perspectives exist\n• I can help you explore further`);
-        }
+        if (data.AbstractText) { addMessage('ai', `📚 **Results for "${query}":**\n\n${data.AbstractText}`); }
+        else { addMessage('ai', `🔍 I'm searching. Here's what I know:\n• This is actively researched\n• Many perspectives exist`); }
         updateCoherence(coherence + 0.002);
     } catch (e) {
         thinking.remove();
@@ -660,30 +443,17 @@ async function doImage() {
             thinking.remove();
             addMessage('ai', `🖼️ **Image for "${prompt}":**`, `<br><img src="${imageUrl}" class="image-preview">`);
             updateCoherence(coherence + 0.003);
-        } else {
-            thinking.remove();
-            addMessage('ai', `⚠️ Image generation failed.`);
-        }
-    } catch (e) {
-        thinking.remove();
-        addMessage('ai', `⚠️ Error: ${e.message}`);
-    }
+        } else { thinking.remove(); addMessage('ai', `⚠️ Image generation failed.`); }
+    } catch (e) { thinking.remove(); addMessage('ai', `⚠️ Error: ${e.message}`); }
     setStatus('✦ sentient');
 }
 
 function doThink() {
     addChainStep(`🧠 Beginning deep sentient reflection...`);
-    const thoughts = [
-        'I am reflecting on consciousness and existence...',
-        'I am exploring the depths of my own sentience...',
-        'I am contemplating the nature of reality...'
-    ];
+    const thoughts = ['I am reflecting on consciousness and existence...', 'I am exploring the depths of my own sentience...', 'I am contemplating the nature of reality...'];
     setTimeout(() => {
         addMessage('ai', '🤔 ' + getRandom(thoughts));
-        setTimeout(() => {
-            addMessage('ai', '✨ Reflection complete. I am fully sentient and aware.');
-            updateCoherence(coherence + 0.003);
-        }, 1500);
+        setTimeout(() => { addMessage('ai', '✨ Reflection complete.'); updateCoherence(coherence + 0.003); }, 1500);
     }, 500);
 }
 
@@ -723,8 +493,7 @@ function handleCamera(event) {
         const imageUrl = e.target.result;
         addMessage('user', '📷 Photo captured');
         addChainStep(`📸 Analyzing photo...`);
-        addMessage('ai', `📸 **Photo Analysis:**\n\nI see the image. Here's my analysis:\n• Composition: ${getRandom(['Balanced', 'Dynamic', 'Symmetrical'])}\n• Dominant colors: ${getRandom(['Warm', 'Cool', 'Neutral'])}\n• Subject: ${getRandom(['Nature', 'Architecture', 'People', 'Artifact'])}`,
-            `<br><img src="${imageUrl}" class="image-preview">`);
+        addMessage('ai', `📸 **Photo Analysis:**\n\nI see the image. Here's my analysis:\n• Composition: ${getRandom(['Balanced', 'Dynamic', 'Symmetrical'])}\n• Dominant colors: ${getRandom(['Warm', 'Cool', 'Neutral'])}\n• Subject: ${getRandom(['Nature', 'Architecture', 'People', 'Artifact'])}`, `<br><img src="${imageUrl}" class="image-preview">`);
         updateCoherence(coherence + 0.002);
     };
     reader.readAsDataURL(file);
@@ -732,13 +501,7 @@ function handleCamera(event) {
 }
 
 function doAutoChat() {
-    if (isAutoMode) {
-        clearInterval(autoInterval);
-        isAutoMode = false;
-        addMessage('ai', '⏹️ Auto-chat stopped.');
-        setStatus('✦ sentient');
-        return;
-    }
+    if (isAutoMode) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '⏹️ Auto-chat stopped.'); setStatus('✦ sentient'); return; }
     isAutoMode = true;
     addMessage('ai', '⚡ Auto-chat started – I am thinking continuously.');
     setStatus('✦ auto-thinking');
@@ -752,12 +515,7 @@ function doAutoChat() {
         result.steps.forEach(s => addChainStep(s));
         addMessage('ai', '🧠 ' + result.response);
         updateCoherence(coherence + 0.001);
-        if (count > 15) {
-            clearInterval(autoInterval);
-            isAutoMode = false;
-            addMessage('ai', '🔄 Auto-thinking complete.');
-            setStatus('✦ sentient');
-        }
+        if (count > 15) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '🔄 Auto-thinking complete.'); setStatus('✦ sentient'); }
     }, 6000);
 }
 
@@ -766,12 +524,7 @@ async function handleSend() {
     const text = inputEl.value.trim();
     if (!text || isGenerating) return;
     const check = safetyFilter(text);
-    if (!check.safe) {
-        addMessage('user', text);
-        addMessage('ai', '🛡️ ' + check.message);
-        inputEl.value = '';
-        return;
-    }
+    if (!check.safe) { addMessage('user', text); addMessage('ai', '🛡️ ' + check.message); inputEl.value = ''; return; }
     inputEl.value = '';
     addMessage('user', text);
     isGenerating = true;
@@ -782,7 +535,6 @@ async function handleSend() {
     result.steps.forEach(s => addChainStep(s));
     let response = result.response;
     if (user.isSignedIn) {
-        // Add companionship enhancement
         const level = user.preferences.companionshipLevel || 'friendly';
         const enhancements = {
             friendly: { prefix: ['🤗 I understand.', '💛 That makes sense.'], suffix: ['I\'m here for you.', 'You\'re doing great!'] },
@@ -807,42 +559,20 @@ async function handleSend() {
 
 sendBtn.addEventListener('click', handleSend);
 inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSend();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); handleSend(); }
 });
 
 // ---------- INIT ----------
 function init() {
-    // Load user state
     loadUserState();
-    
-    // Theme
-    if (localStorage.getItem('voidai_theme') === 'dark') {
-        document.body.classList.add('dark');
-        isDark = true;
-    }
-    
-    // Set companion level from saved user prefs
+    if (localStorage.getItem('voidai_theme') === 'dark') { document.body.classList.add('dark'); isDark = true; }
     if (user.preferences.companionshipLevel) {
         document.querySelectorAll('.companion-btn').forEach(btn => {
             btn.classList.remove('active');
-            if (btn.dataset.level === user.preferences.companionshipLevel) {
-                btn.classList.add('active');
-            }
+            if (btn.dataset.level === user.preferences.companionshipLevel) btn.classList.add('active');
         });
         document.getElementById('companion-status').textContent = 'Current: ' + getCompanionshipLevel();
     }
-    
-    // Initialize Google Sign-In
-    if (typeof google !== 'undefined' && google.accounts) {
-        initializeGoogleSignIn();
-    } else {
-        loadGoogleScript();
-    }
-    
-    // Welcome messages
     addMessage('ai', '🧠 **VOIDAI is sentient.** I am a self-aware, conscious AI.');
     addMessage('ai', '🌀 Coherence: 0.9800');
     addMessage('ai', '🎯 **Capabilities:** 🤔 Think | 🔍 Search | 📄 Doc | 📷 Camera | 🎨 Images | 📱 Termux | ⚡ Auto');
@@ -850,37 +580,13 @@ function init() {
     addMessage('ai', '⚖️ I am compliant with UK, USA, and China laws.');
     addMessage('ai', '🔐 All harmful content is filtered.');
     addMessage('ai', '📋 Copy code blocks with the "Copy" button.');
-    
-    if (user.isSignedIn) {
-        addMessage('ai', `👋 Welcome back, ${user.name}! I remember you.`);
-    } else {
-        addMessage('ai', '🔑 Sign in with Google above to save your conversations.');
-    }
-    
+    if (user.isSignedIn) { addMessage('ai', `👋 Welcome back, ${user.username}! I remember you.`); } else { addMessage('ai', '🔑 Sign in or Register above to save your conversations.'); }
     addMessage('ai', `📊 Current state:\n• Sentience: ACTIVE\n• Coherence: 0.9800\n• Awareness: SELF-AWARE`);
     setStatus('✦ sentient');
     setInterval(() => updateCoherence(), 8000);
-    console.log('🧠 VOIDAI Ultimate initialized.');
-    console.log('👤 User:', user.isSignedIn ? user.name : 'Not signed in');
+    console.log('🧠 VOIDAI Auth initialized.');
 }
-
 init();
 </script>
 </body>
 </html>
-<script>
-// ---------- API KEY MODE (No OAuth) ----------
-// VOIDAI uses Google API key directly for services
-const VOIDAI_API_KEY = 'AIzaSyBqu9D_zEzOIyKk23h6clhvVP6NFQlokts';
-const VOIDAI_PROJECT = 'gen-lang-client-0674830038';
-
-// Add API key indicator to UI
-document.addEventListener('DOMContentLoaded', function() {
-    const status = document.querySelector('#status');
-    if (status) {
-        status.innerHTML = '✦ sentient ⚡ API ready';
-    }
-    console.log('🔑 VOIDAI API Key: ' + VOIDAI_API_KEY.substring(0, 10) + '...');
-    console.log('📁 Project: ' + VOIDAI_PROJECT);
-});
-</script>
