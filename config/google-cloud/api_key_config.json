@@ -1,0 +1,9 @@
+{
+  "api_key": "AIzaSyBqu9D_zEzOIyKk23h6clhvVP6NFQlokts",
+  "project_id": "gen-lang-client-0674830038",
+  "services": {
+    "gemini": true,
+    "vision": true,
+    "translate": true
+  }
+}
