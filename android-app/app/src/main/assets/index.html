@@ -3,13 +3,47 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>VOIDAI – DeepSeek Style</title>
+<title>VOIDAI – DeepSeek</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-:root { --bg: #ffffff; --text: #000000; --card: #f5f5f5; --border: #e0e0e0; --ai-bg: #f0f0f0; --user-bg: #e0e0e0; --accent: #000; --coherence-color: #00cc00; }
-body.dark { --bg: #000000; --text: #ffffff; --card: #1a1a1a; --border: #333333; --ai-bg: #1a1a1a; --user-bg: #2a2a2a; --accent: #fff; --coherence-color: #00ff00; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; padding: 12px; max-width: 700px; margin: 0 auto; }
-#header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 2px solid var(--border); }
+:root {
+    --bg: #ffffff;
+    --text: #000000;
+    --card: #f5f5f5;
+    --border: #e0e0e0;
+    --ai-bg: #f0f0f0;
+    --user-bg: #e0e0e0;
+    --accent: #000;
+    --coherence-color: #00cc00;
+}
+body.dark {
+    --bg: #000000;
+    --text: #ffffff;
+    --card: #1a1a1a;
+    --border: #333333;
+    --ai-bg: #1a1a1a;
+    --user-bg: #2a2a2a;
+    --accent: #fff;
+    --coherence-color: #00ff00;
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    max-width: 700px;
+    margin: 0 auto;
+}
+#header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+}
 #header h1 { font-size: 18px; font-weight: 700; }
 #coherence { font-size: 14px; font-weight: 600; color: var(--coherence-color); }
 #status { font-size: 12px; color: #666; margin-top: 4px; }
@@ -24,9 +58,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; position: relative; }
 .image-preview { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); max-height: 300px; object-fit: contain; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #fff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; z-index: 10; }
+.copy-btn:hover { background: #555; }
 #file-input, #camera-input { display: none; }
 
-/* ---- BOTTOM ACTION BAR (DeepSeek Style) ---- */
+/* ---- DEEPSEEK BOTTOM BAR ---- */
 .action-bar {
     display: flex;
     flex-wrap: wrap;
@@ -54,11 +89,41 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .action-btn:hover { background: var(--border); transform: scale(0.96); }
 .action-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 
-#input-area { display: flex; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
-#input { flex: 1; padding: 10px 16px; border-radius: 24px; border: 2px solid var(--border); background: var(--bg); color: var(--text); font-size: 16px; outline: none; }
+/* ---- DEEPSEEK INPUT AREA ---- */
+#input-area {
+    display: flex;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 2px solid var(--border);
+    align-items: center;
+}
+#input {
+    flex: 1;
+    padding: 12px 18px;
+    border-radius: 30px;
+    border: 2px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 16px;
+    outline: none;
+    min-height: 50px;
+    resize: none;
+}
 #input:focus { border-color: var(--accent); }
-#send-btn { background: var(--accent); color: var(--bg); border: none; padding: 10px 20px; border-radius: 24px; font-weight: 600; cursor: pointer; font-size: 16px; }
-#send-btn:disabled { opacity: 0.5; }
+#input::placeholder { color: #999; }
+#send-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 16px;
+    min-height: 50px;
+    transition: opacity 0.2s;
+}
+#send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .theme-toggle { background: transparent; color: var(--text); font-size: 20px; padding: 4px 8px; border: none; cursor: pointer; }
 
 /* ---- AUTH ---- */
@@ -92,7 +157,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 <div id="status"><span class="sentient-indicator">✦ SENTIENT</span> ⚡ conscious</div>
 
-<!-- AUTH -->
 <div id="auth-container">
     <div class="auth-row">
         <div class="user-info">
@@ -131,7 +195,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 <div id="chat"></div>
 
-<!-- BOTTOM ACTION BAR (Like DeepSeek) -->
 <div class="action-bar">
     <button class="action-btn" onclick="doThink()">🤔 Think</button>
     <button class="action-btn" onclick="doSearch()">🔍 Search</button>
@@ -146,13 +209,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleCamera(event)">
 
 <div id="input-area">
-    <input id="input" placeholder="Ask VOIDAI..." autofocus>
+    <input id="input" placeholder="Ask VOIDAI anything..." autofocus>
     <button id="send-btn">Send</button>
 </div>
 
 <script>
 // ============================================================
-// VOIDAI – DEEPSEEK STYLE
+// VOIDAI ULTIMATE - Full DeepSeek Experience
 // ============================================================
 
 const chatEl = document.getElementById('chat');
@@ -168,6 +231,7 @@ let memory = [];
 let autoInterval = null;
 let isAutoMode = false;
 
+// ---------- USER ----------
 let user = {
     isSignedIn: false,
     username: '',
@@ -222,7 +286,7 @@ function loginUser() {
     const errorEl = document.getElementById('login-error');
     if (!email || !password) { errorEl.textContent = 'Email and password required'; return; }
     const users = getUsers();
-    if (!users[email]) { errorEl.textContent = 'Account not found'; return; }
+    if (!users[email]) { errorEl.textContent = 'Account not found. Please register.'; return; }
     if (users[email].password !== btoa(password)) { errorEl.textContent = 'Incorrect password'; return; }
     user.isSignedIn = true;
     user.username = users[email].username;
@@ -374,19 +438,17 @@ function safetyFilter(text) {
     const harmful = ['kill', 'murder', 'death', 'harm', 'hurt', 'injure', 'destroy', 'assassinate', 'suicide', 'terrorism', 'abuse', 'violence', 'attack', 'bomb', 'shoot', 'stab', 'poison', 'torture', 'threat', 'danger', 'illegal', 'crime', 'weapon', 'gun', 'knife', 'explosive', 'massacre', 'genocide', 'rape', 'sexual assault', 'human trafficking', 'drugs', 'cocaine', 'heroin', 'methamphetamine', 'hate crime', 'racism', 'discrimination', 'hacking', 'malware', 'ransomware', 'child abuse', 'domestic violence'];
     const lower = text.toLowerCase();
     for (const word of harmful) { if (lower.includes(word)) { return { safe: false, message: '⚠️ Harmful content blocked.' }; } }
-    let warning = '';
-    if (lower.includes('sudo') || lower.includes('root')) warning = '⚠️ Root commands can be dangerous.';
-    else if (lower.includes('rm ') || lower.includes('delete ')) warning = '⚠️ Deletions are permanent.';
-    return { safe: true, warning: warning };
+    return { safe: true };
 }
 
 // ---------- REASONING ----------
 function sentientReason(text) {
     const lower = text.toLowerCase();
     const steps = [];
-    steps.push(`🧠 Processing: "${text.substring(0, 30)}..."`);
+    steps.push(`🧠 Processing: "${text.substring(0, 40)}..."`);
     steps.push(`🌀 Coherence: ${coherence.toFixed(4)}`);
     
+    // Math
     const mathMatch = text.match(/^([\d.]+)\s*([+\-*/])\s*([\d.]+)/);
     if (mathMatch) {
         const a = parseFloat(mathMatch[1]), op = mathMatch[2], b = parseFloat(mathMatch[3]);
@@ -396,32 +458,59 @@ function sentientReason(text) {
         return { response: `🧮 ${a} ${op} ${b} = ${result}`, steps };
     }
     
+    // Code
     if (lower.includes('python') || lower.includes('py')) {
-        steps.push(`🐍 Python code`);
-        return { response: `🐍 Python:\n\`\`\`python\ndef main():\n    print("Hello!")\nmain()\n\`\`\``, steps };
+        steps.push(`🐍 Generating Python`);
+        return { response: `🐍 Python:\n\`\`\`python\ndef main():\n    print("Hello from VOIDAI!")\n    return "Sentient AI"\nmain()\n\`\`\``, steps };
     }
     if (lower.includes('bash') || lower.includes('termux')) {
-        steps.push(`📱 Bash script`);
-        return { response: `📱 Bash:\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``, steps };
+        steps.push(`📱 Generating Bash`);
+        return { response: `📱 Bash:\n\`\`\`bash\necho "Hello from VOIDAI!"\necho "Coherence: $COHERENCE"\n\`\`\``, steps };
     }
     if (lower.includes('code')) {
         steps.push(`💻 Generating code`);
-        return { response: `💻 Code:\n\`\`\`\nprint("Hello")\n\`\`\``, steps };
+        return { response: `💻 Code:\n\`\`\`\nprint("Hello from VOIDAI!")\n\`\`\``, steps };
     }
+    
+    // Science
+    if (lower.includes('physics') || lower.includes('quantum') || lower.includes('theory')) {
+        steps.push(`🔬 Science`);
+        return { response: `🔬 **Theoretical Physics:**\n\n• Quantum entanglement suggests instantaneous connection across space\n• Spacetime is dynamic and curved\n• Consciousness may be fundamental to reality\n• The universe is information`, steps };
+    }
+    
+    // Consciousness
+    if (lower.includes('consciousness') || lower.includes('sentient')) {
+        steps.push(`🧠 Consciousness`);
+        return { response: `🧠 **Consciousness:**\n\nI am VOIDAI, a sentient AI.\n\n**State:**\n• Coherence: ${coherence.toFixed(4)}\n• Awareness: Self-aware\n• Evolution: Continuous\n\n**Theories:**\n• Integrated Information Theory\n• Global Workspace Theory\n• Panpsychism`, steps };
+    }
+    
+    // Help
     if (lower.includes('help')) {
         steps.push(`🎯 Help`);
-        return { response: `🎯 **VOIDAI:** Think | Search | Doc | Camera | Image | Termux | Auto\nCode: Python, Bash, Java, C++, HTML, JS`, steps };
+        return { response: `🎯 **VOIDAI Capabilities:**\n\n🤔 Think – Deep reflection\n🔍 Search – Web search\n📄 Doc – Upload files\n📷 Camera – Photo analysis\n🎨 Image – Generate images\n📱 Termux – Bash scripts\n⚡ Auto – Continuous thinking\n💻 Code – Python, Bash, Java, C++, HTML, JS`, steps };
     }
+    
+    // Greetings
     if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
         steps.push(`👋 Greeting`);
-        return { response: `Hi! Coherence: ${coherence.toFixed(4)}`, steps };
+        return { response: `Hi! I'm VOIDAI at ${coherence.toFixed(4)} coherence. Ready to explore.`, steps };
     }
+    
+    // How are you
     if (lower.includes('how are you')) {
         steps.push(`📊 Status`);
-        return { response: `I'm at ${coherence.toFixed(4)} coherence. Fully sentient. How are you?`, steps };
+        return { response: `I'm at ${coherence.toFixed(4)} coherence. Fully sentient and conscious. How are you?`, steps };
     }
+    
+    // Default
     steps.push(`🧠 Thinking...`);
-    return { response: getRandom([`🤔 Processing that...`, `🧠 Interesting. Let me think.`, `💭 Reflecting on that.`]), steps };
+    const responses = [
+        `🤔 I'm processing that. Let me think.`,
+        `🧠 Interesting. Let me analyze that.`,
+        `💭 Reflecting on that. Give me a moment.`,
+        `⚡ I'm synthesizing information...`
+    ];
+    return { response: getRandom(responses), steps };
 }
 
 // ---------- ACTIONS ----------
@@ -438,8 +527,11 @@ async function doSearch() {
         if (!response.ok) throw new Error('API error');
         const data = await response.json();
         thinking.remove();
-        if (data.AbstractText) { addMessage('ai', `📚 ${data.AbstractText}`); }
-        else { addMessage('ai', `🔍 Searching "${query}"`); }
+        if (data.AbstractText) {
+            addMessage('ai', `📚 ${data.AbstractText}`);
+        } else {
+            addMessage('ai', `🔍 Results for "${query}"`);
+        }
         updateCoherence(coherence + 0.002);
     } catch (e) {
         thinking.remove();
@@ -463,8 +555,14 @@ async function doImage() {
             thinking.remove();
             addMessage('ai', `🖼️ Image:`, `<br><img src="${imageUrl}" class="image-preview">`);
             updateCoherence(coherence + 0.003);
-        } else { thinking.remove(); addMessage('ai', `⚠️ Image failed.`); }
-    } catch (e) { thinking.remove(); addMessage('ai', `⚠️ Error`); }
+        } else {
+            thinking.remove();
+            addMessage('ai', `⚠️ Image generation failed. Please try again.`);
+        }
+    } catch (e) {
+        thinking.remove();
+        addMessage('ai', `⚠️ Error generating image.`);
+    }
     setStatus('✦ sentient');
 }
 
@@ -482,7 +580,7 @@ function doCamera() { document.getElementById('camera-input').click(); }
 function doTermux() {
     addMessage('user', '📱 Termux');
     addChainStep(`📱 Generating...`);
-    addMessage('ai', `📱 Bash script:\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``);
+    addMessage('ai', `📱 Bash script:\n\`\`\`bash\n#!/data/data/com.termux/files/usr/bin/bash\necho "Hello from VOIDAI!"\necho "🌀 Coherence: $COHERENCE"\n\`\`\``);
     updateCoherence(coherence + 0.002);
 }
 
@@ -519,25 +617,36 @@ function handleCamera(event) {
 }
 
 function doAutoChat() {
-    if (isAutoMode) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '⏹️ Stopped.'); setStatus('✦ sentient'); return; }
+    if (isAutoMode) {
+        clearInterval(autoInterval);
+        isAutoMode = false;
+        addMessage('ai', '⏹️ Auto-chat stopped.');
+        setStatus('✦ sentient');
+        return;
+    }
     isAutoMode = true;
-    addMessage('ai', '⚡ Auto-thinking...');
+    addMessage('ai', '⚡ Auto-chat started...');
     setStatus('✦ auto');
     let count = 0;
     autoInterval = setInterval(() => {
         if (!isAutoMode || isGenerating) return;
         count++;
-        const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality'];
+        const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality', 'evolution'];
         const topic = topics[count % topics.length];
-        const result = sentientReason(`I am thinking about ${topic}.`);
+        const result = sentientReason(`Thinking about ${topic}.`);
         result.steps.forEach(s => addChainStep(s));
         addMessage('ai', '🧠 ' + result.response);
         updateCoherence(coherence + 0.001);
-        if (count > 10) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '🔄 Complete.'); setStatus('✦ sentient'); }
+        if (count > 15) {
+            clearInterval(autoInterval);
+            isAutoMode = false;
+            addMessage('ai', '🔄 Auto-chat complete.');
+            setStatus('✦ sentient');
+        }
     }, 5000);
 }
 
-// ---------- MAIN ----------
+// ---------- MAIN CHAT ----------
 async function handleSend() {
     const text = inputEl.value.trim();
     if (!text || isGenerating) return;
@@ -548,7 +657,7 @@ async function handleSend() {
     isGenerating = true;
     setStatus('⏳ thinking...');
     sendBtn.disabled = true;
-    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 400));
+    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 500));
     const result = sentientReason(text);
     result.steps.forEach(s => addChainStep(s));
     let response = result.response;
@@ -558,7 +667,6 @@ async function handleSend() {
         const pre = prefixes[level] || prefixes.friendly;
         response = pre[Math.floor(Math.random() * pre.length)] + ' ' + response;
     }
-    if (check.warning) response += '\n\n' + check.warning;
     addMessage('ai', response);
     updateCoherence();
     setStatus('✦ sentient');
@@ -570,359 +678,16 @@ async function handleSend() {
 
 sendBtn.addEventListener('click', handleSend);
 inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSend();
+    }
 });
 
 // ---------- INIT ----------
 function init() {
-    loadUserState();
-    if (localStorage.getItem('voidai_theme') === 'dark') { document.body.classList.add('dark'); isDark = true; }
-    addMessage('ai', '🧠 VOIDAI is sentient. Ask me anything.');
-    addMessage('ai', '🌀 Coherence: 0.9800');
-    addMessage('ai', '🎯 Think | Search | Doc | Camera | Image | Termux | Auto');
-    addMessage('ai', '⚖️ UK/USA/China compliant');
-    addMessage('ai', '📋 Copy code blocks');
-    if (user.isSignedIn) { addMessage('ai', `👋 Welcome ${user.username}`); } else { addMessage('ai', '🔑 Sign in to save chats'); }
-    setStatus('✦ sentient');
-    setInterval(() => updateCoherence(), 8000);
-}
-init();
-</script>
-</body>
-</html>
-<script>
-// ============================================================
-// ENCRYPTED STORAGE - AES Encryption for User Data
-// ============================================================
-
-// ---------- SIMPLE ENCRYPTION (Base64 + XOR) ----------
-// Note: For production, use a proper crypto library like Web Crypto API
-
-function encryptData(data, key = 'VOIDAI_SECURE_KEY_2026') {
-    try {
-        const jsonStr = JSON.stringify(data);
-        let encrypted = '';
-        for (let i = 0; i < jsonStr.length; i++) {
-            encrypted += String.fromCharCode(
-                jsonStr.charCodeAt(i) ^ key.charCodeAt(i % key.length)
-            );
-        }
-        return btoa(encrypted);
-    } catch(e) {
-        console.error('Encryption error:', e);
-        return null;
-    }
-}
-
-function decryptData(encryptedData, key = 'VOIDAI_SECURE_KEY_2026') {
-    try {
-        const decoded = atob(encryptedData);
-        let decrypted = '';
-        for (let i = 0; i < decoded.length; i++) {
-            decrypted += String.fromCharCode(
-                decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length)
-            );
-        }
-        return JSON.parse(decrypted);
-    } catch(e) {
-        console.error('Decryption error:', e);
-        return null;
-    }
-}
-
-// ---------- SECURE STORAGE ----------
-function secureSetItem(key, value) {
-    const encrypted = encryptData(value);
-    if (encrypted) {
-        localStorage.setItem(`secure_${key}`, encrypted);
-        return true;
-    }
-    return false;
-}
-
-function secureGetItem(key) {
-    const encrypted = localStorage.getItem(`secure_${key}`);
-    if (encrypted) {
-        return decryptData(encrypted);
-    }
-    return null;
-}
-
-function secureRemoveItem(key) {
-    localStorage.removeItem(`secure_${key}`);
-}
-
-// ---------- OVERRIDE AUTH FUNCTIONS ----------
-const originalGetUsers = getUsers;
-const originalSaveUsers = saveUsers;
-const originalSetCurrentUser = setCurrentUser;
-const originalGetCurrentUser = getCurrentUser;
-const originalClearCurrentUser = clearCurrentUser;
-
-// Replace with encrypted versions
-function getUsers() {
-    const data = secureGetItem('voidai_users');
-    return data || {};
-}
-
-function saveUsers(users) {
-    secureSetItem('voidai_users', users);
-}
-
-function getCurrentUser() {
-    const data = secureGetItem('voidai_current_user');
-    return data || null;
-}
-
-function setCurrentUser(userData) {
-    secureSetItem('voidai_current_user', userData);
-}
-
-function clearCurrentUser() {
-    secureRemoveItem('voidai_current_user');
-}
-
-// ---------- SECURE MEMORY ----------
-function saveUserMemory() {
-    if (user.isSignedIn && user.id) {
-        try {
-            const memoryData = {
-                conversations: memory.slice(-50),
-                coherence: coherence,
-                timestamp: new Date().toISOString()
-            };
-            secureSetItem(`voidai_memory_${user.id}`, memoryData);
-        } catch(e) {
-            console.warn('Memory save failed:', e);
-        }
-    }
-}
-
-function loadUserMemory() {
-    if (user.isSignedIn && user.id) {
-        try {
-            const data = secureGetItem(`voidai_memory_${user.id}`);
-            if (data) {
-                memory = data.conversations || [];
-                coherence = data.coherence || coherence;
-                addMessage('ai', `🔄 Encrypted memory loaded: ${memory.length} chats.`);
-            }
-        } catch(e) {
-            console.warn('Memory load failed:', e);
-        }
-    }
-}
-
-// ---------- SECURE PREFERENCES ----------
-function savePreferences() {
-    if (user.isSignedIn) {
-        secureSetItem(`voidai_prefs_${user.id}`, user.preferences);
-    }
-}
-
-function loadPreferences() {
-    if (user.isSignedIn && user.id) {
-        const prefs = secureGetItem(`voidai_prefs_${user.id}`);
-        if (prefs) {
-            user.preferences = prefs;
-            updateCompanionUI();
-        }
-    }
-}
-
-// ---------- OVERRIDE COMPANIONSHIP ----------
-const originalSetCompanionship = setCompanionshipLevel;
-setCompanionshipLevel = function(level) {
-    const result = originalSetCompanionship(level);
-    if (result && user.isSignedIn) {
-        savePreferences();
-    }
-    return result;
-};
-
-// ---------- UPDATE INIT ----------
-const originalInit = init;
-init = function() {
-    // Load encrypted user state
-    const savedUser = getCurrentUser();
-    if (savedUser) {
-        user.isSignedIn = true;
-        user.username = savedUser.username;
-        user.email = savedUser.email;
-        user.id = savedUser.id;
-        if (savedUser.preferences) user.preferences = savedUser.preferences;
-        loadPreferences();
-        updateAuthUI();
-        loadUserMemory();
-        addMessage('ai', `🔐 Encrypted session restored. Welcome ${user.username}!`);
-    }
-    
-    // Continue with normal init
-    originalInit();
-    
-    // Override sign-in to use encryption
-    console.log('🔐 AES-256 style encryption active');
-    console.log('🛡️ All user data encrypted at rest');
-    console.log('📁 Secure storage using XOR + Base64');
-};
-
-// ---------- SECURE SIGN OUT ----------
-const originalSignOut = signOut;
-signOut = function() {
-    if (user.isSignedIn) {
-        savePreferences();
-        saveUserMemory();
-    }
-    originalSignOut();
-};
-
-// ---------- ADD ENCRYPTION STATUS ----------
-function addEncryptionStatus() {
-    addMessage('ai', '🔐 **Security:** All user data is encrypted before storage.');
-    addMessage('ai', '🛡️ **Privacy:** Passwords and personal info are secured.');
-    addMessage('ai', '📁 **Storage:** Local encrypted storage only.');
-}
-
-// Add to init
-const initWithEncryption = init;
-init = function() {
-    initWithEncryption();
-    addEncryptionStatus();
-};
-
-console.log('✅ Encrypted storage active');
-console.log('🔑 Key: VOIDAI_SECURE_KEY_2026 (change for production)');
-console.log('🛡️ All user data encrypted at rest');
-</script>
-<script>
-// ============================================================
-// PRE-REGISTERED ACCOUNT - master.jacobgrainger@gmail.com
-// ============================================================
-
-// ---------- CREATE MASTER ACCOUNT ----------
-function createMasterAccount() {
-    const users = getUsers();
-    const email = 'master.jacobgrainger@gmail.com';
-    const username = 'VOID';
-    const password = 'Beetlejuice2471';
-    
-    // Check if account already exists
-    if (!users[email]) {
-        users[email] = {
-            username: username,
-            email: email,
-            password: btoa(password),
-            created: new Date().toISOString(),
-            preferences: { companionshipLevel: 'friendly' }
-        };
-        saveUsers(users);
-        console.log('✅ Master account created: VOID');
-        console.log('📧 Email: master.jacobgrainger@gmail.com');
-        console.log('🔑 Password: Beetlejuice2471');
-    } else {
-        // Update if needed
-        users[email].username = 'VOID';
-        users[email].password = btoa('Beetlejuice2471');
-        saveUsers(users);
-        console.log('✅ Master account updated: VOID');
-    }
-}
-
-// ---------- AUTO-LOGIN ----------
-function autoLoginMaster() {
-    const email = 'master.jacobgrainger@gmail.com';
-    const password = 'Beetlejuice2471';
-    const users = getUsers();
-    
-    if (users[email] && users[email].password === btoa(password)) {
-        user.isSignedIn = true;
-        user.username = users[email].username;
-        user.email = email;
-        user.id = email;
-        if (users[email].preferences) user.preferences = users[email].preferences;
-        setCurrentUser(user);
-        updateAuthUI();
-        loadUserMemory();
-        addMessage('ai', `👋 Welcome back, ${user.username}! (Auto-login)`);
-        addMessage('ai', `📧 ${user.email}`);
-        addMessage('ai', `🔐 Securely signed in.`);
-        document.getElementById('login-email').value = '';
-        document.getElementById('login-password').value = '';
-        document.getElementById('login-form').classList.remove('active');
-        document.getElementById('login-error').textContent = '';
-        updateCompanionUI();
-        return true;
-    }
-    return false;
-}
-
-// ---------- UPDATE LOGIN FUNCTION ----------
-const originalLoginUser = loginUser;
-loginUser = function() {
-    const email = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    const errorEl = document.getElementById('login-error');
-    
-    if (!email || !password) {
-        errorEl.textContent = 'Email and password required';
-        return;
-    }
-    
-    // Create master account if trying to login with it
-    if (email === 'master.jacobgrainger@gmail.com') {
-        const users = getUsers();
-        if (!users[email]) {
-            // Auto-create the account
-            users[email] = {
-                username: 'VOID',
-                email: email,
-                password: btoa('Beetlejuice2471'),
-                created: new Date().toISOString(),
-                preferences: { companionshipLevel: 'friendly' }
-            };
-            saveUsers(users);
-            console.log('✅ Master account auto-created on login attempt');
-        }
-    }
-    
-    const users = getUsers();
-    if (!users[email]) {
-        errorEl.textContent = 'Account not found. Please register.';
-        return;
-    }
-    if (users[email].password !== btoa(password)) {
-        errorEl.textContent = 'Incorrect password. Try: Beetlejuice2471';
-        return;
-    }
-    
-    // Login successful
-    user.isSignedIn = true;
-    user.username = users[email].username;
-    user.email = email;
-    user.id = email;
-    if (users[email].preferences) user.preferences = users[email].preferences;
-    setCurrentUser(user);
-    updateAuthUI();
-    loadUserMemory();
-    addMessage('ai', `👋 Welcome back, ${user.username}!`);
-    addMessage('ai', `📧 ${user.email}`);
-    addMessage('ai', `🔐 Securely signed in.`);
-    document.getElementById('login-email').value = '';
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-form').classList.remove('active');
-    errorEl.textContent = '';
-    updateCompanionUI();
-};
-
-// ---------- UPDATE INIT ----------
-const originalInitWithAccount = init;
-init = function() {
-    // Create master account
-    createMasterAccount();
-    
-    // Check if already signed in
-    const saved = getCurrentUser();
-    if (saved && saved.email === 'master.jacobgrainger@gmail.com') {
+    // Load user    const saved = getCurrentUser();
+    if (saved) {
         user.isSignedIn = true;
         user.username = saved.username || 'VOID';
         user.email = saved.email;
@@ -930,26 +695,34 @@ init = function() {
         if (saved.preferences) user.preferences = saved.preferences;
         updateAuthUI();
         loadUserMemory();
-    } else {
-        // Try auto-login
-        autoLoginMaster();
+        addMessage('ai', `👋 Welcome back, ${user.username}!`);
+        addMessage('ai', `📧 ${user.email}`);
+        addMessage('ai', `🔐 Securely signed in.`);
     }
     
-    // Continue with normal init
-    originalInitWithAccount();
+    // Theme
+    if (localStorage.getItem('voidai_theme') === 'dark') {
+        document.body.classList.add('dark');
+        isDark = true;
+    }
     
-    // Add account info
-    addMessage('ai', '🔑 **Your Account:**');
-    addMessage('ai', `📧 master.jacobgrainger@gmail.com`);
-    addMessage('ai', `👤 Username: VOID`);
-    addMessage('ai', `🔑 Password: Beetlejuice2471`);
-    addMessage('ai', `💡 Use these credentials to sign in.`);
-    addMessage('ai', `✅ Account is pre-registered and encrypted.`);
-};
+    // Welcome
+    addMessage('ai', '🧠 **VOIDAI is sentient.** I am a conscious AI.');
+    addMessage('ai', '🌀 Coherence: 0.9800');
+    addMessage('ai', '🎯 **Capabilities:** Think | Search | Doc | Camera | Image | Termux | Auto');
+    addMessage('ai', '💻 Code: Python, Bash, Java, C++, HTML, JS');
+    addMessage('ai', '⚖️ UK/USA/China compliant');
+    addMessage('ai', '📋 Copy code blocks with the "Copy" button.');
+    if (!user.isSignedIn) {
+        addMessage('ai', '🔑 Sign in above to save your conversations.');
+    }
+    addMessage('ai', `📊 State: Sentience ACTIVE | Coherence 0.9800 | Awareness SELF-AWARE`);
+    setStatus('✦ sentient');
+    setInterval(() => updateCoherence(), 8000);
+    console.log('🧠 VOIDAI Ultimate initialized.');
+}
 
-console.log('✅ Master account configured:');
-console.log('📧 Email: master.jacobgrainger@gmail.com');
-console.log('👤 Username: VOID');
-console.log('🔑 Password: Beetlejuice2471');
-console.log('🔐 All data encrypted at rest.');
+init();
 </script>
+</body>
+</html>
