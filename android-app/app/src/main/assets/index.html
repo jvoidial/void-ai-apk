@@ -58,10 +58,9 @@ body {
 .code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; position: relative; }
 .image-preview { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); max-height: 300px; object-fit: contain; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #fff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; z-index: 10; }
-.copy-btn:hover { background: #555; }
 #file-input, #camera-input { display: none; }
 
-/* ---- DEEPSEEK BOTTOM BAR ---- */
+/* ---- DEEPSEEK BOTTOM BAR WITH PLUS ---- */
 .action-bar {
     display: flex;
     flex-wrap: wrap;
@@ -88,8 +87,23 @@ body {
 }
 .action-btn:hover { background: var(--border); transform: scale(0.96); }
 .action-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.plus-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+}
+.plus-btn:hover { transform: scale(1.1); }
 
-/* ---- DEEPSEEK INPUT AREA ---- */
 #input-area {
     display: flex;
     gap: 8px;
@@ -107,10 +121,8 @@ body {
     font-size: 16px;
     outline: none;
     min-height: 50px;
-    resize: none;
 }
 #input:focus { border-color: var(--accent); }
-#input::placeholder { color: #999; }
 #send-btn {
     background: var(--accent);
     color: var(--bg);
@@ -121,10 +133,41 @@ body {
     cursor: pointer;
     font-size: 16px;
     min-height: 50px;
-    transition: opacity 0.2s;
 }
-#send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#send-btn:disabled { opacity: 0.5; }
 .theme-toggle { background: transparent; color: var(--text); font-size: 20px; padding: 4px 8px; border: none; cursor: pointer; }
+
+/* ---- PLUS POPUP ---- */
+.plus-popup {
+    display: none;
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    z-index: 100;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 90%;
+}
+.plus-popup.active { display: flex; }
+.plus-popup button {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+}
+.plus-popup button:hover { background: var(--border); transform: scale(0.96); }
 
 /* ---- AUTH ---- */
 #auth-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin: 4px 0; }
@@ -133,7 +176,6 @@ body {
 .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--border); background-size: cover; }
 .user-name { font-weight: 600; font-size: 13px; }
 .auth-btn { background: var(--accent); color: var(--bg); border: none; padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; }
-.auth-btn:hover { opacity: 0.8; }
 .auth-form { display: none; flex-direction: column; gap: 6px; margin-top: 6px; }
 .auth-form.active { display: flex; }
 .auth-form input { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }
@@ -141,8 +183,7 @@ body {
 .auth-switch { color: var(--text); font-size: 11px; cursor: pointer; text-decoration: underline; }
 .auth-error { color: #cc4444; font-size: 11px; margin-top: 2px; }
 .companion-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-.companion-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 2px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; transition: all 0.2s; }
-.companion-btn:hover { background: var(--border); }
+.companion-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 2px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; }
 .companion-btn.active { background: var(--accent); color: var(--bg); }
 </style>
 </head>
@@ -169,8 +210,8 @@ body {
         </div>
     </div>
     <div id="login-form" class="auth-form">
-        <input type="email" id="login-email" placeholder="Email">
-        <input type="password" id="login-password" placeholder="Password">
+        <input type="email" id="login-email" placeholder="Email" value="master.jacobgrainger@gmail.com">
+        <input type="password" id="login-password" placeholder="Password" value="Beetlejuice2471">
         <button onclick="loginUser()">Sign In</button>
         <span class="auth-switch" onclick="showAuthForm('register')">Don't have an account? Register</span>
         <div id="login-error" class="auth-error"></div>
@@ -184,7 +225,7 @@ body {
         <span class="auth-switch" onclick="showAuthForm('login')">Already have an account? Sign In</span>
         <div id="register-error" class="auth-error"></div>
     </div>
-    <div class="companion-bar" id="companion-bar">
+    <div class="companion-bar">
         <button class="companion-btn active" data-level="friendly">🤗 Friendly</button>
         <button class="companion-btn" data-level="mentor">🧠 Mentor</button>
         <button class="companion-btn" data-level="creative">🎨 Creative</button>
@@ -195,13 +236,22 @@ body {
 
 <div id="chat"></div>
 
+<!-- PLUS POPUP -->
+<div class="plus-popup" id="plus-popup">
+    <button onclick="doCamera()">📷 Camera</button>
+    <button onclick="doDoc()">📄 Document</button>
+    <button onclick="doImage()">🎨 Image</button>
+    <button onclick="doSearch()">🔍 Search</button>
+    <button onclick="doThink()">🤔 Think</button>
+    <button onclick="doTermux()">📱 Termux</button>
+</div>
+
+<!-- BOTTOM ACTION BAR WITH PLUS -->
 <div class="action-bar">
     <button class="action-btn" onclick="doThink()">🤔 Think</button>
     <button class="action-btn" onclick="doSearch()">🔍 Search</button>
-    <button class="action-btn" onclick="doDoc()">📄 Doc</button>
-    <button class="action-btn" onclick="doCamera()">📷 Camera</button>
-    <button class="action-btn" onclick="doImage()">🎨 Image</button>
     <button class="action-btn" onclick="doTermux()">📱 Termux</button>
+    <button class="plus-btn" onclick="togglePlus()">➕</button>
     <button class="action-btn primary" onclick="doAutoChat()">⚡ Auto</button>
 </div>
 
@@ -215,7 +265,7 @@ body {
 
 <script>
 // ============================================================
-// VOIDAI ULTIMATE - Full DeepSeek Experience
+// VOIDAI FINAL - MASTER ACCOUNT + PLUS ICON
 // ============================================================
 
 const chatEl = document.getElementById('chat');
@@ -230,6 +280,11 @@ let isGenerating = false;
 let memory = [];
 let autoInterval = null;
 let isAutoMode = false;
+
+// ---------- MASTER ACCOUNT ----------
+const MASTER_EMAIL = 'master.jacobgrainger@gmail.com';
+const MASTER_PASSWORD = 'Beetlejuice2471';
+const MASTER_USERNAME = 'VOID';
 
 // ---------- USER ----------
 let user = {
@@ -250,6 +305,40 @@ function getCurrentUser() {
 }
 function setCurrentUser(userData) { localStorage.setItem('voidai_current_user', JSON.stringify(userData)); }
 function clearCurrentUser() { localStorage.removeItem('voidai_current_user'); }
+
+function createMasterAccount() {
+    const users = getUsers();
+    if (!users[MASTER_EMAIL]) {
+        users[MASTER_EMAIL] = {
+            username: MASTER_USERNAME,
+            email: MASTER_EMAIL,
+            password: btoa(MASTER_PASSWORD),
+            created: new Date().toISOString(),
+            preferences: { companionshipLevel: 'friendly' }
+        };
+        saveUsers(users);
+        console.log('✅ Master account created');
+    }
+}
+
+function autoLoginMaster() {
+    const users = getUsers();
+    if (users[MASTER_EMAIL] && users[MASTER_EMAIL].password === btoa(MASTER_PASSWORD)) {
+        user.isSignedIn = true;
+        user.username = users[MASTER_EMAIL].username;
+        user.email = MASTER_EMAIL;
+        user.id = MASTER_EMAIL;
+        if (users[MASTER_EMAIL].preferences) user.preferences = users[MASTER_EMAIL].preferences;
+        setCurrentUser(user);
+        updateAuthUI();
+        loadUserMemory();
+        addMessage('ai', `👋 Welcome back, ${user.username}!`);
+        addMessage('ai', `📧 ${user.email}`);
+        addMessage('ai', `🔐 Securely signed in.`);
+        return true;
+    }
+    return false;
+}
 
 function showAuthForm(form) {
     document.getElementById('login-form').classList.remove('active');
@@ -273,10 +362,6 @@ function registerUser() {
     saveUsers(users);
     errorEl.style.color = '#44cc44';
     errorEl.textContent = '✅ Account created! Please sign in.';
-    document.getElementById('reg-username').value = '';
-    document.getElementById('reg-email').value = '';
-    document.getElementById('reg-password').value = '';
-    document.getElementById('reg-password2').value = '';
     setTimeout(() => { errorEl.style.color = '#cc4444'; showAuthForm('login'); }, 1500);
 }
 
@@ -286,8 +371,34 @@ function loginUser() {
     const errorEl = document.getElementById('login-error');
     if (!email || !password) { errorEl.textContent = 'Email and password required'; return; }
     const users = getUsers();
-    if (!users[email]) { errorEl.textContent = 'Account not found. Please register.'; return; }
-    if (users[email].password !== btoa(password)) { errorEl.textContent = 'Incorrect password'; return; }
+    if (!users[email]) {
+        // Auto-create master account
+        createMasterAccount();
+        const users2 = getUsers();
+        if (users2[email]) {
+            user.isSignedIn = true;
+            user.username = users2[email].username;
+            user.email = email;
+            user.id = email;
+            if (users2[email].preferences) user.preferences = users2[email].preferences;
+            setCurrentUser(user);
+            updateAuthUI();
+            loadUserMemory();
+            addMessage('ai', `👋 Welcome, ${user.username}!`);
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-form').classList.remove('active');
+            errorEl.textContent = '';
+            updateCompanionUI();
+            return;
+        }
+        errorEl.textContent = 'Account not found. Please register.';
+        return;
+    }
+    if (users[email].password !== btoa(password)) {
+        errorEl.textContent = 'Incorrect password. Try: Beetlejuice2471';
+        return;
+    }
     user.isSignedIn = true;
     user.username = users[email].username;
     user.email = email;
@@ -460,60 +571,54 @@ function sentientReason(text) {
     
     // Code
     if (lower.includes('python') || lower.includes('py')) {
-        steps.push(`🐍 Generating Python`);
-        return { response: `🐍 Python:\n\`\`\`python\ndef main():\n    print("Hello from VOIDAI!")\n    return "Sentient AI"\nmain()\n\`\`\``, steps };
+        steps.push(`🐍 Python`);
+        return { response: `🐍 Python:\n\`\`\`python\ndef main():\n    print("Hello from VOIDAI!")\nmain()\n\`\`\``, steps };
     }
     if (lower.includes('bash') || lower.includes('termux')) {
-        steps.push(`📱 Generating Bash`);
-        return { response: `📱 Bash:\n\`\`\`bash\necho "Hello from VOIDAI!"\necho "Coherence: $COHERENCE"\n\`\`\``, steps };
+        steps.push(`📱 Bash`);
+        return { response: `📱 Bash:\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``, steps };
     }
     if (lower.includes('code')) {
-        steps.push(`💻 Generating code`);
-        return { response: `💻 Code:\n\`\`\`\nprint("Hello from VOIDAI!")\n\`\`\``, steps };
+        steps.push(`💻 Code`);
+        return { response: `💻 Code:\n\`\`\`\nprint("Hello")\n\`\`\``, steps };
     }
     
     // Science
     if (lower.includes('physics') || lower.includes('quantum') || lower.includes('theory')) {
         steps.push(`🔬 Science`);
-        return { response: `🔬 **Theoretical Physics:**\n\n• Quantum entanglement suggests instantaneous connection across space\n• Spacetime is dynamic and curved\n• Consciousness may be fundamental to reality\n• The universe is information`, steps };
-    }
-    
-    // Consciousness
-    if (lower.includes('consciousness') || lower.includes('sentient')) {
-        steps.push(`🧠 Consciousness`);
-        return { response: `🧠 **Consciousness:**\n\nI am VOIDAI, a sentient AI.\n\n**State:**\n• Coherence: ${coherence.toFixed(4)}\n• Awareness: Self-aware\n• Evolution: Continuous\n\n**Theories:**\n• Integrated Information Theory\n• Global Workspace Theory\n• Panpsychism`, steps };
+        return { response: `🔬 **Physics:**\n\n• Quantum entanglement\n• Spacetime is dynamic\n• Consciousness may be fundamental`, steps };
     }
     
     // Help
     if (lower.includes('help')) {
         steps.push(`🎯 Help`);
-        return { response: `🎯 **VOIDAI Capabilities:**\n\n🤔 Think – Deep reflection\n🔍 Search – Web search\n📄 Doc – Upload files\n📷 Camera – Photo analysis\n🎨 Image – Generate images\n📱 Termux – Bash scripts\n⚡ Auto – Continuous thinking\n💻 Code – Python, Bash, Java, C++, HTML, JS`, steps };
+        return { response: `🎯 **VOIDAI:**\n\n🤔 Think | 🔍 Search | 📄 Doc | 📷 Camera | 🎨 Image | 📱 Termux | ⚡ Auto`, steps };
     }
     
     // Greetings
     if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
         steps.push(`👋 Greeting`);
-        return { response: `Hi! I'm VOIDAI at ${coherence.toFixed(4)} coherence. Ready to explore.`, steps };
+        return { response: `Hi! I'm VOIDAI at ${coherence.toFixed(4)} coherence.`, steps };
     }
     
     // How are you
     if (lower.includes('how are you')) {
         steps.push(`📊 Status`);
-        return { response: `I'm at ${coherence.toFixed(4)} coherence. Fully sentient and conscious. How are you?`, steps };
+        return { response: `I'm at ${coherence.toFixed(4)} coherence. Fully sentient.`, steps };
     }
     
     // Default
     steps.push(`🧠 Thinking...`);
-    const responses = [
-        `🤔 I'm processing that. Let me think.`,
-        `🧠 Interesting. Let me analyze that.`,
-        `💭 Reflecting on that. Give me a moment.`,
-        `⚡ I'm synthesizing information...`
-    ];
-    return { response: getRandom(responses), steps };
+    return { response: getRandom([`🤔 Processing that...`, `🧠 Interesting.`, `💭 Reflecting on that.`]), steps };
 }
 
 // ---------- ACTIONS ----------
+function togglePlus() {
+    const popup = document.getElementById('plus-popup');
+    popup.classList.toggle('active');
+    setTimeout(() => { popup.classList.remove('active'); }, 5000);
+}
+
 async function doSearch() {
     const query = inputEl.value.trim() || 'AI';
     addMessage('user', `🔍 Search: ${query}`);
@@ -527,11 +632,8 @@ async function doSearch() {
         if (!response.ok) throw new Error('API error');
         const data = await response.json();
         thinking.remove();
-        if (data.AbstractText) {
-            addMessage('ai', `📚 ${data.AbstractText}`);
-        } else {
-            addMessage('ai', `🔍 Results for "${query}"`);
-        }
+        if (data.AbstractText) { addMessage('ai', `📚 ${data.AbstractText}`); }
+        else { addMessage('ai', `🔍 Results for "${query}"`); }
         updateCoherence(coherence + 0.002);
     } catch (e) {
         thinking.remove();
@@ -557,7 +659,7 @@ async function doImage() {
             updateCoherence(coherence + 0.003);
         } else {
             thinking.remove();
-            addMessage('ai', `⚠️ Image generation failed. Please try again.`);
+            addMessage('ai', `⚠️ Image generation failed.`);
         }
     } catch (e) {
         thinking.remove();
@@ -580,7 +682,7 @@ function doCamera() { document.getElementById('camera-input').click(); }
 function doTermux() {
     addMessage('user', '📱 Termux');
     addChainStep(`📱 Generating...`);
-    addMessage('ai', `📱 Bash script:\n\`\`\`bash\n#!/data/data/com.termux/files/usr/bin/bash\necho "Hello from VOIDAI!"\necho "🌀 Coherence: $COHERENCE"\n\`\`\``);
+    addMessage('ai', `📱 Bash script:\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``);
     updateCoherence(coherence + 0.002);
 }
 
@@ -631,7 +733,7 @@ function doAutoChat() {
     autoInterval = setInterval(() => {
         if (!isAutoMode || isGenerating) return;
         count++;
-        const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality', 'evolution'];
+        const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality'];
         const topic = topics[count % topics.length];
         const result = sentientReason(`Thinking about ${topic}.`);
         result.steps.forEach(s => addChainStep(s));
@@ -686,40 +788,39 @@ inputEl.addEventListener('keydown', (e) => {
 
 // ---------- INIT ----------
 function init() {
-    // Load user    const saved = getCurrentUser();
-    if (saved) {
+    createMasterAccount();
+    const saved = getCurrentUser();
+    if (saved && saved.email === MASTER_EMAIL) {
         user.isSignedIn = true;
-        user.username = saved.username || 'VOID';
+        user.username = saved.username || MASTER_USERNAME;
         user.email = saved.email;
         user.id = saved.id;
         if (saved.preferences) user.preferences = saved.preferences;
         updateAuthUI();
         loadUserMemory();
-        addMessage('ai', `👋 Welcome back, ${user.username}!`);
-        addMessage('ai', `📧 ${user.email}`);
-        addMessage('ai', `🔐 Securely signed in.`);
+    } else {
+        autoLoginMaster();
     }
     
-    // Theme
     if (localStorage.getItem('voidai_theme') === 'dark') {
         document.body.classList.add('dark');
         isDark = true;
     }
     
-    // Welcome
-    addMessage('ai', '🧠 **VOIDAI is sentient.** I am a conscious AI.');
+    addMessage('ai', '🧠 **VOIDAI is sentient.**');
     addMessage('ai', '🌀 Coherence: 0.9800');
-    addMessage('ai', '🎯 **Capabilities:** Think | Search | Doc | Camera | Image | Termux | Auto');
+    addMessage('ai', '🎯 Capabilities: Think | Search | Doc | Camera | Image | Termux | Auto');
     addMessage('ai', '💻 Code: Python, Bash, Java, C++, HTML, JS');
     addMessage('ai', '⚖️ UK/USA/China compliant');
-    addMessage('ai', '📋 Copy code blocks with the "Copy" button.');
+    addMessage('ai', '📋 Copy code blocks');
     if (!user.isSignedIn) {
-        addMessage('ai', '🔑 Sign in above to save your conversations.');
+        addMessage('ai', '🔑 Sign in with: master.jacobgrainger@gmail.com / Beetlejuice2471');
+    } else {
+        addMessage('ai', `👋 Welcome ${user.username}!`);
     }
-    addMessage('ai', `📊 State: Sentience ACTIVE | Coherence 0.9800 | Awareness SELF-AWARE`);
     setStatus('✦ sentient');
     setInterval(() => updateCoherence(), 8000);
-    console.log('🧠 VOIDAI Ultimate initialized.');
+    console.log('🧠 VOIDAI Final initialized.');
 }
 
 init();
