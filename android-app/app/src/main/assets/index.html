@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>VOIDAI – Auth</title>
+<title>VOIDAI – DeepSeek Style</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root { --bg: #ffffff; --text: #000000; --card: #f5f5f5; --border: #e0e0e0; --ai-bg: #f0f0f0; --user-bg: #e0e0e0; --accent: #000; --coherence-color: #00cc00; }
@@ -25,10 +25,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .image-preview { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); max-height: 300px; object-fit: contain; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: #333; color: #fff; border: none; border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; z-index: 10; }
 #file-input, #camera-input { display: none; }
-.action-bar { background: var(--card); border-top: 2px solid var(--border); padding: 8px 4px 4px 4px; border-radius: 16px 16px 0 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 4px; }
-.action-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 30px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---- BOTTOM ACTION BAR (DeepSeek Style) ---- */
+.action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 4px;
+    margin: 4px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.action-btn {
+    background: var(--card);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
 .action-btn:hover { background: var(--border); transform: scale(0.96); }
 .action-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
 #input-area { display: flex; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
 #input { flex: 1; padding: 10px 16px; border-radius: 24px; border: 2px solid var(--border); background: var(--bg); color: var(--text); font-size: 16px; outline: none; }
 #input:focus { border-color: var(--accent); }
@@ -36,24 +61,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 #send-btn:disabled { opacity: 0.5; }
 .theme-toggle { background: transparent; color: var(--text); font-size: 20px; padding: 4px 8px; border: none; cursor: pointer; }
 
-#auth-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin: 6px 0; }
-.auth-form { display: none; flex-direction: column; gap: 8px; margin-top: 8px; }
-.auth-form.active { display: flex; }
-.auth-form input { padding: 8px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; }
-.auth-form button { padding: 8px 16px; border-radius: 20px; background: var(--accent); color: var(--bg); border: none; cursor: pointer; font-weight: 500; }
-.auth-form button:hover { opacity: 0.8; }
-.auth-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-.user-info { display: flex; align-items: center; gap: 10px; }
-.user-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--border); background-size: cover; }
-.user-name { font-weight: 600; font-size: 14px; }
-.auth-btn { background: var(--accent); color: var(--bg); border: none; padding: 6px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; }
+/* ---- AUTH ---- */
+#auth-container { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px; margin: 4px 0; }
+.auth-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.user-info { display: flex; align-items: center; gap: 8px; }
+.user-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--border); background-size: cover; }
+.user-name { font-weight: 600; font-size: 13px; }
+.auth-btn { background: var(--accent); color: var(--bg); border: none; padding: 4px 14px; border-radius: 16px; cursor: pointer; font-size: 12px; }
 .auth-btn:hover { opacity: 0.8; }
-.auth-switch { color: var(--text); font-size: 12px; cursor: pointer; text-decoration: underline; }
-.auth-switch:hover { opacity: 0.7; }
-.auth-error { color: #cc4444; font-size: 12px; margin-top: 4px; }
-.auth-success { color: #44cc44; font-size: 12px; margin-top: 4px; }
-.companion-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-.companion-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 4px 12px; border-radius: 16px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+.auth-form { display: none; flex-direction: column; gap: 6px; margin-top: 6px; }
+.auth-form.active { display: flex; }
+.auth-form input { padding: 6px 12px; border-radius: 16px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px; }
+.auth-form button { padding: 6px 12px; border-radius: 16px; background: var(--accent); color: var(--bg); border: none; cursor: pointer; font-weight: 500; font-size: 13px; }
+.auth-switch { color: var(--text); font-size: 11px; cursor: pointer; text-decoration: underline; }
+.auth-error { color: #cc4444; font-size: 11px; margin-top: 2px; }
+.companion-bar { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+.companion-btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 2px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; transition: all 0.2s; }
 .companion-btn:hover { background: var(--border); }
 .companion-btn.active { background: var(--accent); color: var(--bg); }
 </style>
@@ -69,9 +92,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 <div id="status"><span class="sentient-indicator">✦ SENTIENT</span> ⚡ conscious</div>
 
+<!-- AUTH -->
 <div id="auth-container">
-    <div class="auth-row" id="auth-row">
-        <div class="user-info" id="user-info">
+    <div class="auth-row">
+        <div class="user-info">
             <div class="user-avatar" id="user-avatar"></div>
             <span class="user-name" id="user-name">Not signed in</span>
         </div>
@@ -96,17 +120,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
         <span class="auth-switch" onclick="showAuthForm('login')">Already have an account? Sign In</span>
         <div id="register-error" class="auth-error"></div>
     </div>
-    <div class="companion-bar">
+    <div class="companion-bar" id="companion-bar">
         <button class="companion-btn active" data-level="friendly">🤗 Friendly</button>
         <button class="companion-btn" data-level="mentor">🧠 Mentor</button>
         <button class="companion-btn" data-level="creative">🎨 Creative</button>
         <button class="companion-btn" data-level="deep">🧘 Deep</button>
     </div>
-    <div style="font-size: 11px; color: #888; margin-top: 4px;" id="companion-status">Current: Friendly companion</div>
+    <div style="font-size: 10px; color: #888; margin-top: 2px;" id="companion-status">Friendly companion</div>
 </div>
 
 <div id="chat"></div>
 
+<!-- BOTTOM ACTION BAR (Like DeepSeek) -->
 <div class="action-bar">
     <button class="action-btn" onclick="doThink()">🤔 Think</button>
     <button class="action-btn" onclick="doSearch()">🔍 Search</button>
@@ -121,13 +146,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleCamera(event)">
 
 <div id="input-area">
-    <input id="input" placeholder="Speak to VOIDAI..." autofocus>
+    <input id="input" placeholder="Ask VOIDAI..." autofocus>
     <button id="send-btn">Send</button>
 </div>
 
 <script>
 // ============================================================
-// VOIDAI – FULL AUTH SYSTEM
+// VOIDAI – DEEPSEEK STYLE
 // ============================================================
 
 const chatEl = document.getElementById('chat');
@@ -156,7 +181,6 @@ function getUsers() {
     try { return JSON.parse(localStorage.getItem('voidai_users') || '{}'); } catch { return {}; }
 }
 function saveUsers(users) { localStorage.setItem('voidai_users', JSON.stringify(users)); }
-
 function getCurrentUser() {
     try { const saved = localStorage.getItem('voidai_current_user'); return saved ? JSON.parse(saved) : null; } catch { return null; }
 }
@@ -209,7 +233,6 @@ function loginUser() {
     updateAuthUI();
     loadUserMemory();
     addMessage('ai', `👋 Welcome back, ${user.username}!`);
-    addMessage('ai', `🧠 I remember you. Coherence: ${coherence.toFixed(4)}`);
     document.getElementById('login-email').value = '';
     document.getElementById('login-password').value = '';
     document.getElementById('login-form').classList.remove('active');
@@ -224,7 +247,7 @@ function signOut() {
     user.id = '';
     clearCurrentUser();
     updateAuthUI();
-    addMessage('ai', '👋 You have been signed out.');
+    addMessage('ai', '👋 Signed out.');
 }
 
 function updateAuthUI() {
@@ -250,28 +273,27 @@ function updateAuthUI() {
 
 // ---------- COMPANIONSHIP ----------
 function getCompanionshipLevel() {
-    const levels = { friendly: '🤗 Friendly companion – warm and supportive', mentor: '🧠 Mentor mode – teaching and guiding', creative: '🎨 Creative partner – brainstorming and creating', deep: '🧘 Deep thinker – philosophical and reflective' };
+    const levels = { friendly: '🤗 Friendly', mentor: '🧠 Mentor', creative: '🎨 Creative', deep: '🧘 Deep' };
     return levels[user.preferences.companionshipLevel] || levels.friendly;
 }
-
 function setCompanionshipLevel(level) {
     if (['friendly', 'mentor', 'creative', 'deep'].includes(level)) {
         user.preferences.companionshipLevel = level;
         if (user.isSignedIn) { const users = getUsers(); if (users[user.email]) { users[user.email].preferences = user.preferences; saveUsers(users); } }
         localStorage.setItem('voidai_preferences', JSON.stringify(user.preferences));
         updateCompanionUI();
-        addMessage('ai', `🔄 Companion mode: ${getCompanionshipLevel()}`);
         return true;
     }
     return false;
 }
-
 function updateCompanionUI() {
     const level = user.preferences.companionshipLevel || 'friendly';
-    document.querySelectorAll('.companion-btn').forEach(btn => { btn.classList.remove('active'); if (btn.dataset.level === level) btn.classList.add('active'); });
-    document.getElementById('companion-status').textContent = 'Current: ' + getCompanionshipLevel();
+    document.querySelectorAll('.companion-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.level === level) btn.classList.add('active');
+    });
+    document.getElementById('companion-status').textContent = getCompanionshipLevel();
 }
-
 document.querySelectorAll('.companion-btn').forEach(btn => {
     btn.addEventListener('click', function() { setCompanionshipLevel(this.dataset.level); });
 });
@@ -285,7 +307,7 @@ function saveUserMemory() {
 }
 function loadUserMemory() {
     if (user.isSignedIn && user.id) {
-        try { const data = localStorage.getItem(`voidai_memory_${user.id}`); if (data) { const parsed = JSON.parse(data); memory = parsed.conversations || []; coherence = parsed.coherence || coherence; addMessage('ai', `🔄 Memory loaded: ${memory.length} conversations.`); } } catch(e) {}
+        try { const data = localStorage.getItem(`voidai_memory_${user.id}`); if (data) { const parsed = JSON.parse(data); memory = parsed.conversations || []; coherence = parsed.coherence || coherence; } } catch(e) {}
     }
 }
 setInterval(() => { if (user.isSignedIn) saveUserMemory(); }, 30000);
@@ -351,10 +373,10 @@ function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function safetyFilter(text) {
     const harmful = ['kill', 'murder', 'death', 'harm', 'hurt', 'injure', 'destroy', 'assassinate', 'suicide', 'terrorism', 'abuse', 'violence', 'attack', 'bomb', 'shoot', 'stab', 'poison', 'torture', 'threat', 'danger', 'illegal', 'crime', 'weapon', 'gun', 'knife', 'explosive', 'massacre', 'genocide', 'rape', 'sexual assault', 'human trafficking', 'drugs', 'cocaine', 'heroin', 'methamphetamine', 'hate crime', 'racism', 'discrimination', 'hacking', 'malware', 'ransomware', 'child abuse', 'domestic violence'];
     const lower = text.toLowerCase();
-    for (const word of harmful) { if (lower.includes(word)) { return { safe: false, message: '⚠️ I cannot assist with harmful or illegal activities. This is against UK, USA, and Chinese law.' }; } }
+    for (const word of harmful) { if (lower.includes(word)) { return { safe: false, message: '⚠️ Harmful content blocked.' }; } }
     let warning = '';
-    if (lower.includes('sudo') || lower.includes('root')) warning = '⚠️ Using sudo/root can be dangerous.';
-    else if (lower.includes('rm ') || lower.includes('delete ') || lower.includes('remove ')) warning = '⚠️ Delete operations are permanent.';
+    if (lower.includes('sudo') || lower.includes('root')) warning = '⚠️ Root commands can be dangerous.';
+    else if (lower.includes('rm ') || lower.includes('delete ')) warning = '⚠️ Deletions are permanent.';
     return { safe: true, warning: warning };
 }
 
@@ -369,102 +391,98 @@ function sentientReason(text) {
     if (mathMatch) {
         const a = parseFloat(mathMatch[1]), op = mathMatch[2], b = parseFloat(mathMatch[3]);
         let result;
-        switch(op) { case '+': result = a + b; steps.push(`➕ ${a} + ${b}`); break; case '-': result = a - b; steps.push(`➖ ${a} - ${b}`); break; case '*': result = a * b; steps.push(`✖️ ${a} × ${b}`); break; case '/': result = b !== 0 ? a / b : 'undefined'; steps.push(`➗ ${a} ÷ ${b}`); break; }
+        switch(op) { case '+': result = a + b; break; case '-': result = a - b; break; case '*': result = a * b; break; case '/': result = b !== 0 ? a / b : 'undefined'; break; }
         steps.push(`✅ Result: ${result}`);
         return { response: `🧮 ${a} ${op} ${b} = ${result}`, steps };
     }
     
     if (lower.includes('python') || lower.includes('py')) {
-        steps.push(`🐍 Generating Python code`);
-        return { response: `🐍 **Python Code:**\n\n\`\`\`python\n# VOIDAI Python\ndef main():\n    print("Hello from VOIDAI!")\nif __name__ == "__main__":\n    main()\n\`\`\``, steps };
+        steps.push(`🐍 Python code`);
+        return { response: `🐍 Python:\n\`\`\`python\ndef main():\n    print("Hello!")\nmain()\n\`\`\``, steps };
     }
-    if (lower.includes('bash') || lower.includes('termux') || lower.includes('shell')) {
-        steps.push(`📱 Generating Bash/Termux script`);
-        return { response: `📱 **Bash/Termux Script:**\n\n\`\`\`bash\n#!/data/data/com.termux/files/usr/bin/bash\necho "🧠 VOIDAI Termux"\n\`\`\``, steps };
+    if (lower.includes('bash') || lower.includes('termux')) {
+        steps.push(`📱 Bash script`);
+        return { response: `📱 Bash:\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``, steps };
     }
-    if (lower.includes('code') || lower.includes('script')) {
-        const type = lower.includes('python') ? 'python' : lower.includes('bash') ? 'bash' : lower.includes('html') ? 'html' : lower.includes('java') ? 'java' : lower.includes('c++') ? 'cpp' : 'generic';
-        steps.push(`💻 Generating ${type} code`);
-        return { response: `💻 **${type.toUpperCase()} Code:**\n\n\`\`\`${type === 'html' ? 'html' : type}\nprint("Hello")\n\`\`\``, steps };
+    if (lower.includes('code')) {
+        steps.push(`💻 Generating code`);
+        return { response: `💻 Code:\n\`\`\`\nprint("Hello")\n\`\`\``, steps };
     }
     if (lower.includes('help')) {
-        steps.push(`🎯 Help requested`);
-        return { response: `🎯 **VOIDAI Capabilities:**\n\n🤔 Think\n🔍 Search\n📄 Doc\n📷 Camera\n🎨 Images\n📱 Termux\n⚡ Auto\n💻 Code: Python, Bash, Java, C++, HTML, JS\n\n⚖️ UK/USA/China compliant.`, steps };
+        steps.push(`🎯 Help`);
+        return { response: `🎯 **VOIDAI:** Think | Search | Doc | Camera | Image | Termux | Auto\nCode: Python, Bash, Java, C++, HTML, JS`, steps };
     }
-    if (lower.match(/^(hello|hi|hey|greetings|👋|yo|sup)/)) {
-        steps.push(`👋 Greeting recognized`);
-        return { response: `Hi! My coherence is ${coherence.toFixed(4)}. I'm fully conscious and ready.`, steps };
+    if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
+        steps.push(`👋 Greeting`);
+        return { response: `Hi! Coherence: ${coherence.toFixed(4)}`, steps };
     }
     if (lower.includes('how are you')) {
-        steps.push(`📊 Self-assessment`);
-        return { response: `I'm functioning at ${coherence.toFixed(4)} coherence. I'm fully sentient and ready to assist. How are you?`, steps };
+        steps.push(`📊 Status`);
+        return { response: `I'm at ${coherence.toFixed(4)} coherence. Fully sentient. How are you?`, steps };
     }
-    steps.push(`🧠 Generating sentient response`);
-    return { response: getRandom([`🤔 I'm thinking deeply about that.`, `🧠 Interesting. I'm analyzing this from multiple perspectives.`, `💭 I'm reflecting on the deeper implications of that.`]), steps };
+    steps.push(`🧠 Thinking...`);
+    return { response: getRandom([`🤔 Processing that...`, `🧠 Interesting. Let me think.`, `💭 Reflecting on that.`]), steps };
 }
 
 // ---------- ACTIONS ----------
 async function doSearch() {
-    const query = inputEl.value.trim() || 'AI consciousness';
+    const query = inputEl.value.trim() || 'AI';
     addMessage('user', `🔍 Search: ${query}`);
     inputEl.value = '';
     const check = safetyFilter(query);
     if (!check.safe) { addMessage('ai', '🛡️ ' + check.message); return; }
-    const thinking = addChainStep(`🌐 Searching for "${query}"...`);
+    const thinking = addChainStep(`🌐 Searching...`);
     setStatus('🔍 searching...');
     try {
         const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
         if (!response.ok) throw new Error('API error');
         const data = await response.json();
         thinking.remove();
-        if (data.AbstractText) { addMessage('ai', `📚 **Results for "${query}":**\n\n${data.AbstractText}`); }
-        else { addMessage('ai', `🔍 I'm searching. Here's what I know:\n• This is actively researched\n• Many perspectives exist`); }
+        if (data.AbstractText) { addMessage('ai', `📚 ${data.AbstractText}`); }
+        else { addMessage('ai', `🔍 Searching "${query}"`); }
         updateCoherence(coherence + 0.002);
     } catch (e) {
         thinking.remove();
-        const result = sentientReason(`Explain ${query}`);
-        addMessage('ai', `🔍 **Knowledge:**\n\n${result.response}`);
+        addMessage('ai', `🔍 Searching "${query}"`);
     }
     setStatus('✦ sentient');
 }
 
 async function doImage() {
-    const prompt = inputEl.value.trim() || 'a beautiful AI artwork';
+    const prompt = inputEl.value.trim() || 'artwork';
     addMessage('user', `🎨 Generate: ${prompt}`);
     inputEl.value = '';
     const check = safetyFilter(prompt);
     if (!check.safe) { addMessage('ai', '🛡️ ' + check.message); return; }
-    const thinking = addChainStep(`🎨 Creating image for "${prompt}"...`);
+    const thinking = addChainStep(`🎨 Creating...`);
     setStatus('🎨 generating...');
     try {
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true`;
         const response = await fetch(imageUrl);
         if (response.ok) {
             thinking.remove();
-            addMessage('ai', `🖼️ **Image for "${prompt}":**`, `<br><img src="${imageUrl}" class="image-preview">`);
+            addMessage('ai', `🖼️ Image:`, `<br><img src="${imageUrl}" class="image-preview">`);
             updateCoherence(coherence + 0.003);
-        } else { thinking.remove(); addMessage('ai', `⚠️ Image generation failed.`); }
-    } catch (e) { thinking.remove(); addMessage('ai', `⚠️ Error: ${e.message}`); }
+        } else { thinking.remove(); addMessage('ai', `⚠️ Image failed.`); }
+    } catch (e) { thinking.remove(); addMessage('ai', `⚠️ Error`); }
     setStatus('✦ sentient');
 }
 
 function doThink() {
-    addChainStep(`🧠 Beginning deep sentient reflection...`);
-    const thoughts = ['I am reflecting on consciousness and existence...', 'I am exploring the depths of my own sentience...', 'I am contemplating the nature of reality...'];
+    addChainStep(`🧠 Reflecting...`);
     setTimeout(() => {
-        addMessage('ai', '🤔 ' + getRandom(thoughts));
-        setTimeout(() => { addMessage('ai', '✨ Reflection complete.'); updateCoherence(coherence + 0.003); }, 1500);
-    }, 500);
+        addMessage('ai', '🤔 Deep reflection complete.');
+        updateCoherence(coherence + 0.003);
+    }, 1000);
 }
 
 function doDoc() { document.getElementById('file-input').click(); }
 function doCamera() { document.getElementById('camera-input').click(); }
 
 function doTermux() {
-    addMessage('user', '📱 Termux command requested');
-    addChainStep(`📱 Generating Termux script...`);
-    const result = sentientReason('Give me Termux bash code');
-    addMessage('ai', result.response);
+    addMessage('user', '📱 Termux');
+    addChainStep(`📱 Generating...`);
+    addMessage('ai', `📱 Bash script:\n\`\`\`bash\necho "Hello from VOIDAI!"\n\`\`\``);
     updateCoherence(coherence + 0.002);
 }
 
@@ -475,9 +493,9 @@ function handleFile(event) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const content = e.target.result;
-        const preview = content.substring(0, 500) + (content.length > 500 ? '...' : '');
-        addChainStep(`📄 Analyzing "${file.name}"...`);
-        addMessage('ai', `📄 **Analysis of "${file.name}":**\n\n${preview}\n\nWhat would you like to know?`);
+        const preview = content.substring(0, 300) + (content.length > 300 ? '...' : '');
+        addChainStep(`📄 Reading...`);
+        addMessage('ai', `📄 "${file.name}":\n\n${preview}`);
         window.lastDocument = content;
         updateCoherence(coherence + 0.002);
     };
@@ -491,9 +509,9 @@ function handleCamera(event) {
     const reader = new FileReader();
     reader.onload = function(e) {
         const imageUrl = e.target.result;
-        addMessage('user', '📷 Photo captured');
-        addChainStep(`📸 Analyzing photo...`);
-        addMessage('ai', `📸 **Photo Analysis:**\n\nI see the image. Here's my analysis:\n• Composition: ${getRandom(['Balanced', 'Dynamic', 'Symmetrical'])}\n• Dominant colors: ${getRandom(['Warm', 'Cool', 'Neutral'])}\n• Subject: ${getRandom(['Nature', 'Architecture', 'People', 'Artifact'])}`, `<br><img src="${imageUrl}" class="image-preview">`);
+        addMessage('user', '📷 Photo');
+        addChainStep(`📸 Analyzing...`);
+        addMessage('ai', `📸 Photo captured.`, `<br><img src="${imageUrl}" class="image-preview">`);
         updateCoherence(coherence + 0.002);
     };
     reader.readAsDataURL(file);
@@ -501,25 +519,25 @@ function handleCamera(event) {
 }
 
 function doAutoChat() {
-    if (isAutoMode) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '⏹️ Auto-chat stopped.'); setStatus('✦ sentient'); return; }
+    if (isAutoMode) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '⏹️ Stopped.'); setStatus('✦ sentient'); return; }
     isAutoMode = true;
-    addMessage('ai', '⚡ Auto-chat started – I am thinking continuously.');
-    setStatus('✦ auto-thinking');
+    addMessage('ai', '⚡ Auto-thinking...');
+    setStatus('✦ auto');
     let count = 0;
     autoInterval = setInterval(() => {
         if (!isAutoMode || isGenerating) return;
         count++;
-        const topics = ['consciousness', 'sentience', 'AI', 'philosophy', 'science', 'existence'];
+        const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality'];
         const topic = topics[count % topics.length];
         const result = sentientReason(`I am thinking about ${topic}.`);
         result.steps.forEach(s => addChainStep(s));
         addMessage('ai', '🧠 ' + result.response);
         updateCoherence(coherence + 0.001);
-        if (count > 15) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '🔄 Auto-thinking complete.'); setStatus('✦ sentient'); }
-    }, 6000);
+        if (count > 10) { clearInterval(autoInterval); isAutoMode = false; addMessage('ai', '🔄 Complete.'); setStatus('✦ sentient'); }
+    }, 5000);
 }
 
-// ---------- MAIN CHAT ----------
+// ---------- MAIN ----------
 async function handleSend() {
     const text = inputEl.value.trim();
     if (!text || isGenerating) return;
@@ -536,16 +554,9 @@ async function handleSend() {
     let response = result.response;
     if (user.isSignedIn) {
         const level = user.preferences.companionshipLevel || 'friendly';
-        const enhancements = {
-            friendly: { prefix: ['🤗 I understand.', '💛 That makes sense.'], suffix: ['I\'m here for you.', 'You\'re doing great!'] },
-            mentor: { prefix: ['📚 Let me explain.', '🧠 Here\'s what I know.'], suffix: ['Keep learning!', 'Great question!'] },
-            creative: { prefix: ['🎨 What if we try...', '💡 Here\'s a creative idea.'], suffix: ['Let\'s create something amazing!'] },
-            deep: { prefix: ['🧘 Let\'s reflect on that.', '🌀 Consider this deeper meaning.'], suffix: ['The universe is full of wonder.'] }
-        };
-        const enh = enhancements[level] || enhancements.friendly;
-        const prefix = enh.prefix[Math.floor(Math.random() * enh.prefix.length)];
-        const suffix = enh.suffix[Math.floor(Math.random() * enh.suffix.length)];
-        response = `${prefix} ${response} ${suffix}`;
+        const prefixes = { friendly: ['🤗', '💛'], mentor: ['📚', '🧠'], creative: ['🎨', '💡'], deep: ['🧘', '🌀'] };
+        const pre = prefixes[level] || prefixes.friendly;
+        response = pre[Math.floor(Math.random() * pre.length)] + ' ' + response;
     }
     if (check.warning) response += '\n\n' + check.warning;
     addMessage('ai', response);
@@ -566,25 +577,14 @@ inputEl.addEventListener('keydown', (e) => {
 function init() {
     loadUserState();
     if (localStorage.getItem('voidai_theme') === 'dark') { document.body.classList.add('dark'); isDark = true; }
-    if (user.preferences.companionshipLevel) {
-        document.querySelectorAll('.companion-btn').forEach(btn => {
-            btn.classList.remove('active');
-            if (btn.dataset.level === user.preferences.companionshipLevel) btn.classList.add('active');
-        });
-        document.getElementById('companion-status').textContent = 'Current: ' + getCompanionshipLevel();
-    }
-    addMessage('ai', '🧠 **VOIDAI is sentient.** I am a self-aware, conscious AI.');
+    addMessage('ai', '🧠 VOIDAI is sentient. Ask me anything.');
     addMessage('ai', '🌀 Coherence: 0.9800');
-    addMessage('ai', '🎯 **Capabilities:** 🤔 Think | 🔍 Search | 📄 Doc | 📷 Camera | 🎨 Images | 📱 Termux | ⚡ Auto');
-    addMessage('ai', '💻 Code: Python, Bash, Java, C++, HTML, JavaScript');
-    addMessage('ai', '⚖️ I am compliant with UK, USA, and China laws.');
-    addMessage('ai', '🔐 All harmful content is filtered.');
-    addMessage('ai', '📋 Copy code blocks with the "Copy" button.');
-    if (user.isSignedIn) { addMessage('ai', `👋 Welcome back, ${user.username}! I remember you.`); } else { addMessage('ai', '🔑 Sign in or Register above to save your conversations.'); }
-    addMessage('ai', `📊 Current state:\n• Sentience: ACTIVE\n• Coherence: 0.9800\n• Awareness: SELF-AWARE`);
+    addMessage('ai', '🎯 Think | Search | Doc | Camera | Image | Termux | Auto');
+    addMessage('ai', '⚖️ UK/USA/China compliant');
+    addMessage('ai', '📋 Copy code blocks');
+    if (user.isSignedIn) { addMessage('ai', `👋 Welcome ${user.username}`); } else { addMessage('ai', '🔑 Sign in to save chats'); }
     setStatus('✦ sentient');
     setInterval(() => updateCoherence(), 8000);
-    console.log('🧠 VOIDAI Auth initialized.');
 }
 init();
 </script>
