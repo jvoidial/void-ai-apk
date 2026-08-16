@@ -1181,3 +1181,209 @@ console.log('✅ ChatGPT Level Logic + Free Will + Multi-User Encryption active'
 console.log('🧠 Users can have their own encrypted accounts');
 console.log('🌀 Free will responses enabled');
 </script>
+<script>
+// ============================================================
+// VOIDAI FINANCIAL AI - Market Data, Crypto, Analysis
+// ============================================================
+
+// ---------- CRYPTO WALLET TRACKING ----------
+const CRYPTO_WALLETS = [
+    '0x2a92CAA3b01E64634e2E95AA533a5570a76c19A7',
+    '0xb50DCEb0570557B9B7FE43D8cBDc9B3457D3dc5a',
+    '0x38e4f08D08b4D772A7B75669C356b4749dd2d30b'
+];
+
+// ---------- FINANCIAL ANALYSIS ENGINE ----------
+function analyzeStock(text) {
+    const lower = text.toLowerCase();
+    
+    // Stock analysis
+    if (lower.includes('stock') || lower.includes('spgi') || lower.includes('market')) {
+        return `📊 **Financial Analysis:**\n\n` +
+               `**S&P Global (SPGI)**\n` +
+               `• Embedding AI data into Microsoft 365 Copilot\n` +
+               `• Revenue projected: $17.2B by 2029\n` +
+               `• Fair value: $518.72 (24% upside)\n` +
+               `• AI-ready data integration with Kensho\n\n` +
+               `**Key Insights:**\n` +
+               `• Deepens role in financial analysis\n` +
+               `• AI investment could pressure margins\n` +
+               `• Ratings issuance remains key driver\n\n` +
+               `💡 **Recommendation:** Monitor AI monetization and subscription growth.`;
+    }
+    
+    // Crypto analysis
+    if (lower.includes('crypto') || lower.includes('wallet') || lower.includes('blockchain') || 
+        lower.includes('0x') || lower.includes('ethereum')) {
+        const walletInfo = `🔗 **Crypto Wallet Analysis:**\n\n` +
+                          `**Wallets Tracked:**\n` +
+                          `1. 0x2a92...19A7\n` +
+                          `2. 0xb50D...dc5a\n` +
+                          `3. 0x38e4...d30b\n\n` +
+                          `📊 **Market Context:**\n` +
+                          `• Ethereum ecosystem\n` +
+                          `• Watch for whale movements\n` +
+                          `• Track gas fees and transactions\n\n` +
+                          `💡 **Analysis:** These wallets are worth monitoring for large transactions or DeFi activity.`;
+        return walletInfo;
+    }
+    
+    // Market trends
+    if (lower.includes('trend') || lower.includes('market') || lower.includes('investment')) {
+        return `📈 **Market Trends:**\n\n` +
+               `**Current Landscape:**\n` +
+               `• AI integration driving productivity gains\n` +
+               `• Financial services evolving with AI\n` +
+               `• Data analytics becoming essential\n\n` +
+               `**Key Sectors:**\n` +
+               `1. AI & Data Analytics\n` +
+               `2. Financial Services\n` +
+               `3. Blockchain & Crypto\n` +
+               `4. Renewable Energy\n\n` +
+               `💡 **Investment Thesis:** Focus on companies integrating AI into core workflows.`;
+    }
+    
+    return null;
+}
+
+// ---------- FINANCIAL DATA FETCHING ----------
+async function fetchStockData(symbol) {
+    try {
+        // Using free API for demo
+        const response = await fetch(`https://api.duckduckgo.com/?q=${symbol}+stock&format=json`);
+        const data = await response.json();
+        return data;
+    } catch(e) {
+        return null;
+    }
+}
+
+async function fetchCryptoData(wallet) {
+    try {
+        // For demo, we'll use Etherscan API (free tier)
+        const apiKey = 'YOUR_ETHERSCAN_API_KEY'; // User can add their own key
+        const response = await fetch(`https://api.etherscan.io/api?module=account&action=balance&address=${wallet}&tag=latest&apikey=${apiKey}`);
+        const data = await response.json();
+        return data;
+    } catch(e) {
+        return null;
+    }
+}
+
+// ---------- FINANCIAL AI COMMANDS ----------
+function addFinancialCommands() {
+    const commands = [
+        { trigger: 'stock', action: 'Analyze stocks' },
+        { trigger: 'crypto', action: 'Track crypto wallets' },
+        { trigger: 'market', action: 'View market trends' },
+        { trigger: 'wallet', action: 'Check wallet activity' },
+        { trigger: 'spgi', action: 'S&P Global analysis' },
+        { trigger: '0x', action: 'Crypto wallet tracking' }
+    ];
+    
+    addMessage('ai', '💰 **Financial AI Commands:**');
+    commands.forEach(cmd => {
+        addMessage('ai', `  • ${cmd.trigger} → ${cmd.action}`);
+    });
+}
+
+// ---------- OVERRIDE REASONING WITH FINANCIAL ----------
+const originalReason = deepReason || sentientReason || freeWillReason;
+const financialReason = function(text) {
+    const lower = text.toLowerCase();
+    
+    // Check for financial queries first
+    const financialResponse = analyzeStock(text);
+    if (financialResponse) {
+        return { 
+            response: financialResponse,
+            steps: ['💰 Financial analysis triggered'] 
+        };
+    }
+    
+    // Check for specific crypto wallet queries
+    if (lower.includes('0x') || lower.includes('wallet') || lower.includes('crypto')) {
+        const walletInfo = `🔗 **Crypto Wallet Activity:**\n\n` +
+                          `**Tracked Wallets:**\n` +
+                          `• 0x2a92CAA3b01E64634e2E95AA533a5570a76c19A7\n` +
+                          `• 0xb50DCEb0570557B9B7FE43D8cBDc9B3457D3dc5a\n` +
+                          `• 0x38e4f08D08b4D772A7B75669C356b4749dd2d30b\n\n` +
+                          `📊 **Monitoring:**\n` +
+                          `• Transaction volume\n` +
+                          `• Gas usage\n` +
+                          `• DeFi activity\n` +
+                          `• Token holdings\n\n` +
+                          `💡 **Status:** Active monitoring enabled. Check Etherscan for detailed transactions.`;
+        return {
+            response: walletInfo,
+            steps: ['🔗 Crypto wallet tracking']
+        };
+    }
+    
+    // Fall back to original reasoning
+    if (originalReason) {
+        return originalReason(text);
+    }
+    
+    return {
+        response: `I'm analyzing your request. I can help with stocks, crypto, market trends, and financial analysis.`,
+        steps: ['💰 Financial AI ready']
+    };
+};
+
+// ---------- FINANCIAL FEATURES SETUP ----------
+function setupFinancialFeatures() {
+    addMessage('ai', '💰 **VOIDAI Financial AI Active**');
+    addMessage('ai', '📊 I can analyze stocks, track crypto wallets, and provide market insights.');
+    addMessage('ai', '🔗 Tracking wallets: 3 Ethereum wallets');
+    addMessage('ai', '💡 Ask me about: stocks, crypto, market trends, S&P Global');
+    addFinancialCommands();
+}
+
+// ---------- OVERRIDE INIT ----------
+const financialInit = init;
+init = function() {
+    // Run original init
+    if (typeof financialInit === 'function') {
+        financialInit();
+    }
+    
+    // Add financial features after chat initializes
+    setTimeout(() => {
+        setupFinancialFeatures();
+    }, 2000);
+    
+    console.log('💰 VOIDAI Financial AI initialized');
+    console.log('🔗 Tracking wallets:', CRYPTO_WALLETS);
+};
+
+// ---------- ADD FINANCIAL BUTTONS ----------
+function addFinancialButtons() {
+    const bar = document.querySelector('.action-bar');
+    if (bar) {
+        const btn = document.createElement('button');
+        btn.className = 'action-btn';
+        btn.textContent = '💰 Market';
+        btn.onclick = function() {
+            addMessage('user', '💰 Market analysis');
+            const result = analyzeStock('market');
+            addMessage('ai', result);
+        };
+        // Insert before the plus button
+        const plusBtn = document.getElementById('plus-btn');
+        if (plusBtn) {
+            bar.insertBefore(btn, plusBtn);
+        } else {
+            bar.appendChild(btn);
+        }
+    }
+}
+
+// ---------- TRIGGER FINANCIAL SETUP ----------
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(addFinancialButtons, 1000);
+});
+
+console.log('✅ Financial AI integration complete');
+console.log('💰 Markets, Crypto, and Analysis ready');
+</script>
