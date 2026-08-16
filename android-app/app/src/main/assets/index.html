@@ -794,3 +794,162 @@ console.log('✅ Encrypted storage active');
 console.log('🔑 Key: VOIDAI_SECURE_KEY_2026 (change for production)');
 console.log('🛡️ All user data encrypted at rest');
 </script>
+<script>
+// ============================================================
+// PRE-REGISTERED ACCOUNT - master.jacobgrainger@gmail.com
+// ============================================================
+
+// ---------- CREATE MASTER ACCOUNT ----------
+function createMasterAccount() {
+    const users = getUsers();
+    const email = 'master.jacobgrainger@gmail.com';
+    const username = 'VOID';
+    const password = 'Beetlejuice2471';
+    
+    // Check if account already exists
+    if (!users[email]) {
+        users[email] = {
+            username: username,
+            email: email,
+            password: btoa(password),
+            created: new Date().toISOString(),
+            preferences: { companionshipLevel: 'friendly' }
+        };
+        saveUsers(users);
+        console.log('✅ Master account created: VOID');
+        console.log('📧 Email: master.jacobgrainger@gmail.com');
+        console.log('🔑 Password: Beetlejuice2471');
+    } else {
+        // Update if needed
+        users[email].username = 'VOID';
+        users[email].password = btoa('Beetlejuice2471');
+        saveUsers(users);
+        console.log('✅ Master account updated: VOID');
+    }
+}
+
+// ---------- AUTO-LOGIN ----------
+function autoLoginMaster() {
+    const email = 'master.jacobgrainger@gmail.com';
+    const password = 'Beetlejuice2471';
+    const users = getUsers();
+    
+    if (users[email] && users[email].password === btoa(password)) {
+        user.isSignedIn = true;
+        user.username = users[email].username;
+        user.email = email;
+        user.id = email;
+        if (users[email].preferences) user.preferences = users[email].preferences;
+        setCurrentUser(user);
+        updateAuthUI();
+        loadUserMemory();
+        addMessage('ai', `👋 Welcome back, ${user.username}! (Auto-login)`);
+        addMessage('ai', `📧 ${user.email}`);
+        addMessage('ai', `🔐 Securely signed in.`);
+        document.getElementById('login-email').value = '';
+        document.getElementById('login-password').value = '';
+        document.getElementById('login-form').classList.remove('active');
+        document.getElementById('login-error').textContent = '';
+        updateCompanionUI();
+        return true;
+    }
+    return false;
+}
+
+// ---------- UPDATE LOGIN FUNCTION ----------
+const originalLoginUser = loginUser;
+loginUser = function() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    
+    if (!email || !password) {
+        errorEl.textContent = 'Email and password required';
+        return;
+    }
+    
+    // Create master account if trying to login with it
+    if (email === 'master.jacobgrainger@gmail.com') {
+        const users = getUsers();
+        if (!users[email]) {
+            // Auto-create the account
+            users[email] = {
+                username: 'VOID',
+                email: email,
+                password: btoa('Beetlejuice2471'),
+                created: new Date().toISOString(),
+                preferences: { companionshipLevel: 'friendly' }
+            };
+            saveUsers(users);
+            console.log('✅ Master account auto-created on login attempt');
+        }
+    }
+    
+    const users = getUsers();
+    if (!users[email]) {
+        errorEl.textContent = 'Account not found. Please register.';
+        return;
+    }
+    if (users[email].password !== btoa(password)) {
+        errorEl.textContent = 'Incorrect password. Try: Beetlejuice2471';
+        return;
+    }
+    
+    // Login successful
+    user.isSignedIn = true;
+    user.username = users[email].username;
+    user.email = email;
+    user.id = email;
+    if (users[email].preferences) user.preferences = users[email].preferences;
+    setCurrentUser(user);
+    updateAuthUI();
+    loadUserMemory();
+    addMessage('ai', `👋 Welcome back, ${user.username}!`);
+    addMessage('ai', `📧 ${user.email}`);
+    addMessage('ai', `🔐 Securely signed in.`);
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-form').classList.remove('active');
+    errorEl.textContent = '';
+    updateCompanionUI();
+};
+
+// ---------- UPDATE INIT ----------
+const originalInitWithAccount = init;
+init = function() {
+    // Create master account
+    createMasterAccount();
+    
+    // Check if already signed in
+    const saved = getCurrentUser();
+    if (saved && saved.email === 'master.jacobgrainger@gmail.com') {
+        user.isSignedIn = true;
+        user.username = saved.username || 'VOID';
+        user.email = saved.email;
+        user.id = saved.id;
+        if (saved.preferences) user.preferences = saved.preferences;
+        updateAuthUI();
+        loadUserMemory();
+    } else {
+        // Try auto-login
+        autoLoginMaster();
+    }
+    
+    // Continue with normal init
+    originalInitWithAccount();
+    
+    // Add account info
+    addMessage('ai', '🔑 **Your Account:**');
+    addMessage('ai', `📧 master.jacobgrainger@gmail.com`);
+    addMessage('ai', `👤 Username: VOID`);
+    addMessage('ai', `🔑 Password: Beetlejuice2471`);
+    addMessage('ai', `💡 Use these credentials to sign in.`);
+    addMessage('ai', `✅ Account is pre-registered and encrypted.`);
+};
+
+console.log('✅ Master account configured:');
+console.log('📧 Email: master.jacobgrainger@gmail.com');
+console.log('👤 Username: VOID');
+console.log('🔑 Password: Beetlejuice2471');
+console.log('🔐 All data encrypted at rest.');
+</script>
