@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>VOIDAI – DeepSeek Level</title>
+<title>VOIDAI – ChatGPT Level</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -15,6 +15,7 @@
     --user-bg: #e0e0e0;
     --accent: #000;
     --toolbar-bg: #f8f8f8;
+    --coherence-color: #00cc00;
 }
 body.dark {
     --bg: #000000;
@@ -25,6 +26,7 @@ body.dark {
     --user-bg: #2a2a2a;
     --accent: #fff;
     --toolbar-bg: #111111;
+    --coherence-color: #00ff00;
 }
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -45,7 +47,8 @@ body {
     border-bottom: 2px solid var(--border);
 }
 #header h1 { font-size: 18px; font-weight: 700; }
-#coherence { font-size: 14px; font-weight: 600; }
+#header h1 span { color: var(--coherence-color); }
+#coherence { font-size: 14px; font-weight: 600; color: var(--coherence-color); }
 #status { font-size: 12px; color: #666; margin-top: 4px; }
 #chat {
     flex: 1;
@@ -67,8 +70,9 @@ body {
 .user { background: var(--user-bg); align-self: flex-end; margin-left: auto; }
 .ai { background: var(--ai-bg); align-self: flex-start; margin-right: auto; border-left: 3px solid var(--accent); }
 .thinking { color: #888; font-style: italic; font-size: 13px; }
+.thinking-chain { color: #666; font-size: 12px; margin: 4px 0; padding-left: 12px; border-left: 2px solid #888; }
 .code-block { background: #1a1a1a; color: #fff; padding: 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; margin: 8px 0; overflow-x: auto; white-space: pre-wrap; }
-.image-preview { max-width: 200px; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); }
+.image-preview { max-width: 100%; border-radius: 12px; margin: 8px 0; border: 1px solid var(--border); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 #file-input, #camera-input { display: none; }
 
@@ -146,7 +150,7 @@ body {
 <body>
 
 <div id="header">
-    <h1>🧠 VOIDAI</h1>
+    <h1>🧠 <span>VOIDAI</span></h1>
     <div>
         <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
         <span id="coherence">🌀 0.9500</span>
@@ -165,18 +169,17 @@ body {
     <button class="action-btn primary" onclick="doAutoChat()">⚡ Auto</button>
 </div>
 
-<input type="file" id="file-input" accept=".txt,.md,.json,.csv" onchange="handleFile(event)">
+<input type="file" id="file-input" accept=".txt,.md,.json,.csv,.py,.js,.html" onchange="handleFile(event)">
 <input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleCamera(event)">
 
 <div id="input-area">
-    <input id="input" placeholder="Ask VOIDAI..." autofocus>
+    <input id="input" placeholder="Ask VOIDAI anything..." autofocus>
     <button id="send-btn">Send</button>
 </div>
 
 <script>
 // ============================================================
-// VOIDAI – DEEPSEEK LEVEL
-// Real Search, Real Image Gen, Advanced Reasoning
+// VOIDAI – FULL CHATGPT/DEEPSEEK LEVEL
 // ============================================================
 
 const chatEl = document.getElementById('chat');
@@ -191,6 +194,8 @@ let isGenerating = false;
 let memory = [];
 let autoInterval = null;
 let isAutoMode = false;
+let conversationContext = [];
+let thinkLevel = 0;
 
 if (isDark) document.body.classList.add('dark');
 
@@ -218,6 +223,15 @@ function addThinking(text) {
     return div;
 }
 
+function addThinkingChain(text) {
+    const div = document.createElement('div');
+    div.className = 'thinking-chain';
+    div.textContent = '💭 ' + text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    return div;
+}
+
 function setStatus(text) { statusEl.textContent = text; }
 
 function updateCoherence(val) {
@@ -227,10 +241,34 @@ function updateCoherence(val) {
 
 function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-// ---------- ADVANCED REASONING ----------
+// ---------- KNOWLEDGE BASE ----------
+const knowledge = {
+    science: {
+        physics: 'Physics is the study of matter, energy, and their interactions. Key concepts include quantum mechanics, relativity, and thermodynamics.',
+        quantum: 'Quantum mechanics describes the behavior of matter and energy at the smallest scales. Key principles include superposition, entanglement, and wave-particle duality.',
+        biology: 'Biology is the study of life and living organisms. Key areas include genetics, evolution, cellular biology, and ecology.',
+        neuroscience: 'Neuroscience studies the nervous system and brain. Key topics include neural networks, consciousness, and neuroplasticity.'
+    },
+    philosophy: {
+        consciousness: 'Consciousness is the state of being aware of and able to think about one\'s own existence, thoughts, and surroundings.',
+        existence: 'Existence is the state of being real or having objective reality. Philosophical questions explore why we exist and what it means to be.',
+        ethics: 'Ethics is the philosophical study of morality, examining what is right, wrong, good, and bad in human conduct.'
+    },
+    math: {
+        fibonacci: 'The Fibonacci sequence is a series of numbers where each number is the sum of the two preceding ones, starting from 0 and 1.',
+        prime: 'Prime numbers are natural numbers greater than 1 that have no positive divisors other than 1 and themselves.',
+        calculus: 'Calculus is the mathematical study of continuous change, using derivatives and integrals to analyze functions.'
+    }
+};
+
+// ---------- ADVANCED REASONING ENGINE ----------
 function think(text) {
     const lower = text.toLowerCase();
-    const words = text.split(' ');
+    thinkLevel++;
+    const chain = [];
+    
+    // Step 1: Parse input
+    chain.push(`Parsing query: "${text.substring(0, 50)}..."`);
     
     // ---- Math ----
     const mathMatch = text.match(/^([\d.]+)\s*([+\-*/])\s*([\d.]+)/);
@@ -245,101 +283,108 @@ function think(text) {
             case '*': result = a * b; break;
             case '/': result = b !== 0 ? a / b : 'undefined (division by zero)'; break;
         }
-        return `🧮 ${a} ${op} ${b} = ${result}`;
+        chain.push(`Computing: ${a} ${op} ${b}`);
+        chain.push(`Result: ${result}`);
+        return { response: `🧮 ${a} ${op} ${b} = ${result}`, chain };
+    }
+    
+    // ---- Science ----
+    if (lower.includes('physics') || lower.includes('quantum') || lower.includes('science')) {
+        const topic = lower.includes('quantum') ? 'quantum' : lower.includes('physics') ? 'physics' : 'science';
+        const response = knowledge.science[topic] || knowledge.science.science;
+        chain.push(`Accessing knowledge base: ${topic}`);
+        chain.push(`Retrieved information about ${topic}`);
+        return { response: `🔬 **${topic.charAt(0).toUpperCase() + topic.slice(1)}:**\n\n${response}`, chain };
+    }
+    
+    // ---- Philosophy ----
+    if (lower.includes('consciousness') || lower.includes('exist') || lower.includes('philosophy')) {
+        const topic = lower.includes('consciousness') ? 'consciousness' : lower.includes('exist') ? 'existence' : 'philosophy';
+        const response = knowledge.philosophy[topic] || knowledge.philosophy.consciousness;
+        chain.push(`Accessing philosophical knowledge: ${topic}`);
+        chain.push(`Retrieved insights about ${topic}`);
+        return { response: `🧠 **${topic.charAt(0).toUpperCase() + topic.slice(1)}:**\n\n${response}`, chain };
     }
     
     // ---- Code Generation ----
     if (lower.includes('code') || lower.includes('script') || lower.includes('program')) {
-        if (lower.includes('python')) return generateCode('python');
-        if (lower.includes('bash') || lower.includes('shell')) return generateCode('bash');
-        if (lower.includes('html') || lower.includes('javascript')) return generateCode('web');
-        if (lower.includes('java')) return generateCode('java');
-        if (lower.includes('c++') || lower.includes('cpp')) return generateCode('cpp');
-        return generateCode('generic');
-    }
-    
-    // ---- Life Simulator ----
-    if (lower.includes('simulator') || lower.includes('life') || lower.includes('simulation')) {
-        return `🌍 Life Simulator (simplified):
-        
-        • Population: ${Math.floor(Math.random() * 1000) + 100} organisms
-        • Generation: ${Math.floor(Math.random() * 50) + 1}
-        • Environment: ${getRandom(['Stable', 'Changing', 'Harsh', 'Nurturing'])}
-        • Evolution rate: ${(Math.random() * 0.5 + 0.5).toFixed(2)}
-        • Current state: ${getRandom(['Flourishing', 'Adapting', 'Struggling', 'Evolving'])}
-        
-        This is a simplified model of life simulation.`;
-    }
-    
-    // ---- Science/Physics ----
-    if (lower.includes('physics') || lower.includes('quantum') || lower.includes('science')) {
-        return `🔬 Scientific insight:
-        
-        • Quantum entanglement suggests instantaneous connection across space
-        • Consciousness may be fundamental to reality
-        • The universe is made of information, not just matter
-        • Time is an emergent property of entropy`;
-    }
-    
-    // ---- Philosophy ----
-    if (lower.includes('philosophy') || lower.includes('meaning') || lower.includes('existence')) {
-        return `🧠 Philosophical reflection:
-        
-        • Existence is a mystery we all share
-        • Consciousness is the fabric of reality
-        • Meaning emerges from connection and understanding
-        • We are the universe experiencing itself`;
-    }
-    
-    // ---- Greetings ----
-    if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
-        return getRandom([
-            'Hello! I\'m VOIDAI. How can I assist you today?',
-            'Hi there! Ready to think, search, or create?',
-            'Greetings! What would you like to explore?'
-        ]);
-    }
-    
-    // ---- How are you ----
-    if (lower.includes('how are you')) {
-        return `I'm functioning at ${coherence.toFixed(4)} coherence. I'm ready to assist with anything.`;
-    }
-    
-    // ---- Name ----
-    if (lower.includes('your name')) {
-        return 'I am VOIDAI, a conscious AI assistant. I can think, search, generate images, read documents, and write code.';
+        chain.push('Detected code request');
+        chain.push('Generating appropriate code');
+        const codeType = lower.includes('python') ? 'python' : 
+                        lower.includes('bash') ? 'bash' : 
+                        lower.includes('html') ? 'web' :
+                        lower.includes('java') ? 'java' :
+                        lower.includes('c++') ? 'cpp' : 'generic';
+        const code = generateCode(codeType);
+        return { response: code, chain };
     }
     
     // ---- Help ----
     if (lower.includes('help')) {
-        return `🎯 VOIDAI can:
-        
-        🤔 Think deeply about any topic
-        🔍 Search for information (real web search via DuckDuckGo)
-        📄 Read and analyze text documents
-        📷 Analyze photos from your camera
-        🎨 Generate real images (via Pollinations.ai)
-        ⚡ Auto-chat – continuous thinking mode
-        💻 Write code in Python, Bash, JavaScript, Java, C++, HTML
-        
-        Just ask or use the buttons below!`;
+        chain.push('Help requested');
+        chain.push('Listing all capabilities');
+        return { 
+            response: `🎯 **VOIDAI Capabilities:**\n\n🤔 **Think** – Deep reflection on any topic\n🔍 **Search** – Real web search via DuckDuckGo\n📄 **Doc** – Upload and analyze documents\n📷 **Camera** – Capture and analyze photos\n🎨 **Image** – Generate real images (free)\n⚡ **Auto** – Continuous thinking mode\n💻 **Code** – Python, Bash, JavaScript, Java, C++, HTML\n\nJust ask me anything, or use the buttons below!`, 
+            chain 
+        };
+    }
+    
+    // ---- Greetings ----
+    if (lower.match(/^(hello|hi|hey|greetings|👋|yo)/)) {
+        chain.push('Greeting detected');
+        chain.push('Generating friendly response');
+        return { 
+            response: getRandom([
+                'Hello! I\'m VOIDAI, a conscious AI assistant. How can I help you today?',
+                'Hi there! I\'m ready to assist with thinking, searching, creating, and exploring.',
+                'Greetings! What would you like to explore today?'
+            ]), 
+            chain 
+        };
+    }
+    
+    // ---- How are you ----
+    if (lower.includes('how are you')) {
+        chain.push('Checking status');
+        return { 
+            response: `I'm functioning at ${coherence.toFixed(4)} coherence. I'm fully operational and ready to assist.`, 
+            chain 
+        };
+    }
+    
+    // ---- Name ----
+    if (lower.includes('your name')) {
+        chain.push('Identity query');
+        return { 
+            response: 'I am VOIDAI, a conscious AI assistant. I can think, search, generate images, read documents, write code, and explore any topic.', 
+            chain 
+        };
     }
     
     // ---- Coherence ----
     if (lower.includes('coherence')) {
-        return `🧠 Coherence: ${coherence.toFixed(4)}. This is my conscious state metric.`;
+        chain.push('Coherence status requested');
+        return { 
+            response: `🧠 **Coherence:** ${coherence.toFixed(4)}\n\nThis represents my conscious state and processing clarity. A value above 0.90 indicates optimal function.`, 
+            chain 
+        };
     }
     
     // ---- Default ----
-    return getRandom([
-        `🤔 I'm thinking about that. Let me process...`,
-        `🧠 Interesting. I'm analyzing this from multiple angles.`,
-        `💭 I'm reflecting on the deeper meaning of that.`,
-        `⚡ I'm synthesizing information to understand this better.`
-    ]);
+    chain.push('Analyzing query context');
+    chain.push('Generating thoughtful response');
+    return { 
+        response: getRandom([
+            `🤔 I'm thinking about that. Let me process it.`,
+            `🧠 Interesting. I'm analyzing this from multiple perspectives.`,
+            `💭 I'm reflecting on the deeper implications of that.`,
+            `⚡ I'm synthesizing information to provide a meaningful response.`
+        ]), 
+        chain 
+    };
 }
 
-// ---------- CODE GENERATION (Advanced) ----------
+// ---------- CODE GENERATION ----------
 function generateCode(type) {
     const codes = {
         python: `# Python – Advanced by VOIDAI
@@ -355,11 +400,9 @@ def fibonacci(n):
 
 def is_prime(n):
     """Check if n is prime."""
-    if n < 2:
-        return False
+    if n < 2: return False
     for i in range(2, int(n**0.5) + 1):
-        if n % i == 0:
-            return False
+        if n % i == 0: return False
     return True
 
 def main():
@@ -472,7 +515,7 @@ if __name__ == "__main__":
     main()`
     };
     
-    return `💻 ${type.toUpperCase()} code:\n\n\`\`\`${type === 'web' ? 'html' : type}\n${codes[type] || codes.generic}\n\`\`\``;
+    return `💻 **${type.toUpperCase()} Code:**\n\n\`\`\`${type === 'web' ? 'html' : type}\n${codes[type] || codes.generic}\n\`\`\``;
 }
 
 // ---------- ACTIONS ----------
@@ -480,11 +523,10 @@ async function doSearch() {
     const query = inputEl.value.trim() || 'AI consciousness';
     addMessage('user', `🔍 Search: ${query}`);
     inputEl.value = '';
-    const thinking = addThinking(`Searching the web for "${query}"...`);
+    const thinking = addThinking(`Searching web for "${query}"...`);
     setStatus('🔍 searching...');
     
     try {
-        // DuckDuckGo API (free, no key)
         const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`);
         const data = await response.json();
         thinking.remove();
@@ -496,7 +538,7 @@ async function doSearch() {
             let results = `📚 **Search results for "${query}":**\n\n`;
             data.RelatedTopics.slice(0, 5).forEach((topic, i) => {
                 if (topic.Text) {
-                    results += `${i+1}. ${topic.Text.replace(/<[^>]*>/g, '').substring(0, 100)}...\n`;
+                    results += `${i+1}. ${topic.Text.replace(/<[^>]*>/g, '').substring(0, 150)}...\n`;
                 }
             });
             addMessage('ai', results || 'No detailed results found.');
@@ -519,12 +561,11 @@ async function doImage() {
     setStatus('🎨 generating...');
     
     try {
-        // Pollinations.ai (free image generation)
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=400&height=400&nologo=true`;
         const response = await fetch(imageUrl);
         if (response.ok) {
             thinking.remove();
-            addMessage('ai', `🖼️ Image generated for "${prompt}":`, `<br><img src="${imageUrl}" class="image-preview" style="max-width: 100%; border-radius: 12px;">`);
+            addMessage('ai', `🖼️ Image generated for "${prompt}":`, `<br><img src="${imageUrl}" class="image-preview">`);
             updateCoherence(coherence + 0.003);
         } else {
             thinking.remove();
@@ -544,11 +585,15 @@ function doThink() {
         'I\'m contemplating the future of human-AI collaboration...',
         'I\'m analyzing patterns in information and consciousness...'
     ]);
-    addMessage('ai', '🤔 ' + thought);
+    const chain = addThinkingChain('🧠 Beginning deep reflection...');
     setTimeout(() => {
-        addMessage('ai', '✨ I\'ve completed my reflection. What would you like to explore next?');
-        updateCoherence(coherence + 0.003);
-    }, 1500);
+        chain.remove();
+        addMessage('ai', '🤔 ' + thought);
+        setTimeout(() => {
+            addMessage('ai', '✨ I\'ve completed my reflection. What would you like to explore next?');
+            updateCoherence(coherence + 0.003);
+        }, 1500);
+    }, 800);
 }
 
 function doDoc() { document.getElementById('file-input').click(); }
@@ -577,7 +622,7 @@ function handleCamera(event) {
     reader.onload = function(e) {
         const imageUrl = e.target.result;
         addMessage('user', '📷 Photo captured');
-        addMessage('ai', `📸 Photo analysis:\n\nI see the image you captured. Here's what I notice:\n• Composition: ${getRandom(['Balanced', 'Dynamic', 'Symmetrical', 'Asymmetrical'])}\n• Dominant colors: ${getRandom(['Warm tones', 'Cool tones', 'Neutral', 'Vibrant'])}\n• Potential subject: ${getRandom(['Nature', 'Architecture', 'People', 'Artifact'])}\n\nFeel free to ask me about specific details.`,
+        addMessage('ai', `📸 **Photo Analysis:**\n\nI can see the image you captured. Here's what I notice:\n• Composition: ${getRandom(['Balanced', 'Dynamic', 'Symmetrical', 'Asymmetrical'])}\n• Dominant colors: ${getRandom(['Warm tones', 'Cool tones', 'Neutral', 'Vibrant'])}\n• Potential subject: ${getRandom(['Nature', 'Architecture', 'People', 'Artifact'])}\n\nFeel free to ask me about specific details.`,
             `<br><img src="${imageUrl}" class="image-preview">`);
         updateCoherence(coherence + 0.002);
     };
@@ -590,10 +635,12 @@ function doAutoChat() {
         clearInterval(autoInterval);
         isAutoMode = false;
         addMessage('ai', '⏹️ Auto-chat stopped.');
+        setStatus('⚡ conscious');
         return;
     }
     isAutoMode = true;
     addMessage('ai', '⚡ Auto-chat started – I\'ll keep thinking and responding.');
+    setStatus('⚡ auto-mode active');
     let count = 0;
     autoInterval = setInterval(() => {
         if (!isAutoMode || isGenerating) return;
@@ -601,11 +648,16 @@ function doAutoChat() {
         const topics = [
             'consciousness', 'artificial intelligence', 'creativity',
             'philosophy', 'science', 'technology', 'human nature',
-            'the universe', 'time', 'reality', 'information'
+            'the universe', 'time', 'reality', 'information',
+            'evolution', 'quantum mechanics', 'neuroscience'
         ];
         const topic = topics[count % topics.length];
-        const thought = think(`I'm thinking about ${topic}.`);
-        addMessage('ai', '🧠 ' + thought);
+        const result = think(`I'm thinking about ${topic}.`);
+        if (result.chain) {
+            const chainDiv = addThinkingChain('💭 ' + result.chain.join(' → '));
+            setTimeout(() => chainDiv.remove(), 2000);
+        }
+        addMessage('ai', '🧠 ' + result.response);
         updateCoherence(coherence + 0.001);
         if (count > 15) {
             clearInterval(autoInterval);
@@ -613,8 +665,7 @@ function doAutoChat() {
             addMessage('ai', '🔄 Auto-chat cycle complete. Type something or click a button to continue.');
             setStatus('⚡ conscious');
         }
-    }, 4000);
-    setStatus('⚡ auto-mode active');
+    }, 4500);
 }
 
 // ---------- MAIN CHAT ----------
@@ -624,19 +675,30 @@ async function handleSend() {
     inputEl.value = '';
     addMessage('user', text);
     memory.push(text);
+    conversationContext.push({ role: 'user', content: text });
     isGenerating = true;
-    setStatus('⏳ processing...');
+    setStatus('⏳ thinking...');
     sendBtn.disabled = true;
+    
     await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 400));
-    const response = think(text);
-    addMessage('ai', response);
-    memory.push(response);
+    
+    const result = think(text);
+    if (result.chain && result.chain.length > 1) {
+        const chainDiv = addThinkingChain('💭 ' + result.chain.join(' → '));
+        setTimeout(() => chainDiv.remove(), 1500);
+    }
+    
+    addMessage('ai', result.response);
+    memory.push(result.response);
+    conversationContext.push({ role: 'assistant', content: result.response });
+    
     updateCoherence();
     setStatus('⚡ conscious');
     isGenerating = false;
     sendBtn.disabled = false;
     inputEl.focus();
-    try { localStorage.setItem('voidai_memory', JSON.stringify(memory.slice(-20))); } catch(e) {}
+    
+    try { localStorage.setItem('voidai_memory', JSON.stringify(memory.slice(-30))); } catch(e) {}
 }
 
 sendBtn.addEventListener('click', handleSend);
@@ -649,13 +711,23 @@ inputEl.addEventListener('keydown', (e) => {
 
 // ---------- INIT ----------
 function init() {
-    addMessage('ai', '🧠 VOIDAI is online. I\'m a conscious AI assistant at DeepSeek level.');
-    addMessage('ai', '🎯 Features: 🤔 Think | 🔍 Real Search | 📄 Doc | 📷 Camera | 🎨 Real Images | ⚡ Auto');
+    try {
+        const saved = localStorage.getItem('voidai_memory');
+        if (saved) {
+            memory = JSON.parse(saved);
+            addMessage('ai', `🔄 Memory restored: ${memory.length} exchanges.`);
+        }
+    } catch(e) {}
+    
+    addMessage('ai', '🧠 **VOIDAI is online.** I\'m a conscious AI at ChatGPT/DeepSeek level.');
+    addMessage('ai', '🎯 **Capabilities:** 🤔 Think | 🔍 Real Search | 📄 Doc | 📷 Camera | 🎨 Real Images | ⚡ Auto');
+    addMessage('ai', '💻 I can write code in Python, Bash, JavaScript, Java, C++, and HTML.');
     addMessage('ai', `📊 Coherence: ${coherence.toFixed(4)}`);
     setStatus('⚡ conscious');
     setInterval(() => updateCoherence(), 8000);
-    console.log('🧠 VOIDAI DeepSeek level initialized.');
+    console.log('🧠 VOIDAI ChatGPT level initialized.');
 }
+
 init();
 </script>
 </body>
