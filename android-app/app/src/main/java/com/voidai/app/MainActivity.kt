@@ -18,11 +18,11 @@ class MainActivity : AppCompatActivity() {
             val s = settings
             s.javaScriptEnabled = true
             s.domStorageEnabled = true
-            s.allowFileAccess = true
-            s.allowContentAccess = true
-            s.allowFileAccessFromFileURLs = true
-            s.allowUniversalAccessFromFileURLs = true
-            s.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            s.allowFileAccess = false
+            s.allowContentAccess = false
+            s.allowFileAccessFromFileURLs = false
+            s.allowUniversalAccessFromFileURLs = false
+            s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             s.loadsImagesAutomatically = true
 
             webViewClient = WebViewClient()

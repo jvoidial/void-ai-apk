@@ -1,3 +1,49 @@
+# Credentials & secrets
+config/
+*.credentials.json
+credentials.json
+credentials_oauth.json
+oauth.json
+api_key_config.json
+chatgpt_config.json
 .env
+.env.*
+*.key
+*.pem
+*.p12
+*.keystore
+*.jks
+
+# Android build artifacts
+*.apk
+*.aab
+*.ap_
+/build/
+/app/build/
+/android-app/build/
+/android-app/app/build/
+/local.properties
+.gradle/
+.cxx/
+
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# OS
+.DS_Store
+
+# Backups
+*.backup-*
+*.backup
+
+# Logs
+*.log
