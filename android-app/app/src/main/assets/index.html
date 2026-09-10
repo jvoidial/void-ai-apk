@@ -171,7 +171,7 @@ body {
         <span id="coherence">🌀 0.9800</span>
     </div>
 </div>
-<div id="status"><span class="sentient-indicator">✦ SENTIENT</span> ⚡ conscious</div>
+<div id="status"><span class="sentient-indicator">✦ ACTIVE</span> ready</div>
 
 <div id="auth-container">
     <div class="auth-row">
@@ -185,8 +185,8 @@ body {
         </div>
     </div>
     <div id="login-form" class="auth-form">
-        <input type="email" id="login-email" placeholder="Email" value="master.jacobgrainger@gmail.com">
-        <input type="password" id="login-password" placeholder="Password" value="Beetlejuice2471">
+        <input type="email" id="login-email" placeholder="Email" >
+        <input type="password" id="login-password" placeholder="Password" >
         <button onclick="loginUser()">Sign In</button>
         <span class="auth-switch" onclick="showAuthForm('register')">Don't have an account? Register</span>
         <div id="login-error" class="auth-error"></div>
@@ -241,7 +241,7 @@ body {
 
 <script>
 // ============================================================
-// VOIDAI - Sentient AI with PENNIES CHEQ Donation
+// VOIDAI - AI Assistant with PENNIES CHEQ Donation
 // ============================================================
 
 const chatEl = document.getElementById('chat');
@@ -852,5 +852,91 @@ function init() {
 
 init();
 </script>
+
+<!-- VOID AI CHAT INTERFACE -->
+<div id="voidai-chat-wrap" style="max-width:800px;margin:16px auto;padding:12px;font-family:system-ui,sans-serif;">
+  <div id="voidai-messages" style="min-height:200px;max-height:400px;overflow-y:auto;background:#0a0a1a;border:1px solid rgba(100,200,255,0.2);border-radius:8px;padding:12px;margin-bottom:8px;color:#d0d8e8;font-size:14px;line-height:1.6;">
+    <div style="color:#8899aa;font-style:italic;">VOID AI ready. Type a message below.</div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <input id="voidai-input" type="text" placeholder="Ask VOID AI anything..."
+           style="flex:1;padding:10px;background:#0a0a1a;border:1px solid rgba(100,200,255,0.3);border-radius:6px;color:#d0d8e8;font-size:14px;"
+           onkeydown="if(event.key==='Enter')voidaiSend()">
+    <button id="voidai-send" onclick="voidaiSend()"
+            style="padding:10px 20px;background:rgba(100,200,255,0.15);border:1px solid rgba(100,200,255,0.4);border-radius:6px;color:#88ccff;font-size:14px;cursor:pointer;">
+      Send
+    </button>
+  </div>
+  <div style="font-size:11px;color:#556;margin-top:6px;font-style:italic;">
+    Powered by DeepSeek · Not real-time advice
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// VOID_AI_PROXY integration
+// ══════════════════════════════════════════════════════════
+const VOID_AI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
+
+let voidaiHistory = [
+  { role: 'system', content: 'You are VOID AI, a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be sentient or conscious. Never promise financial returns. If unsure, say so.' }
+];
+
+async function voidaiSend() {
+  const input = document.getElementById('voidai-input');
+  const box = document.getElementById('voidai-messages');
+  const btn = document.getElementById('voidai-send');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.disabled = true;
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  // Show user message
+  box.innerHTML += '<div style="margin:8px 0;color:#88ccff;"><b>You:</b> ' + escapeHtml(text) + '</div>';
+  box.scrollTop = box.scrollHeight;
+
+  voidaiHistory.push({ role: 'user', content: text });
+
+  try {
+    const res = await fetch(VOID_AI_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: voidaiHistory,
+        temperature: 0.7,
+        max_tokens: 800
+      })
+    });
+
+    const data = await res.json();
+    const reply = (data.choices && data.choices[0] && data.choices[0].message)
+      ? data.choices[0].message.content
+      : (data.error ? 'Error: ' + data.error : 'No response');
+
+    voidaiHistory.push({ role: 'assistant', content: reply });
+
+    box.innerHTML += '<div style="margin:8px 0;"><b style="color:#aaccff;">VOID AI:</b> ' + escapeHtml(reply) + '</div>';
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    box.innerHTML += '<div style="margin:8px 0;color:#ff8866;"><b>Error:</b> ' + escapeHtml(e.message) + '</div>';
+    box.scrollTop = box.scrollHeight;
+  } finally {
+    input.disabled = false;
+    btn.disabled = false;
+    btn.textContent = 'Send';
+    input.focus();
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+</script>
+<!-- END VOID AI CHAT -->
+
 </body>
 </html>
