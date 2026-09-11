@@ -48,3 +48,6 @@ venv/
 # Logs
 *.log
 _archive/
+*.bak-*
+*.old-*
+res/**/*.bak*
