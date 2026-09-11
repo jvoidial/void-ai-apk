@@ -49,32 +49,23 @@ class MainActivity : AppCompatActivity() {
         s.databaseEnabled = true
         s.allowFileAccess = true
         s.allowContentAccess = true
-
         @Suppress("DEPRECATION")
         s.allowFileAccessFromFileURLs = true
-
         @Suppress("DEPRECATION")
         s.allowUniversalAccessFromFileURLs = true
-
         s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         s.cacheMode = WebSettings.LOAD_DEFAULT
 
         webView.addJavascriptInterface(object {
-
             @JavascriptInterface
             fun signInWithGitHub() {
                 runOnUiThread {
                     lifecycleScope.launch {
-                        try {
-                            supabase.auth.signInWith(Github)
-                        } catch (e: Exception) {
-                            Log.e("VOIDAI", "Sign-in failed", e)
-                            sendAuthError(e.message ?: "sign-in failed")
-                        }
+                        try { supabase.auth.signInWith(Github) }
+                        catch (e: Exception) { sendAuthError(e.message ?: "sign-in failed") }
                     }
                 }
             }
-
             @JavascriptInterface
             fun signOut() {
                 runOnUiThread {
@@ -82,43 +73,30 @@ class MainActivity : AppCompatActivity() {
                         try {
                             supabase.auth.signOut()
                             webView.evaluateJavascript("window.onSignedOut()", null)
-                        } catch (e: Exception) {
-                            sendAuthError(e.message ?: "sign-out failed")
-                        }
+                        } catch (e: Exception) { sendAuthError(e.message ?: "sign-out failed") }
                     }
                 }
             }
-
             @JavascriptInterface
             fun getCurrentUser(): String {
                 val user = supabase.auth.currentUserOrNull() ?: return ""
                 return user.email ?: user.id ?: ""
             }
-
             @JavascriptInterface
             fun getUserName(): String {
                 val user = supabase.auth.currentUserOrNull() ?: return ""
-                val meta = user.userMetadata
-                return meta?.get("user_name")?.toString()
-                    ?: meta?.get("name")?.toString()
-                    ?: meta?.get("full_name")?.toString()
-                    ?: ""
+                val m = user.userMetadata
+                return m?.get("user_name")?.toString() ?: m?.get("name")?.toString() ?: ""
             }
-
             @JavascriptInterface
             fun uploadFile(fileName: String, base64Data: String) {
                 runOnUiThread {
                     lifecycleScope.launch {
                         try {
                             val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-                            supabase.storage.from("voidai-uploads")
-                                .upload(fileName, bytes) { upsert = true }
-                            webView.evaluateJavascript(
-                                "window.onFileUploaded('" + fileName + "')", null
-                            )
-                        } catch (e: Exception) {
-                            sendAuthError("upload failed: " + (e.message ?: "unknown"))
-                        }
+                            supabase.storage.from("voidai-uploads").upload(fileName, bytes) { upsert = true }
+                            webView.evaluateJavascript("window.onFileUploaded('" + fileName + "')", null)
+                        } catch (e: Exception) { sendAuthError("upload failed: " + (e.message ?: "unknown")) }
                     }
                 }
             }
@@ -130,15 +108,10 @@ class MainActivity : AppCompatActivity() {
                 val user = supabase.auth.currentUserOrNull()
                 if (user != null) {
                     val email = user.email ?: ""
-                    val meta = user.userMetadata
-                    val name = meta?.get("user_name")?.toString()
-                        ?: meta?.get("name")?.toString()
-                        ?: meta?.get("full_name")?.toString()
-                        ?: ""
-                    val safeEmail = email.replace("'", "\\'")
-                    val safeName = name.replace("'", "\\'")
+                    val m = user.userMetadata
+                    val name = m?.get("user_name")?.toString() ?: m?.get("name")?.toString() ?: ""
                     webView.evaluateJavascript(
-                        "window.onSignedIn('" + safeEmail + "', '" + safeName + "')",
+                        "window.onSignedIn('" + email.replace("'", "\\'") + "', '" + name.replace("'", "\\'") + "')",
                         null
                     )
                 }
@@ -148,10 +121,7 @@ class MainActivity : AppCompatActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) webView.goBack()
-                else {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                }
+                else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
             }
         })
 
@@ -168,22 +138,16 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         val data = intent.data?.toString() ?: return
         if (!data.startsWith("voidai://auth-callback")) return
-
         lifecycleScope.launch {
             try {
                 supabase.handleDeeplinks(intent)
                 val user = supabase.auth.currentUserOrNull()
                 if (user != null) {
                     val email = user.email ?: ""
-                    val meta = user.userMetadata
-                    val name = meta?.get("user_name")?.toString()
-                        ?: meta?.get("name")?.toString()
-                        ?: meta?.get("full_name")?.toString()
-                        ?: ""
-                    val safeEmail = email.replace("'", "\\'")
-                    val safeName = name.replace("'", "\\'")
+                    val m = user.userMetadata
+                    val name = m?.get("user_name")?.toString() ?: m?.get("name")?.toString() ?: ""
                     webView.evaluateJavascript(
-                        "window.onSignedIn('" + safeEmail + "', '" + safeName + "')",
+                        "window.onSignedIn('" + email.replace("'", "\\'") + "', '" + name.replace("'", "\\'") + "')",
                         null
                     )
                 }
@@ -196,8 +160,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendAuthError(message: String) {
         val safe = message.replace("'", "\\'").replace("\n", " ")
-        webView.evaluateJavascript(
-            "window.onAuthError('" + safe + "')", null
-        )
+        webView.evaluateJavascript("window.onAuthError('" + safe + "')", null)
     }
 }
