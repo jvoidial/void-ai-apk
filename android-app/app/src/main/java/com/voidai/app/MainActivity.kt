@@ -17,7 +17,6 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Github
 import io.github.jan.supabase.createSupabaseClient
-import io.ktor.client.plugins.HttpTimeout
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.launch
@@ -35,7 +34,6 @@ class MainActivity : AppCompatActivity() {
             host = "auth-callback"
         }
         install(Storage)
-        install(HttpTimeout)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
