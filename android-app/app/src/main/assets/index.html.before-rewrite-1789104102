@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-<title>VOIDseek AI · VOIDAI GPT</title>
+<title>VOID AI — Assistant</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -165,7 +165,7 @@ body {
 <body>
 
 <div id="header">
-    <h1>🧠 <span style="color:var(--coherence-color);">VOIDseek</span></h1>
+    <h1>🧠 <span style="color:var(--coherence-color);">VOIDAI</span></h1>
     <div>
         <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
         <span id="coherence">🌀 0.9800</span>
@@ -709,7 +709,7 @@ function doCamera() { document.getElementById('camera-input').click(); }
 function doTermux() {
     addMessage('user', '📱 Termux');
     addChainStep(`📱 Generating...`);
-    addMessage('ai', `📱 Bash script:\n\`\`\`bash\necho "🧠 VOIDseek Termux"\necho "🌀 Coherence: $COHERENCE"\n\`\`\``);
+    addMessage('ai', `📱 Bash script:\n\`\`\`bash\necho "🧠 VOIDAI Termux"\necho "🌀 Coherence: $COHERENCE"\n\`\`\``);
     updateCoherence(coherence + 0.002);
 }
 
@@ -843,67 +843,46 @@ function init() {
     addMessage('ai', '💡 Ask me anything!');
     setStatus('✦ active');
     setInterval(() => updateCoherence(), 8000);
-    console.log('🧠 VOIDseek Simple initialized.');
+    console.log('🧠 VOIDAI Simple initialized.');
 }
 
 init();
 </script>
 
-
-
-
-<!-- VOIDSEEK AI CHAT -->
-<div id="voidseek-chat-wrap" style="max-width:820px;margin:16px auto;padding:14px;font-family:system-ui,-apple-system,sans-serif;">
-  <div id="voidseek-messages" style="min-height:220px;max-height:420px;overflow-y:auto;background:#0a0a1a;border:1px solid rgba(100,200,255,0.2);border-radius:10px;padding:14px;margin-bottom:10px;color:#d0d8e8;font-size:14px;line-height:1.65;">
-    <div style="color:#8899aa;font-style:italic;">VOIDseek AI ready. Type a message below.</div>
+<!-- VOID AI CHAT INTERFACE -->
+<div id="voidai-chat-wrap" style="max-width:800px;margin:16px auto;padding:12px;font-family:system-ui,sans-serif;">
+  <div id="voidai-messages" style="min-height:200px;max-height:400px;overflow-y:auto;background:#0a0a1a;border:1px solid rgba(100,200,255,0.2);border-radius:8px;padding:12px;margin-bottom:8px;color:#d0d8e8;font-size:14px;line-height:1.6;">
+    <div style="color:#8899aa;font-style:italic;">VOID AI ready. Type a message below.</div>
   </div>
   <div style="display:flex;gap:8px;">
-    <input id="voidseek-input" type="text" placeholder="Ask VOIDseek anything..."
-           style="flex:1;padding:12px;background:#0a0a1a;border:1px solid rgba(100,200,255,0.3);border-radius:8px;color:#d0d8e8;font-size:14px;outline:none;"
-           onkeydown="if(event.key==='Enter'){voidseekSend();}">
-    <button id="voidseek-send" onclick="voidseekSend()"
-            style="padding:12px 22px;background:rgba(100,200,255,0.15);border:1px solid rgba(100,200,255,0.4);border-radius:8px;color:#88ccff;font-size:14px;font-weight:600;cursor:pointer;">
+    <input id="voidai-input" type="text" placeholder="Ask VOID AI anything..."
+           style="flex:1;padding:10px;background:#0a0a1a;border:1px solid rgba(100,200,255,0.3);border-radius:6px;color:#d0d8e8;font-size:14px;"
+           onkeydown="if(event.key==='Enter')voidaiSend()">
+    <button id="voidai-send" onclick="voidaiSend()"
+            style="padding:10px 20px;background:rgba(100,200,255,0.15);border:1px solid rgba(100,200,255,0.4);border-radius:6px;color:#88ccff;font-size:14px;cursor:pointer;">
       Send
     </button>
   </div>
-  <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#556;font-style:italic;">
-    <span id="voidseek-status">VOIDseek AI · Powered by Groq</span>
-    <span onclick="voidseekTest()" style="cursor:pointer;color:#88ccff;text-decoration:underline;">Test connection</span>
+  <div style="font-size:11px;color:#556;margin-top:6px;font-style:italic;">
+    Powered by DeepSeek · Not real-time advice
   </div>
 </div>
 
 <script>
 // ══════════════════════════════════════════════════════════
-// VOIDSEEK AI · proxy chat client
+// VOID_AI_PROXY integration
 // ══════════════════════════════════════════════════════════
-const VOIDSEEK_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
+const VOID_AI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
 
-let voidseekHistory = [
-  { role: 'system', content: 'You are VOIDseek AI (aka VOIDAI GPT), a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be sentient or conscious. Never promise financial returns or guaranteed profits. If unsure, say so.' }
+let voidaiHistory = [
+  { role: 'system', content: 'You are VOID AI, a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be active or ready. Never promise financial returns. If unsure, say so.' }
 ];
 
-function voidseekEsc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function voidseekAppend(who, text, color) {
-  const box = document.getElementById('voidseek-messages');
-  const div = document.createElement('div');
-  div.style.margin = '10px 0';
-  div.innerHTML = '<b style="color:' + (color || '#aaccff') + ';">' + voidseekEsc(who) + ':</b> ' + voidseekEsc(text);
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-function voidseekSetStatus(text, color) {
-  const el = document.getElementById('voidseek-status');
-  if (el) { el.textContent = text; el.style.color = color || '#556'; }
-}
-
-async function voidseekSend() {
-  const input = document.getElementById('voidseek-input');
-  const btn = document.getElementById('voidseek-send');
-  const text = (input.value || '').trim();
+async function voidaiSend() {
+  const input = document.getElementById('voidai-input');
+  const box = document.getElementById('voidai-messages');
+  const btn = document.getElementById('voidai-send');
+  const text = input.value.trim();
   if (!text) return;
 
   input.value = '';
@@ -911,48 +890,36 @@ async function voidseekSend() {
   btn.disabled = true;
   btn.textContent = '...';
 
-  voidseekAppend('You', text, '#88ccff');
-  voidseekHistory.push({ role: 'user', content: text });
-  voidseekSetStatus('Thinking...', '#88ccff');
+  // Show user message
+  box.innerHTML += '<div style="margin:8px 0;color:#88ccff;"><b>You:</b> ' + escapeHtml(text) + '</div>';
+  box.scrollTop = box.scrollHeight;
+
+  voidaiHistory.push({ role: 'user', content: text });
 
   try {
-    console.log('[VOIDseek] POST to', VOIDSEEK_PROXY);
-    const res = await fetch(VOIDSEEK_PROXY, {
+    const res = await fetch(VOID_AI_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        messages: voidseekHistory,
-        max_tokens: 1024,
-        temperature: 0.7
+        model: 'deepseek-chat',
+        messages: voidaiHistory,
+        temperature: 0.7,
+        max_tokens: 800
       })
     });
 
-    console.log('[VOIDseek] status', res.status);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
-    }
-
     const data = await res.json();
-    console.log('[VOIDseek] response', data);
-
-    const reply = data.choices && data.choices[0] && data.choices[0].message
+    const reply = (data.choices && data.choices[0] && data.choices[0].message)
       ? data.choices[0].message.content
-      : null;
+      : (data.error ? 'Error: ' + data.error : 'No response');
 
-    if (!reply || !reply.trim()) {
-      throw new Error('Empty reply from model — ' + (data.error ? JSON.stringify(data.error) : 'no content'));
-    }
+    voidaiHistory.push({ role: 'assistant', content: reply });
 
-    voidseekHistory.push({ role: 'assistant', content: reply });
-    voidseekAppend('VOIDseek', reply, '#88ff88');
-    voidseekSetStatus('VOIDseek AI · Powered by Groq', '#556');
-
+    box.innerHTML += '<div style="margin:8px 0;"><b style="color:#aaccff;">VOID AI:</b> ' + escapeHtml(reply) + '</div>';
+    box.scrollTop = box.scrollHeight;
   } catch (e) {
-    console.error('[VOIDseek] error', e);
-    voidseekAppend('Error', e.message || String(e), '#ff8866');
-    voidseekSetStatus('Connection failed — see console', '#ff8866');
+    box.innerHTML += '<div style="margin:8px 0;color:#ff8866;"><b>Error:</b> ' + escapeHtml(e.message) + '</div>';
+    box.scrollTop = box.scrollHeight;
   } finally {
     input.disabled = false;
     btn.disabled = false;
@@ -961,20 +928,11 @@ async function voidseekSend() {
   }
 }
 
-async function voidseekTest() {
-  voidseekSetStatus('Testing...', '#88ccff');
-  try {
-    const r = await fetch(VOIDSEEK_PROXY + '/', { method: 'GET' });
-    const j = await r.json();
-    alert('Proxy status:\n' + JSON.stringify(j, null, 2));
-    voidseekSetStatus('Proxy OK · ' + (j.groq || '?'), '#88ff88');
-  } catch (e) {
-    alert('Proxy unreachable: ' + e.message);
-    voidseekSetStatus('Proxy unreachable', '#ff8866');
-  }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 </script>
-<!-- END VOIDSEEK AI CHAT -->
+<!-- END VOID AI CHAT -->
 
 </body>
 </html>

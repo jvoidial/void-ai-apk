@@ -20,8 +20,8 @@ class MainActivity : AppCompatActivity() {
             s.domStorageEnabled = true
             s.allowFileAccess = false
             s.allowContentAccess = false
-            s.allowFileAccessFromFileURLs = true
-            s.allowUniversalAccessFromFileURLs = true
+            s.allowFileAccessFromFileURLs = false
+            s.allowUniversalAccessFromFileURLs = false
             s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             s.loadsImagesAutomatically = true
 
