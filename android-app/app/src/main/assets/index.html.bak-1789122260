@@ -183,14 +183,6 @@ html, body {
 
 <div id="app">
   <div id="hero">VOIDAI</div>
-  <div id="signin-bar" style="position:absolute; top:12px; right:16px; z-index:10;">
-    <button id="signin-btn" onclick="voidaiSignIn()" style="background:#fff;border:none;color:#000;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Sign in</button>
-  </div>
-  <div id="auth-bar" style="display:none; position:absolute; top:12px; right:16px; z-index:10; align-items:center; gap:8px;">
-    <span id="user-display" style="font-size:11px; color:#888; font-family:ui-monospace,monospace;"></span>
-    <button id="signout-btn" onclick="voidaiSignOut()" style="background:transparent;border:1px solid #1f1f1f;color:#888;padding:4px 8px;border-radius:6px;font-size:10px;cursor:pointer;font-family:inherit;">Sign out</button>
-  </div>
-
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
@@ -447,80 +439,8 @@ html, body {
     addMsg('assistant', 'Cleared.');
   };
 
-  // ══════════════════════════════════════════════════════════
-  // Supabase Auth
-  // ══════════════════════════════════════════════════════════
-  function hasBridge() {
-    return typeof window.Android !== 'undefined' && window.Android !== null;
-  }
-
-  function updateAuthUI(email, name) {
-    var sb = document.getElementById('signin-bar');
-    var ab = document.getElementById('auth-bar');
-    var ud = document.getElementById('user-display');
-    if (!sb || !ab || !ud) return;
-    if (email) {
-      sb.style.display = 'none';
-      ab.style.display = 'flex';
-      ud.textContent = name || email;
-    } else {
-      sb.style.display = 'block';
-      ab.style.display = 'none';
-    }
-  }
-
-  window.voidaiSignIn = function() {
-    if (!hasBridge()) {
-      status('sign-in requires the Android app');
-      return;
-    }
-    status('opening GitHub…');
-    try { window.Android.signInWithGitHub(); }
-    catch(e) { status('sign-in error'); addMsg('assistant', '**Sign-in error:** ' + e.message); }
-  };
-
-  window.voidaiSignOut = function() {
-    if (!hasBridge()) return;
-    try { window.Android.signOut(); } catch(e) {}
-  };
-
-  window.onSignedIn = function(email, name) {
-    updateAuthUI(email, name);
-    status('signed in');
-  };
-
-  window.onSignedOut = function() {
-    updateAuthUI('', '');
-    status('signed out');
-    addMsg('assistant', 'Signed out.');
-  };
-
-  window.onAuthError = function(msg) {
-    status('auth error');
-    addMsg('assistant', '**Auth error:** ' + msg);
-  };
-
-  window.onFileUploaded = function(name) {
-    status('uploaded ' + name);
-  };
-
   function init() {
     console.log('[VOIDAI] init');
-
-    // Restore auth state from Android bridge
-    if (hasBridge()) {
-      try {
-        var e = window.Android.getCurrentUser();
-        var n = window.Android.getUserName();
-        updateAuthUI(e || '', n || '');
-      } catch(err) {
-        updateAuthUI('', '');
-      }
-    } else {
-      var sb = document.getElementById('signin-bar');
-      if (sb) sb.style.display = 'none';
-    }
-
     if (!loadMemory()) addMsg('assistant', 'Ready when you are.');
     updateHero();
     status('connecting…');
