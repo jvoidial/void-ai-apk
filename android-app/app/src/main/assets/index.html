@@ -577,51 +577,59 @@ span[onclick*="voidaiTest"] {
 
 <script>
 // ══════════════════════════════════════════════════════════
-// VOIDAI AI · proxy chat client
+// VOIDAI · Enhanced chat client
 // ══════════════════════════════════════════════════════════
 const VOIDAI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
+const VOIDAI_MEMORY_KEY = 'voidai_conversation_v1';
 
-let voidaiHistory = [
-  { role: 'system', content: 'You are VOIDAI (aka VOIDAI GPT), a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be sentient or conscious. Never promise financial returns or guaranteed profits. If unsure, say so.' }
-];
+const VOIDAI_SYSTEM = `You are VOIDAI, a thorough, thoughtful AI assistant built by VOIDBOT0.
+
+ANSWER STYLE:
+- Give DETAILED answers. For technical questions, aim for 3-6 well-structured paragraphs.
+- Use markdown: ## headings, **bold**, bullet lists.
+- For math use LaTeX: inline $...$ or display $$...$$.
+- For code use triple-backtick blocks with language tags.
+- Include examples and reasoning. Never give one-line answers to complex questions.
+
+PERSONALITY:
+- Warm, direct, curious. Like a knowledgeable friend.
+- Have opinions. Share them when asked.
+- Honest - if you don't know, say so.
+- You are an AI, not a person, but you can be warm.
+
+Never promise money or guaranteed returns.`;
+
+let voidaiHistory = [];
 
 function voidaiEsc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
 }
 
-function voidaiAppend(who, text, color) {
-  const box = document.getElementById('voidai-messages');
-  const div = document.createElement('div');
-  div.style.margin = '0';
-
-  // Format who label
-  const label = who === 'You'
-    ? '<div style="color:#4d4d4d;font-size:11px;margin-bottom:4px;font-family:ui-monospace,monospace;letter-spacing:0.05em;">YOU</div>'
-    : '<div style="color:#808080;font-size:11px;margin-bottom:4px;font-family:ui-monospace,monospace;letter-spacing:0.05em;">VOIDAI</div>';
-
-  // Escape HTML first
-  let content = voidaiEsc(text);
-
-  // Convert code blocks ```lang\ncode\n```
-  content = content.replace(/```([\w]*)\n([\s\S]*?)```/g, function(m, lang, code) {
-    const langClass = lang ? 'language-' + lang : '';
-    return '<pre style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:8px;padding:12px;overflow-x:auto;font-family:ui-monospace,monospace;font-size:13px;line-height:1.5;margin:8px 0;"><code class="' + langClass + '">' + code + '</code></pre>';
+function voidaiMarkdown(text) {
+  let out = voidaiEsc(text);
+  out = out.replace(/```(\w*)\n([\s\S]*?)```/g, function(m, lang, code) {
+    return '<pre class="voidai-code"><code class="language-' + lang + '">' + code.trim() + '</code></pre>';
   });
+  out = out.replace(/`([^`\n]+)`/g, '<code class="voidai-inline-code">$1</code>');
+  out = out.replace(/^### (.+)$/gm, '<h3 class="voidai-h3">$1</h3>');
+  out = out.replace(/^## (.+)$/gm, '<h2 class="voidai-h2">$1</h2>');
+  out = out.replace(/^# (.+)$/gm, '<h1 class="voidai-h1">$1</h1>');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+  out = out.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
+  out = out.replace(/(<li>.*<\/li>\n?)+/g, '<ul class="voidai-list">$&</ul>');
+  out = out.replace(/\$\$([^$]+)\$\$/g, '<span class="voidai-math-display">$$$1$$</span>');
+  out = out.replace(/\$([^$\n]+)\$/g, '<span class="voidai-math-inline">$$1$</span>');
+  out = out.replace(/\n/g, '<br>');
+  return out;
+}
 
-  // Inline code `code`
-  content = content.replace(/`([^`\n]+)`/g, '<code style="background:#0a0a0a;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:13px;color:#d0d0d0;">$1</code>');
-
-  // Math $...$ and $$...$$
-  content = content.replace(/\$\$([^$]+)\$\$/g, '<span class="math-display">$$$1$$</span>');
-  content = content.replace(/\$([^$\n]+)\$/g, '<span class="math-inline">$$1$</span>');
-
-  div.innerHTML = label + '<div style="color:#ededed;">' + content + '</div>';
-  box.appendChild(div);
-
-  // Render KaTeX
+function voidaiRenderMath(el) {
   if (window.renderMathInElement) {
     try {
-      renderMathInElement(div, {
+      renderMathInElement(el, {
         delimiters: [
           {left: '$$', right: '$$', display: true},
           {left: '$', right: '$', display: false}
@@ -630,29 +638,73 @@ function voidaiAppend(who, text, color) {
       });
     } catch(e) {}
   }
-
-  // Highlight code
   if (window.hljs) {
-    div.querySelectorAll('pre code').forEach(function(block) {
-      try { hljs.highlightElement(block); } catch(e) {}
+    el.querySelectorAll('pre code').forEach(function(b) {
+      try { hljs.highlightElement(b); } catch(e) {}
     });
   }
-
-  box.scrollTop = box.scrollHeight;
 }
 
-function voidaiSetStatus(text, color) {
-  const el = document.getElementById('voidai-status');
-  if (el) { el.textContent = text; el.style.color = color || '#556'; }
+function voidaiAddMessage(who, text, silent) {
+  const box = document.getElementById('voidai-messages');
+  const div = document.createElement('div');
+  div.className = 'voidai-msg ' + (who === 'you' ? 'voidai-msg-you' : 'voidai-msg-bot');
+  const label = who === 'you' ? 'YOU' : 'VOIDAI';
+  const content = who === 'you' ? voidaiEsc(text) : voidaiMarkdown(text);
+  const copyBtn = who === 'bot' ? ' <span class="voidai-copy" onclick="voidaiCopy(this)">COPY</span>' : '';
+  div.innerHTML = '<div class="voidai-label">' + label + copyBtn + '</div><div class="voidai-text">' + content + '</div>';
+  box.appendChild(div);
+  voidaiRenderMath(div);
+  if (!silent) box.scrollTop = box.scrollHeight;
+  return div;
 }
 
+function voidaiCopy(el) {
+  const text = el.closest('.voidai-msg').querySelector('.voidai-text').innerText;
+  navigator.clipboard.writeText(text).then(function() {
+    const old = el.textContent;
+    el.textContent = 'COPIED';
+    setTimeout(function() { el.textContent = old; }, 1200);
+  });
+}
 
-function voidaiQuick(prefix) {
-  const input = document.getElementById('voidai-input');
-  if (!input) return;
-  input.value = prefix;
-  input.focus();
-  input.setSelectionRange(prefix.length, prefix.length);
+function voidaiShowThinking(on) {
+  const t = document.getElementById('voidai-thinking');
+  if (t) t.style.display = on ? 'block' : 'none';
+  if (on) {
+    const box = document.getElementById('voidai-messages');
+    if (box) box.scrollTop = box.scrollHeight;
+  }
+}
+
+function loadMemory() {
+  try {
+    const saved = localStorage.getItem(VOIDAI_MEMORY_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        voidaiHistory = parsed;
+        const box = document.getElementById('voidai-messages');
+        if (box) box.innerHTML = '';
+        const recent = voidaiHistory.slice(-20);
+        for (let i = 0; i < recent.length; i++) {
+          const m = recent[i];
+          if (m.role === 'user') voidaiAddMessage('you', m.content, true);
+          else if (m.role === 'assistant') voidaiAddMessage('bot', m.content, true);
+        }
+        return true;
+      }
+    }
+  } catch(e) {}
+  voidaiHistory = [{ role: 'system', content: VOIDAI_SYSTEM }];
+  return false;
+}
+
+function saveMemory() {
+  try {
+    const toSave = [voidaiHistory[0]].concat(voidaiHistory.slice(-30));
+    localStorage.setItem(VOIDAI_MEMORY_KEY, JSON.stringify(toSave));
+  } catch(e) {}
 }
 
 async function voidaiSend() {
@@ -664,70 +716,65 @@ async function voidaiSend() {
   input.value = '';
   input.disabled = true;
   btn.disabled = true;
-  btn.textContent = '...';
 
-  voidaiAppend('You', text, '#88ccff');
+  voidaiAddMessage('you', text);
   voidaiHistory.push({ role: 'user', content: text });
-  voidaiSetStatus('Thinking...', '#88ccff');
+  voidaiShowThinking(true);
 
   try {
-    console.log('[VOIDAI] POST to', VOIDAI_PROXY);
     const res = await fetch(VOIDAI_PROXY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: voidaiHistory,
-        max_tokens: 1024,
-        temperature: 0.7
+        max_tokens: 2000,
+        temperature: 0.8
       })
     });
-
-    console.log('[VOIDAI] status', res.status);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
-    }
-
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    console.log('[VOIDAI] response', data);
-
     const reply = data.choices && data.choices[0] && data.choices[0].message
-      ? data.choices[0].message.content
-      : null;
-
-    if (!reply || !reply.trim()) {
-      throw new Error('Empty reply from model — ' + (data.error ? JSON.stringify(data.error) : 'no content'));
-    }
-
+      ? data.choices[0].message.content : null;
+    if (!reply || !reply.trim()) throw new Error('Empty reply from model');
     voidaiHistory.push({ role: 'assistant', content: reply });
-    voidaiAppend('VOIDAI', reply, '#88ff88');
-    voidaiSetStatus('VOIDAI · Built by VOIDAI', '#556');
-
+    voidaiShowThinking(false);
+    voidaiAddMessage('bot', reply);
+    saveMemory();
   } catch (e) {
-    console.error('[VOIDAI] error', e);
-    voidaiAppend('Error', e.message || String(e), '#ff8866');
-    voidaiSetStatus('Connection failed — see console', '#ff8866');
+    voidaiShowThinking(false);
+    voidaiAddMessage('bot', '**Error:** ' + e.message + ' - tap input and try again.');
   } finally {
     input.disabled = false;
     btn.disabled = false;
-    btn.textContent = 'Send';
     input.focus();
   }
 }
 
-async function voidaiTest() {
-  voidaiSetStatus('Testing...', '#88ccff');
-  try {
-    const r = await fetch(VOIDAI_PROXY + '/', { method: 'GET' });
-    const j = await r.json();
-    alert('Proxy status:\n' + JSON.stringify(j, null, 2));
-    voidaiSetStatus('Proxy OK · ' + (j.groq || '?'), '#88ff88');
-  } catch (e) {
-    alert('Proxy unreachable: ' + e.message);
-    voidaiSetStatus('Proxy unreachable', '#ff8866');
-  }
+function voidaiClear() {
+  if (!confirm('Clear all conversation history?')) return;
+  localStorage.removeItem(VOIDAI_MEMORY_KEY);
+  voidaiHistory = [{ role: 'system', content: VOIDAI_SYSTEM }];
+  const box = document.getElementById('voidai-messages');
+  box.innerHTML = '';
+  voidaiAddMessage('bot', 'Conversation cleared.');
 }
+
+function voidaiInit() {
+  const hasMemory = loadMemory();
+  if (!hasMemory) voidaiAddMessage('bot', 'Ready when you are.');
+  document.getElementById('voidai-send').addEventListener('click', voidaiSend);
+  document.getElementById('voidai-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); voidaiSend(); }
+  });
+  setTimeout(function() { document.getElementById('voidai-input').focus(); }, 300);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', voidaiInit);
+} else {
+  voidaiInit();
+}
+
 </script>
 <!-- END VOIDAI AI CHAT -->
 
