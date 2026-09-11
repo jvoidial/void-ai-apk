@@ -867,7 +867,7 @@ init();
     </button>
   </div>
   <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#556;font-style:italic;">
-    <span id="voidseek-status">VOIDseek AI · Powered by Groq</span>
+    <span id="voidseek-status">VOIDseek AI · Built by VOIDAI</span>
     <span onclick="voidseekTest()" style="cursor:pointer;color:#88ccff;text-decoration:underline;">Test connection</span>
   </div>
 </div>
@@ -947,7 +947,7 @@ async function voidseekSend() {
 
     voidseekHistory.push({ role: 'assistant', content: reply });
     voidseekAppend('VOIDseek', reply, '#88ff88');
-    voidseekSetStatus('VOIDseek AI · Powered by Groq', '#556');
+    voidseekSetStatus('VOIDseek AI · Built by VOIDAI', '#556');
 
   } catch (e) {
     console.error('[VOIDseek] error', e);
