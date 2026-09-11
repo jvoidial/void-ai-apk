@@ -208,27 +208,27 @@ body {
     </div>
 </div>
 
-<div id="chat"></div>
+
 
 <div class="plus-popup" id="plus-popup">
     <button onclick="doCamera()">📷 Camera</button>
     <button onclick="doDoc()">📄 Document</button>
     <button onclick="doImage()">🎨 Generate Image</button>
-    <button onclick="doSearch()">🔍 Search</button>
-    <button onclick="doThink()">🤔 Deep Think</button>
-    <button onclick="doTermux()">📱 Termux</button>
-    <button onclick="doAutoChat()">⚡ Auto</button>
+    <button onclick="voidseekQuick('Search the web for: ')">🔍 Search</button>
+    <button onclick="voidseekQuick('Think deeply about this: ')">🤔 Deep Think</button>
+    <button onclick="voidseekQuick('Explain Termux commands for: ')">📱 Termux</button>
+    <button onclick="document.getElementById('voidseek-input').focus()">⚡ Auto</button>
     <button onclick="showDonation()">💎 Donate</button>
     <button class="close-popup" onclick="togglePlus()">✖ Close</button>
 </div>
 
 <div class="action-bar">
-    <button class="action-btn" onclick="doThink()">🤔 Think</button>
-    <button class="action-btn" onclick="doSearch()">🔍 Search</button>
-    <button class="action-btn" onclick="doTermux()">📱 Termux</button>
+    <button class="action-btn" onclick="voidseekQuick('Think deeply about this: ')">🤔 Think</button>
+    <button class="action-btn" onclick="voidseekQuick('Search the web for: ')">🔍 Search</button>
+    <button class="action-btn" onclick="voidseekQuick('Explain Termux commands for: ')">📱 Termux</button>
     <button class="action-btn" onclick="showDonation()">💎 Donate</button>
     <button class="plus-btn" id="plus-btn" onclick="togglePlus()">➕</button>
-    <button class="action-btn primary" onclick="doAutoChat()">⚡ Auto</button>
+    <button class="action-btn primary" onclick="document.getElementById('voidseek-input').focus()">⚡ Auto</button>
 </div>
 
 <input type="file" id="file-input" accept=".txt,.md,.json,.csv,.py,.js,.html,.sh" onchange="handleFile(event)">
@@ -279,6 +279,15 @@ function voidseekAppend(who, text, color) {
 function voidseekSetStatus(text, color) {
   const el = document.getElementById('voidseek-status');
   if (el) { el.textContent = text; el.style.color = color || '#556'; }
+}
+
+
+function voidseekQuick(prefix) {
+  const input = document.getElementById('voidseek-input');
+  if (!input) return;
+  input.value = prefix;
+  input.focus();
+  input.setSelectionRange(prefix.length, prefix.length);
 }
 
 async function voidseekSend() {
