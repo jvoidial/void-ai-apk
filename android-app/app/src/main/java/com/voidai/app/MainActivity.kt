@@ -1,41 +1,58 @@
 package com.voidai.app
 
+import android.annotation.SuppressLint
 import android.os.Bundle
-import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var web: WebView
+    private lateinit var webView: WebView
 
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        web = WebView(this).apply {
-            val s = settings
-            s.javaScriptEnabled = true
-            s.domStorageEnabled = true
-            s.allowFileAccess = false
-            s.allowContentAccess = false
-            s.allowFileAccessFromFileURLs = true
-            s.allowUniversalAccessFromFileURLs = true
-            s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-            s.loadsImagesAutomatically = true
+        webView = WebView(this)
+        setContentView(webView)
 
-            webViewClient = WebViewClient()
-            webChromeClient = WebChromeClient()
+        val s: WebSettings = webView.settings
+        s.javaScriptEnabled = true
+        s.domStorageEnabled = true
+        s.databaseEnabled = true
 
-            loadUrl("file:///android_asset/index.html")
-        }
+        // Allow the HTML to reach external APIs (the Cloudflare proxy)
+        s.allowFileAccess = true
+        s.allowContentAccess = true
 
-        setContentView(web)
-    }
+        @Suppress("DEPRECATION")
+        s.allowFileAccessFromFileURLs = true
 
-    override fun onBackPressed() {
-        if (this::web.isInitialized && web.canGoBack()) web.goBack()
-        else super.onBackPressed()
+        @Suppress("DEPRECATION")
+        s.allowUniversalAccessFromFileURLs = true
+
+        s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        s.cacheMode = WebSettings.LOAD_DEFAULT
+        s.setSupportZoom(false)
+        s.builtInZoomControls = false
+        s.displayZoomControls = false
+        s.mediaPlaybackRequiresUserGesture = false
+
+        webView.webViewClient = WebViewClient()
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) webView.goBack()
+                else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
+        webView.loadUrl("file:///android_asset/index.html")
     }
 }
