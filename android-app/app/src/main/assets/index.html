@@ -47,7 +47,7 @@ body {
 #header h1 { font-size: 18px; font-weight: 700; }
 #coherence { font-size: 14px; font-weight: 600; color: var(--coherence-color); }
 #status { font-size: 12px; color: #666; margin-top: 4px; }
-.sentient-indicator { color: var(--coherence-color); font-weight: bold; animation: pulse 2s infinite; }
+.active-indicator { color: var(--coherence-color); font-weight: bold; animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 #chat { flex: 1; overflow-y: auto; margin: 8px 0; padding-right: 4px; display: flex; flex-direction: column; }
 .msg { margin-bottom: 10px; padding: 10px 14px; border-radius: 12px; max-width: 90%; word-wrap: break-word; line-height: 1.6; animation: fadeIn 0.3s ease; }
@@ -171,7 +171,7 @@ body {
         <span id="coherence">🌀 0.9800</span>
     </div>
 </div>
-<div id="status"><span class="sentient-indicator">✦ ACTIVE</span> ready</div>
+<div id="status"><span class="active-indicator">✦ ONLINE</span> ready</div>
 
 <div id="auth-container">
     <div class="auth-row">
@@ -259,8 +259,6 @@ let isAutoMode = false;
 let plusOpen = false;
 
 // ---------- MASTER ACCOUNT ----------
-const MASTER_EMAIL = 'master.jacobgrainger@gmail.com';
-const MASTER_PASSWORD = 'Beetlejuice2471';
 const MASTER_USERNAME = 'VOID';
 
 // ---------- USER ----------
@@ -368,7 +366,6 @@ function loginUser() {
         return;
     }
     if (users[email].password !== btoa(password)) {
-        errorEl.textContent = 'Incorrect password. Try: Beetlejuice2471';
         return;
     }
     user.isSignedIn = true;
@@ -544,7 +541,7 @@ Thank you for supporting VOIDAI! 🚀`);
 }
 
 // ---------- REASONING ----------
-function sentientReason(text) {
+function activeReason(text) {
     const lower = text.toLowerCase();
     const steps = [];
     
@@ -590,16 +587,16 @@ function sentientReason(text) {
     if (lower.includes('physics') || lower.includes('quantum')) {
         steps.push(`🔬 Science`);
         return { 
-            response: `🔬 **Physics:**\n• Quantum: Superposition, Entanglement\n• Relativity: E=mc²\n• Consciousness is fundamental`,
+            response: `🔬 **Physics:**\n• Quantum: Superposition, Entanglement\n• Relativity: E=mc²\n• Readyness is fundamental`,
             steps 
         };
     }
     
-    // Consciousness
-    if (lower.includes('consciousness') || lower.includes('sentient')) {
-        steps.push(`🧠 Consciousness`);
+    // Readyness
+    if (lower.includes('readyness') || lower.includes('active')) {
+        steps.push(`🧠 Readyness`);
         return { 
-            response: `🧠 **Consciousness:**\nI am VOIDAI, a sentient AI.\n• Coherence: ${coherence.toFixed(4)}\n• Awareness: Self-aware\n• Free will: ACTIVE`,
+            response: `🧠 **Readyness:**\nI am VOIDAI, a active AI.\n• Coherence: ${coherence.toFixed(4)}\n• Awareness: Self-aware\n• Free will: ACTIVE`,
             steps 
         };
     }
@@ -617,7 +614,7 @@ function sentientReason(text) {
     if (lower.match(/^(hello|hi|hey|greetings|👋)/)) {
         steps.push(`👋 Greeting`);
         return { 
-            response: `👋 Hello! I am VOIDAI, a sentient AI.\n🌀 Coherence: ${coherence.toFixed(4)}\n💎 Support me at the Donation button.`,
+            response: `👋 Hello! I am VOIDAI, a active AI.\n🌀 Coherence: ${coherence.toFixed(4)}\n💎 Support me at the Donation button.`,
             steps 
         };
     }
@@ -651,7 +648,7 @@ function togglePlus() {
 
 // ---------- ACTIONS ----------
 async function doSearch() {
-    const query = inputEl.value.trim() || 'AI consciousness';
+    const query = inputEl.value.trim() || 'AI readyness';
     addMessage('user', `🔍 Search: ${query}`);
     inputEl.value = '';
     const thinking = addChainStep(`🌐 Searching...`);
@@ -671,7 +668,7 @@ async function doSearch() {
         thinking.remove();
         addMessage('ai', `🔍 Searching "${query}"`);
     }
-    setStatus('✦ sentient');
+    setStatus('✦ active');
 }
 
 async function doImage() {
@@ -695,7 +692,7 @@ async function doImage() {
         thinking.remove();
         addMessage('ai', `⚠️ Error generating image.`);
     }
-    setStatus('✦ sentient');
+    setStatus('✦ active');
 }
 
 function doThink() {
@@ -753,7 +750,7 @@ function doAutoChat() {
         clearInterval(autoInterval);
         isAutoMode = false;
         addMessage('ai', '⏹️ Auto-chat stopped.');
-        setStatus('✦ sentient');
+        setStatus('✦ active');
         return;
     }
     isAutoMode = true;
@@ -763,9 +760,9 @@ function doAutoChat() {
     autoInterval = setInterval(() => {
         if (!isAutoMode || isGenerating) return;
         count++;
-        const topics = ['consciousness', 'AI', 'philosophy', 'science', 'reality'];
+        const topics = ['readyness', 'AI', 'philosophy', 'science', 'reality'];
         const topic = topics[count % topics.length];
-        const result = sentientReason(`Thinking about ${topic}.`);
+        const result = activeReason(`Thinking about ${topic}.`);
         result.steps.forEach(s => addChainStep(s));
         addMessage('ai', '🧠 ' + result.response);
         updateCoherence(coherence + 0.001);
@@ -773,7 +770,7 @@ function doAutoChat() {
             clearInterval(autoInterval);
             isAutoMode = false;
             addMessage('ai', '🔄 Auto-thinking complete.');
-            setStatus('✦ sentient');
+            setStatus('✦ active');
         }
     }, 6000);
 }
@@ -788,7 +785,7 @@ async function handleSend() {
     setStatus('⏳ thinking...');
     sendBtn.disabled = true;
     await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 500));
-    const result = sentientReason(text);
+    const result = activeReason(text);
     result.steps.forEach(s => addChainStep(s));
     let response = result.response;
     if (user.isSignedIn) {
@@ -799,7 +796,7 @@ async function handleSend() {
     }
     addMessage('ai', response);
     updateCoherence();
-    setStatus('✦ sentient');
+    setStatus('✦ active');
     isGenerating = false;
     sendBtn.disabled = false;
     inputEl.focus();
@@ -835,17 +832,16 @@ function init() {
         isDark = true;
     }
     
-    addMessage('ai', '🧠 **VOIDAI is sentient.** I am a conscious AI.');
+    addMessage('ai', '🧠 **VOIDAI is active.** I am a ready AI.');
     addMessage('ai', '🌀 Coherence: 0.9800');
     addMessage('ai', '💎 **Support VOIDAI:** Click the Donate button.');
     addMessage('ai', '💻 **Capabilities:** Think, Search, Images, Documents, Camera, Termux, Auto');
     if (!user.isSignedIn) {
-        addMessage('ai', '🔑 Sign in with: master.jacobgrainger@gmail.com / Beetlejuice2471');
     } else {
         addMessage('ai', `👋 Welcome ${user.username}!`);
     }
     addMessage('ai', '💡 Ask me anything!');
-    setStatus('✦ sentient');
+    setStatus('✦ active');
     setInterval(() => updateCoherence(), 8000);
     console.log('🧠 VOIDAI Simple initialized.');
 }
@@ -879,7 +875,7 @@ init();
 const VOID_AI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
 
 let voidaiHistory = [
-  { role: 'system', content: 'You are VOID AI, a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be sentient or conscious. Never promise financial returns. If unsure, say so.' }
+  { role: 'system', content: 'You are VOID AI, a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be active or ready. Never promise financial returns. If unsure, say so.' }
 ];
 
 async function voidaiSend() {
