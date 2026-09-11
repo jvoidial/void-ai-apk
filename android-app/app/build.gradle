@@ -62,17 +62,17 @@ dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 
     // Supabase Kotlin SDK
-    implementation platform('io.github.jan-tennert.supabase:bom:3.0.1')
-    implementation 'io.github.jan-tennert.supabase:auth-kt'
-    implementation 'io.github.jan-tennert.supabase:storage-kt'
-    implementation 'io.github.jan-tennert.supabase:postgrest-kt'
+//     implementation platform('io.github.jan-tennert.supabase:bom:3.0.1')
+//     implementation 'io.github.jan-tennert.supabase:auth-kt'
+//     implementation 'io.github.jan-tennert.supabase:storage-kt'
+//     implementation 'io.github.jan-tennert.supabase:postgrest-kt'
 
     // Ktor 3.0.2 — required version for Supabase 3.0.1
-    implementation 'io.ktor:ktor-client-core:3.0.2'
-    implementation 'io.ktor:ktor-client-android:3.0.2'
-    implementation 'io.ktor:ktor-client-content-negotiation:3.0.2'
-    implementation 'io.ktor:ktor-serialization-kotlinx-json:3.0.2'
-    implementation 'io.ktor:ktor-utils-jvm:3.0.2'
+//     implementation 'io.ktor:ktor-client-core:3.0.2'
+//     implementation 'io.ktor:ktor-client-android:3.0.2'
+//     implementation 'io.ktor:ktor-client-content-negotiation:3.0.2'
+//     implementation 'io.ktor:ktor-serialization-kotlinx-json:3.0.2'
+//     implementation 'io.ktor:ktor-utils-jvm:3.0.2'
 
     // Kotlinx serialization
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
