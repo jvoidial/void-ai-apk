@@ -15,7 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
-import io.github.jan.supabase.auth.providers.builtin.GitHub
+import io.github.jan.supabase.auth.providers.Github
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
@@ -59,7 +59,6 @@ class MainActivity : AppCompatActivity() {
         s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         s.cacheMode = WebSettings.LOAD_DEFAULT
 
-        // ─── JS Bridge ───
         webView.addJavascriptInterface(object {
 
             @JavascriptInterface
@@ -67,7 +66,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     lifecycleScope.launch {
                         try {
-                            supabase.auth.signInWith(GitHub)
+                            supabase.auth.signInWith(Github)
                         } catch (e: Exception) {
                             Log.e("VOIDAI", "Sign-in failed", e)
                             sendAuthError(e.message ?: "sign-in failed")
@@ -100,11 +99,10 @@ class MainActivity : AppCompatActivity() {
             fun getUserName(): String {
                 val user = supabase.auth.currentUserOrNull() ?: return ""
                 val meta = user.userMetadata
-                val name = meta?.get("user_name")?.toString()
+                return meta?.get("user_name")?.toString()
                     ?: meta?.get("name")?.toString()
                     ?: meta?.get("full_name")?.toString()
                     ?: ""
-                return name
             }
 
             @JavascriptInterface
@@ -126,7 +124,6 @@ class MainActivity : AppCompatActivity() {
             }
         }, "Android")
 
-        // ─── WebView client ───
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
@@ -148,7 +145,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // ─── Handle system back button ───
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (webView.canGoBack()) webView.goBack()
@@ -159,9 +155,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // ─── Handle deep link from OAuth callback on cold start ───
         handleIntent(intent)
-
         webView.loadUrl("file:///android_asset/index.html")
     }
 
