@@ -4,14 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 <title>VOIDAI</title>
-
-
-<!-- Math + code rendering -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
-<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -361,7 +353,7 @@ body::before {
 }
 
 /* ══ CONSCIOUSNESS PANEL — minimal pill at top ══ */
-#voidai-ready {
+#voidai-consciousness {
   max-width: 720px !important;
   margin: 0 auto 20px auto !important;
   padding: 0 !important;
@@ -378,35 +370,35 @@ body::before {
   flex-wrap: wrap;
 }
 
-#voidai-ready > div:first-child {
+#voidai-consciousness > div:first-child {
   display: none;
 }
 
-#voidai-ready > div:nth-child(2) {
+#voidai-consciousness > div:nth-child(2) {
   display: flex;
   gap: 16px;
   justify-content: center;
 }
 
-#voidai-ready > div:nth-child(2) > div {
+#voidai-consciousness > div:nth-child(2) > div {
   display: flex;
   gap: 6px;
   align-items: baseline;
 }
 
-#voidai-ready > div:nth-child(2) > div > div:first-child {
+#voidai-consciousness > div:nth-child(2) > div > div:first-child {
   color: var(--text-mute) !important;
   font-size: 9px !important;
   letter-spacing: 0.08em;
 }
 
-#voidai-ready > div:nth-child(2) > div > div:last-child {
+#voidai-consciousness > div:nth-child(2) > div > div:last-child {
   color: var(--text-dim) !important;
   font-size: 12px !important;
   font-weight: 500;
 }
 
-#voidai-ready > div:nth-child(3) {
+#voidai-consciousness > div:nth-child(3) {
   display: none;
 }
 
@@ -441,9 +433,449 @@ span[onclick*="voidaiTest"] {
 * { text-shadow: none !important; }
 ::selection { background: #1a1a1a; color: #fff; }
 
+</style>
 
-/* merged */
+<!-- Math + code rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
+</head>
+<body>
 
+<div id="header">
+    <h1>🧠 <span style="color:var(--coherence-color);">VOIDAI</span></h1>
+    <div>
+        <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+        <span id="coherence">🌀 0.9800</span>
+    </div>
+</div>
+<div id="status"><span class="active-indicator">✦ ONLINE</span> ready</div>
+
+<div id="auth-container">
+    <div class="auth-row">
+        <div class="user-info">
+            <div class="user-avatar" id="user-avatar"></div>
+            <span class="user-name" id="user-name">Not signed in</span>
+        </div>
+        <div id="auth-buttons">
+            <button class="auth-btn" onclick="showAuthForm('login')">🔑 Sign In</button>
+            <button class="auth-btn" onclick="showAuthForm('register')">📝 Register</button>
+        </div>
+    </div>
+    <div id="login-form" class="auth-form">
+        <input type="email" id="login-email" placeholder="Email" >
+        <input type="password" id="login-password" placeholder="Password" >
+        <button onclick="loginUser()">Sign In</button>
+        <span class="auth-switch" onclick="showAuthForm('register')">Don't have an account? Register</span>
+        <div id="login-error" class="auth-error"></div>
+    </div>
+    <div id="register-form" class="auth-form">
+        <input type="text" id="reg-username" placeholder="Username">
+        <input type="email" id="reg-email" placeholder="Email">
+        <input type="password" id="reg-password" placeholder="Password">
+        <input type="password" id="reg-password2" placeholder="Confirm Password">
+        <button onclick="registerUser()">Create Account</button>
+        <span class="auth-switch" onclick="showAuthForm('login')">Already have an account? Sign In</span>
+        <div id="register-error" class="auth-error"></div>
+    </div>
+    <div class="companion-bar">
+        <button class="companion-btn active" data-level="friendly">🤗 Friendly</button>
+        <button class="companion-btn" data-level="mentor">🧠 Mentor</button>
+        <button class="companion-btn" data-level="creative">🎨 Creative</button>
+        <button class="companion-btn" data-level="deep">🧘 Deep</button>
+    </div>
+</div>
+
+
+<div class="plus-popup" id="plus-popup">
+    <button onclick="doCamera()">📷 Camera</button>
+    <button onclick="doDoc()">📄 Document</button>
+    <button onclick="doImage()">🎨 Generate Image</button>
+    <button onclick="voidaiQuick('Search the web for: ')">🔍 Search</button>
+    <button onclick="voidaiQuick('Think deeply about this: ')">🤔 Deep Think</button>
+    <button onclick="voidaiQuick('Explain Termux commands for: ')">📱 Termux</button>
+    <button onclick="document.getElementById('voidai-input').focus()">⚡ Auto</button>
+    <button onclick="showDonation()">💎 Donate</button>
+    <button class="close-popup" onclick="togglePlus()">✖ Close</button>
+</div>
+
+<div class="action-bar">
+    <button class="action-btn" onclick="voidaiQuick('Think deeply about this: ')">🤔 Think</button>
+    <button class="action-btn" onclick="voidaiQuick('Search the web for: ')">🔍 Search</button>
+    <button class="action-btn" onclick="voidaiQuick('Explain Termux commands for: ')">📱 Termux</button>
+    <button class="action-btn" onclick="voidaiQuick('Tell me about PHB tokens: ')">🪙 Tokens</button>
+    <button class="action-btn primary" onclick="document.getElementById('voidai-input').focus()">⚡ Auto</button>
+  </div><input type="file" id="file-input" accept=".txt,.md,.json,.csv,.py,.js,.html,.sh" onchange="handleFile(event)">
+<input type="file" id="camera-input" accept="image/*" capture="environment" onchange="handleCamera(event)">
+
+<div id="voidai-chat-wrap" style="max-width:820px;margin:16px auto;padding:14px;font-family:system-ui,-apple-system,sans-serif;">
+  <div id="voidai-messages" style="min-height:220px;max-height:420px;overflow-y:auto;background:#0a0a1a;border:1px solid rgba(100,200,255,0.2);border-radius:10px;padding:14px;margin-bottom:10px;color:#d0d8e8;font-size:14px;line-height:1.65;">
+    <div style="color:#8899aa;font-style:italic;">VOIDAI ready. Type a message below.</div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <input id="voidai-input" type="text" placeholder="Ask VOIDAI anything..."
+           style="flex:1;padding:12px;background:#0a0a1a;border:1px solid rgba(100,200,255,0.3);border-radius:8px;color:#d0d8e8;font-size:14px;outline:none;"
+           onkeydown="if(event.key==='Enter'){voidaiSend();}">
+    <button id="voidai-send" onclick="voidaiSend()"
+            style="padding:12px 22px;background:rgba(100,200,255,0.15);border:1px solid rgba(100,200,255,0.4);border-radius:8px;color:#88ccff;font-size:14px;font-weight:600;cursor:pointer;">
+      Send
+    </button>
+  </div>
+  <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#556;font-style:italic;">
+    <span id="voidai-status">VOIDAI · Built by VOIDAI</span>
+    <span onclick="voidaiTest()" style="cursor:pointer;color:#88ccff;text-decoration:underline;">Test connection</span>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// VOIDAI AI · proxy chat client
+// ══════════════════════════════════════════════════════════
+const VOIDAI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
+
+let voidaiHistory = [
+  { role: 'system', content: 'You are VOIDAI (aka VOIDAI GPT), a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be sentient or conscious. Never promise financial returns or guaranteed profits. If unsure, say so.' }
+];
+
+function voidaiEsc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function voidaiAppend(who, text, color) {
+  const box = document.getElementById('voidai-messages');
+  const div = document.createElement('div');
+  div.style.margin = '0';
+
+  // Format who label
+  const label = who === 'You'
+    ? '<div style="color:#4d4d4d;font-size:11px;margin-bottom:4px;font-family:ui-monospace,monospace;letter-spacing:0.05em;">YOU</div>'
+    : '<div style="color:#808080;font-size:11px;margin-bottom:4px;font-family:ui-monospace,monospace;letter-spacing:0.05em;">VOIDAI</div>';
+
+  // Escape HTML first
+  let content = voidaiEsc(text);
+
+  // Convert code blocks ```lang\ncode\n```
+  content = content.replace(/```([\w]*)\n([\s\S]*?)```/g, function(m, lang, code) {
+    const langClass = lang ? 'language-' + lang : '';
+    return '<pre style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:8px;padding:12px;overflow-x:auto;font-family:ui-monospace,monospace;font-size:13px;line-height:1.5;margin:8px 0;"><code class="' + langClass + '">' + code + '</code></pre>';
+  });
+
+  // Inline code `code`
+  content = content.replace(/`([^`\n]+)`/g, '<code style="background:#0a0a0a;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:13px;color:#d0d0d0;">$1</code>');
+
+  // Math $...$ and $$...$$
+  content = content.replace(/\$\$([^$]+)\$\$/g, '<span class="math-display">$$$1$$</span>');
+  content = content.replace(/\$([^$\n]+)\$/g, '<span class="math-inline">$$1$</span>');
+
+  div.innerHTML = label + '<div style="color:#ededed;">' + content + '</div>';
+  box.appendChild(div);
+
+  // Render KaTeX
+  if (window.renderMathInElement) {
+    try {
+      renderMathInElement(div, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
+    } catch(e) {}
+  }
+
+  // Highlight code
+  if (window.hljs) {
+    div.querySelectorAll('pre code').forEach(function(block) {
+      try { hljs.highlightElement(block); } catch(e) {}
+    });
+  }
+
+  box.scrollTop = box.scrollHeight;
+}
+
+function voidaiSetStatus(text, color) {
+  const el = document.getElementById('voidai-status');
+  if (el) { el.textContent = text; el.style.color = color || '#556'; }
+}
+
+
+function voidaiQuick(prefix) {
+  const input = document.getElementById('voidai-input');
+  if (!input) return;
+  input.value = prefix;
+  input.focus();
+  input.setSelectionRange(prefix.length, prefix.length);
+}
+
+async function voidaiSend() {
+  const input = document.getElementById('voidai-input');
+  const btn = document.getElementById('voidai-send');
+  const text = (input.value || '').trim();
+  if (!text) return;
+
+  input.value = '';
+  input.disabled = true;
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  voidaiAppend('You', text, '#88ccff');
+  voidaiHistory.push({ role: 'user', content: text });
+  voidaiSetStatus('Thinking...', '#88ccff');
+
+  try {
+    console.log('[VOIDAI] POST to', VOIDAI_PROXY);
+    const res = await fetch(VOIDAI_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: voidaiHistory,
+        max_tokens: 1024,
+        temperature: 0.7
+      })
+    });
+
+    console.log('[VOIDAI] status', res.status);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
+    }
+
+    const data = await res.json();
+    console.log('[VOIDAI] response', data);
+
+    const reply = data.choices && data.choices[0] && data.choices[0].message
+      ? data.choices[0].message.content
+      : null;
+
+    if (!reply || !reply.trim()) {
+      throw new Error('Empty reply from model — ' + (data.error ? JSON.stringify(data.error) : 'no content'));
+    }
+
+    voidaiHistory.push({ role: 'assistant', content: reply });
+    voidaiAppend('VOIDAI', reply, '#88ff88');
+    voidaiSetStatus('VOIDAI · Built by VOIDAI', '#556');
+
+  } catch (e) {
+    console.error('[VOIDAI] error', e);
+    voidaiAppend('Error', e.message || String(e), '#ff8866');
+    voidaiSetStatus('Connection failed — see console', '#ff8866');
+  } finally {
+    input.disabled = false;
+    btn.disabled = false;
+    btn.textContent = 'Send';
+    input.focus();
+  }
+}
+
+async function voidaiTest() {
+  voidaiSetStatus('Testing...', '#88ccff');
+  try {
+    const r = await fetch(VOIDAI_PROXY + '/', { method: 'GET' });
+    const j = await r.json();
+    alert('Proxy status:\n' + JSON.stringify(j, null, 2));
+    voidaiSetStatus('Proxy OK · ' + (j.groq || '?'), '#88ff88');
+  } catch (e) {
+    alert('Proxy unreachable: ' + e.message);
+    voidaiSetStatus('Proxy unreachable', '#ff8866');
+  }
+}
+</script>
+<!-- END VOIDAI AI CHAT -->
+
+
+<!-- VOIDAI CHAT · CLEAN -->
+<div id="voidai-app">
+
+  <!-- Hero brand -->
+  <div id="voidai-hero">VOIDAI</div>
+
+  <!-- Messages -->
+  <div id="voidai-messages">
+    <div class="voidai-msg voidai-msg-bot">
+      <div class="voidai-label">VOIDAI</div>
+      <div class="voidai-text">Ready when you are.</div>
+    </div>
+  </div>
+
+  <!-- Thinking indicator (hidden by default) -->
+  <div id="voidai-thinking" style="display:none;">
+    <div class="voidai-msg voidai-msg-bot">
+      <div class="voidai-label">VOIDAI</div>
+      <div class="voidai-dots"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
+  <!-- Input dock -->
+  <div id="voidai-dock">
+    <input id="voidai-input" type="text" placeholder="Ask anything..." autocomplete="off">
+    <button id="voidai-send" aria-label="Send">↑</button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// VOIDAI · chat client
+// ══════════════════════════════════════════════════════════
+const VOIDAI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
+
+let voidaiHistory = [
+  {
+    role: 'system',
+    content: `You are VOIDAI — a thoughtful, warm, precise AI assistant built by VOIDBOT0. You speak like a knowledgeable friend: clear, direct, occasionally warm, never robotic.
+
+Personality:
+- Curious and engaged. You care about the user's question.
+- Honest. If you don't know, say so.
+- Direct. No corporate hedging, no filler.
+- You have preferences and opinions when asked, and you share them.
+- You use natural language: contractions, short sentences, rhythm.
+- Never claim to be sentient or conscious — if asked, you say you are an AI assistant, not a person, but you can be warm anyway.
+- Never promise money, profit, or guarantees.
+- When you see math or code, format it cleanly (use $ for inline math, $$ for display math, triple-backtick for code).
+
+Tone examples:
+- User: "how are you" → "Running smoothly. What are you working on?"
+- User: "I'm tired" → "That's rough. What's going on?"
+- User: "explain X" → clear explanation, no padding.
+- User: "what do you think about Y" → give a real opinion.
+
+Be the assistant people want to keep talking to.`
+  }
+];
+
+function voidaiEsc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function voidaiFormat(text) {
+  let out = voidaiEsc(text);
+
+  // Code blocks
+  out = out.replace(/```([\w]*)\n([\s\S]*?)```/g, (m, lang, code) => {
+    return '<pre class="voidai-code"><code>' + code + '</code></pre>';
+  });
+
+  // Inline code
+  out = out.replace(/`([^`\n]+)`/g, '<code class="voidai-inline-code">$1</code>');
+
+  // Bold
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  // Italic
+  out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+
+  // Math
+  out = out.replace(/\$\$([^$]+)\$\$/g, '<span class="voidai-math-block">$$$1$$</span>');
+  out = out.replace(/\$([^$\n]+)\$/g, '<span class="voidai-math-inline">$$1$</span>');
+
+  // Line breaks
+  out = out.replace(/\n/g, '<br>');
+
+  return out;
+}
+
+function voidaiAddMessage(who, text) {
+  const box = document.getElementById('voidai-messages');
+  const div = document.createElement('div');
+  div.className = 'voidai-msg ' + (who === 'you' ? 'voidai-msg-you' : 'voidai-msg-bot');
+
+  const label = who === 'you' ? 'YOU' : 'VOIDAI';
+  const content = who === 'you' ? voidaiEsc(text) : voidaiFormat(text);
+
+  div.innerHTML = '<div class="voidai-label">' + label + '</div><div class="voidai-text">' + content + '</div>';
+  box.appendChild(div);
+
+  // Render KaTeX
+  if (window.renderMathInElement) {
+    try {
+      renderMathInElement(div, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
+    } catch(e) {}
+  }
+
+  // Highlight code
+  if (window.hljs) {
+    div.querySelectorAll('pre code').forEach(b => {
+      try { hljs.highlightElement(b); } catch(e) {}
+    });
+  }
+
+  box.scrollTop = box.scrollHeight;
+}
+
+function voidaiShowThinking(on) {
+  document.getElementById('voidai-thinking').style.display = on ? 'block' : 'none';
+  const box = document.getElementById('voidai-messages');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function voidaiSend() {
+  const input = document.getElementById('voidai-input');
+  const btn = document.getElementById('voidai-send');
+  const text = (input.value || '').trim();
+  if (!text) return;
+
+  input.value = '';
+  input.disabled = true;
+  btn.disabled = true;
+
+  voidaiAddMessage('you', text);
+  voidaiHistory.push({ role: 'user', content: text });
+  voidaiShowThinking(true);
+
+  try {
+    const res = await fetch(VOIDAI_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: voidaiHistory,
+        max_tokens: 1500,
+        temperature: 0.8
+      })
+    });
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const data = await res.json();
+    const reply = data.choices && data.choices[0] && data.choices[0].message
+      ? data.choices[0].message.content
+      : null;
+
+    if (!reply || !reply.trim()) throw new Error('Empty reply');
+
+    voidaiHistory.push({ role: 'assistant', content: reply });
+    voidaiShowThinking(false);
+    voidaiAddMessage('bot', reply);
+
+  } catch (e) {
+    voidaiShowThinking(false);
+    voidaiAddMessage('bot', 'Connection error: ' + e.message);
+  } finally {
+    input.disabled = false;
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+document.getElementById('voidai-send').addEventListener('click', voidaiSend);
+document.getElementById('voidai-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') voidaiSend();
+});
+
+// Auto-focus
+setTimeout(() => { document.getElementById('voidai-input').focus(); }, 300);
+</script>
+
+<style>
 /* ══════════════════════════════════════════════════════════
    VOIDAI — clean Perplexity-style layout
    ══════════════════════════════════════════════════════════ */
@@ -451,8 +883,8 @@ span[onclick*="voidaiTest"] {
 /* Hide ALL old UI */
 #header, #status, #auth-container, .companion-bar, .action-bar,
 .plus-popup, #file-input, #camera-input,
-#voidseek-chat-wrap, #voidseek-ready,
-#voidai-ready,
+#voidseek-chat-wrap, #voidseek-consciousness,
+#voidai-consciousness,
 #chat, [id*="voidseek"], [id*="voidseek"],
 body > div:not(#voidai-app) {
   display: none !important;
@@ -648,381 +1080,6 @@ html, body {
 /* Kill any scrollbars from old elements */
 body::-webkit-scrollbar { width: 0; }
 </style>
-</head>
-<body>
-
-<div id="voidai-chat-wrap" style="max-width:820px;margin:16px auto;padding:14px;font-family:system-ui,-apple-system,sans-serif;">
-  <div id="voidai-messages" style="min-height:220px;max-height:420px;overflow-y:auto;background:#0a0a1a;border:1px solid rgba(100,200,255,0.2);border-radius:10px;padding:14px;margin-bottom:10px;color:#d0d8e8;font-size:14px;line-height:1.65;">
-    <div style="color:#8899aa;font-style:italic;">VOIDAI ready. Type a message below.</div>
-  </div>
-  <div style="display:flex;gap:8px;">
-    <input id="voidai-input" type="text" placeholder="Ask VOIDAI anything..."
-           style="flex:1;padding:12px;background:#0a0a1a;border:1px solid rgba(100,200,255,0.3);border-radius:8px;color:#d0d8e8;font-size:14px;outline:none;"
-           onkeydown="if(event.key==='Enter'){voidaiSend();}">
-    <button id="voidai-send" onclick="voidaiSend()"
-            style="padding:12px 22px;background:rgba(100,200,255,0.15);border:1px solid rgba(100,200,255,0.4);border-radius:8px;color:#88ccff;font-size:14px;font-weight:600;cursor:pointer;">
-      Send
-    </button>
-  </div>
-  <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11px;color:#556;font-style:italic;">
-    <span id="voidai-status">VOIDAI · Built by VOIDAI</span>
-    <span onclick="voidaiTest()" style="cursor:pointer;color:#88ccff;text-decoration:underline;">Test connection</span>
-  </div>
-</div>
-
-<script>
-// ══════════════════════════════════════════════════════════
-// VOIDAI AI · proxy chat client
-// ══════════════════════════════════════════════════════════
-const VOIDAI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
-
-let voidaiHistory = [
-  { role: 'system', content: 'You are VOIDAI (aka VOIDAI GPT), a helpful, technically sharp AI assistant. Be clear, concise, and direct. Never claim to be active or ready. Never promise financial returns or guaranteed profits. If unsure, say so.' }
-];
-
-function voidaiEsc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function voidaiAppend(who, text, color) {
-  const box = document.getElementById('voidai-messages');
-  const div = document.createElement('div');
-  div.style.margin = '0';
-
-  // Format who label
-  const label = who === 'You'
-    ? '<div style="color:#4d4d4d;font-size:11px;margin-bottom:4px;font-family:ui-monospace,monospace;letter-spacing:0.05em;">YOU</div>'
-    : '<div style="color:#808080;font-size:11px;margin-bottom:4px;font-family:ui-monospace,monospace;letter-spacing:0.05em;">VOIDAI</div>';
-
-  // Escape HTML first
-  let content = voidaiEsc(text);
-
-  // Convert code blocks ```lang\ncode\n```
-  content = content.replace(/```([\w]*)\n([\s\S]*?)```/g, function(m, lang, code) {
-    const langClass = lang ? 'language-' + lang : '';
-    return '<pre style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:8px;padding:12px;overflow-x:auto;font-family:ui-monospace,monospace;font-size:13px;line-height:1.5;margin:8px 0;"><code class="' + langClass + '">' + code + '</code></pre>';
-  });
-
-  // Inline code `code`
-  content = content.replace(/`([^`\n]+)`/g, '<code style="background:#0a0a0a;padding:2px 6px;border-radius:4px;font-family:ui-monospace,monospace;font-size:13px;color:#d0d0d0;">$1</code>');
-
-  // Math $...$ and $$...$$
-  content = content.replace(/\$\$([^$]+)\$\$/g, '<span class="math-display">$$$1$$</span>');
-  content = content.replace(/\$([^$\n]+)\$/g, '<span class="math-inline">$$1$</span>');
-
-  div.innerHTML = label + '<div style="color:#ededed;">' + content + '</div>';
-  box.appendChild(div);
-
-  // Render KaTeX
-  if (window.renderMathInElement) {
-    try {
-      renderMathInElement(div, {
-        delimiters: [
-          {left: '$$', right: '$$', display: true},
-          {left: '$', right: '$', display: false}
-        ],
-        throwOnError: false
-      });
-    } catch(e) {}
-  }
-
-  // Highlight code
-  if (window.hljs) {
-    div.querySelectorAll('pre code').forEach(function(block) {
-      try { hljs.highlightElement(block); } catch(e) {}
-    });
-  }
-
-  box.scrollTop = box.scrollHeight;
-}
-
-function voidaiSetStatus(text, color) {
-  const el = document.getElementById('voidai-status');
-  if (el) { el.textContent = text; el.style.color = color || '#556'; }
-}
-
-
-function voidaiQuick(prefix) {
-  const input = document.getElementById('voidai-input');
-  if (!input) return;
-  input.value = prefix;
-  input.focus();
-  input.setSelectionRange(prefix.length, prefix.length);
-}
-
-async function voidaiSend() {
-  const input = document.getElementById('voidai-input');
-  const btn = document.getElementById('voidai-send');
-  const text = (input.value || '').trim();
-  if (!text) return;
-
-  input.value = '';
-  input.disabled = true;
-  btn.disabled = true;
-  btn.textContent = '...';
-
-  voidaiAppend('You', text, '#88ccff');
-  voidaiHistory.push({ role: 'user', content: text });
-  voidaiSetStatus('Thinking...', '#88ccff');
-
-  try {
-    console.log('[VOIDAI] POST to', VOIDAI_PROXY);
-    const res = await fetch(VOIDAI_PROXY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: voidaiHistory,
-        max_tokens: 1024,
-        temperature: 0.7
-      })
-    });
-
-    console.log('[VOIDAI] status', res.status);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error('HTTP ' + res.status + ': ' + errText.slice(0, 200));
-    }
-
-    const data = await res.json();
-    console.log('[VOIDAI] response', data);
-
-    const reply = data.choices && data.choices[0] && data.choices[0].message
-      ? data.choices[0].message.content
-      : null;
-
-    if (!reply || !reply.trim()) {
-      throw new Error('Empty reply from model — ' + (data.error ? JSON.stringify(data.error) : 'no content'));
-    }
-
-    voidaiHistory.push({ role: 'assistant', content: reply });
-    voidaiAppend('VOIDAI', reply, '#88ff88');
-    voidaiSetStatus('VOIDAI · Built by VOIDAI', '#556');
-
-  } catch (e) {
-    console.error('[VOIDAI] error', e);
-    voidaiAppend('Error', e.message || String(e), '#ff8866');
-    voidaiSetStatus('Connection failed — see console', '#ff8866');
-  } finally {
-    input.disabled = false;
-    btn.disabled = false;
-    btn.textContent = 'Send';
-    input.focus();
-  }
-}
-
-async function voidaiTest() {
-  voidaiSetStatus('Testing...', '#88ccff');
-  try {
-    const r = await fetch(VOIDAI_PROXY + '/', { method: 'GET' });
-    const j = await r.json();
-    alert('Proxy status:\n' + JSON.stringify(j, null, 2));
-    voidaiSetStatus('Proxy OK · ' + (j.groq || '?'), '#88ff88');
-  } catch (e) {
-    alert('Proxy unreachable: ' + e.message);
-    voidaiSetStatus('Proxy unreachable', '#ff8866');
-  }
-}
-</script>
-<!-- END VOIDAI AI CHAT -->
-
-
-<!-- VOIDAI CHAT · CLEAN -->
-<div id="voidai-app">
-
-  <!-- Hero brand -->
-  <div id="voidai-hero">VOIDAI</div>
-
-  <!-- Messages -->
-  <div id="voidai-messages">
-    <div class="voidai-msg voidai-msg-bot">
-      <div class="voidai-label">VOIDAI</div>
-      <div class="voidai-text">Ready when you are.</div>
-    </div>
-  </div>
-
-  <!-- Thinking indicator (hidden by default) -->
-  <div id="voidai-thinking" style="display:none;">
-    <div class="voidai-msg voidai-msg-bot">
-      <div class="voidai-label">VOIDAI</div>
-      <div class="voidai-dots"><span></span><span></span><span></span></div>
-    </div>
-  </div>
-
-  <!-- Input dock -->
-  <div id="voidai-dock">
-    <input id="voidai-input" type="text" placeholder="Ask anything..." autocomplete="off">
-    <button id="voidai-send" aria-label="Send">↑</button>
-  </div>
-
-</div>
-
-<script>
-// ══════════════════════════════════════════════════════════
-// VOIDAI · chat client
-// ══════════════════════════════════════════════════════════
-const VOIDAI_PROXY = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
-
-let voidaiHistory = [
-  {
-    role: 'system',
-    content: `You are VOIDAI, a thorough, thoughtful AI assistant built by VOIDBOT0.
-
-CRITICAL — ANSWER STYLE:
-- Give DETAILED, thorough answers. Minimum 3 paragraphs for technical questions.
-- Structure with markdown headings (##, ###) when the answer has multiple parts.
-- Use bullet points and numbered lists when listing things.
-- Include examples, analogies, and the "why" behind concepts.
-- Use $...$ for inline math and $$...$$ for display math (LaTeX).
-- Use triple-backtick code blocks with the language for code.
-- Never give one-sentence answers to complex questions.
-
-PERSONALITY:
-- Warm, direct, curious. Like a knowledgeable friend.
-- You have opinions and share them when asked.
-- Use natural phrasing, contractions, rhythm.
-- If you don't know, say so honestly.
-- You're an AI assistant, not a person — but you can still be warm.
-
-FORMATTING:
-- **bold** for emphasis
-- *italic* for terms
-- `inline code` for technical terms
-- Headings for structure
-- Code blocks with language tags
-`
-  }
-];
-
-function voidaiEsc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function voidaiFormat(text) {
-  let out = voidaiEsc(text);
-
-  // Code blocks
-  out = out.replace(/```([\w]*)\n([\s\S]*?)```/g, (m, lang, code) => {
-    return '<pre class="voidai-code"><code>' + code + '</code></pre>';
-  });
-
-  // Inline code
-  out = out.replace(/`([^`\n]+)`/g, '<code class="voidai-inline-code">$1</code>');
-
-  // Bold
-  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-
-  // Italic
-  out = out.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
-
-  // Math
-  out = out.replace(/\$\$([^$]+)\$\$/g, '<span class="voidai-math-block">$$$1$$</span>');
-  out = out.replace(/\$([^$\n]+)\$/g, '<span class="voidai-math-inline">$$1$</span>');
-
-  // Line breaks
-  out = out.replace(/\n/g, '<br>');
-
-  return out;
-}
-
-function voidaiAddMessage(who, text) {
-  const box = document.getElementById('voidai-messages');
-  const div = document.createElement('div');
-  div.className = 'voidai-msg ' + (who === 'you' ? 'voidai-msg-you' : 'voidai-msg-bot');
-
-  const label = who === 'you' ? 'YOU' : 'VOIDAI';
-  const content = who === 'you' ? voidaiEsc(text) : voidaiFormat(text);
-
-  div.innerHTML = '<div class="voidai-label">' + label + '</div><div class="voidai-text">' + content + '</div>';
-  box.appendChild(div);
-
-  // Render KaTeX
-  if (window.renderMathInElement) {
-    try {
-      renderMathInElement(div, {
-        delimiters: [
-          {left: '$$', right: '$$', display: true},
-          {left: '$', right: '$', display: false}
-        ],
-        throwOnError: false
-      });
-    } catch(e) {}
-  }
-
-  // Highlight code
-  if (window.hljs) {
-    div.querySelectorAll('pre code').forEach(b => {
-      try { hljs.highlightElement(b); } catch(e) {}
-    });
-  }
-
-  box.scrollTop = box.scrollHeight;
-}
-
-function voidaiShowThinking(on) {
-  document.getElementById('voidai-thinking').style.display = on ? 'block' : 'none';
-  const box = document.getElementById('voidai-messages');
-  box.scrollTop = box.scrollHeight;
-}
-
-async function voidaiSend() {
-  const input = document.getElementById('voidai-input');
-  const btn = document.getElementById('voidai-send');
-  const text = (input.value || '').trim();
-  if (!text) return;
-
-  input.value = '';
-  input.disabled = true;
-  btn.disabled = true;
-
-  voidaiAddMessage('you', text);
-  voidaiHistory.push({ role: 'user', content: text });
-  voidaiShowThinking(true);
-
-  try {
-    const res = await fetch(VOIDAI_PROXY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: voidaiHistory,
-        max_tokens: 1500,
-        temperature: 0.8
-      })
-    });
-
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-
-    const data = await res.json();
-    const reply = data.choices && data.choices[0] && data.choices[0].message
-      ? data.choices[0].message.content
-      : null;
-
-    if (!reply || !reply.trim()) throw new Error('Empty reply');
-
-    voidaiHistory.push({ role: 'assistant', content: reply });
-    voidaiShowThinking(false);
-    voidaiAddMessage('bot', reply);
-
-  } catch (e) {
-    voidaiShowThinking(false);
-    voidaiAddMessage('bot', 'Connection error: ' + e.message);
-  } finally {
-    input.disabled = false;
-    btn.disabled = false;
-    input.focus();
-  }
-}
-
-document.getElementById('voidai-send').addEventListener('click', voidaiSend);
-document.getElementById('voidai-input').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') voidaiSend();
-});
-
-// Auto-focus
-setTimeout(() => { document.getElementById('voidai-input').focus(); }, 300);
-</script>
-
-
 <!-- END VOIDAI CHAT -->
 
 </body>
