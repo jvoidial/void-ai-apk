@@ -1,7 +1,7 @@
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
-    id 'org.jetbrains.kotlin.plugin.serialization'   // ← REQUIRED
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 android {
@@ -14,8 +14,6 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        // Required by Supabase SDK on Android
         multiDexEnabled true
     }
 
@@ -28,7 +26,7 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
-        coreLibraryDesugaringEnabled true   // ← REQUIRED by Ktor/Supabase
+        coreLibraryDesugaringEnabled true
     }
 
     kotlinOptions {
@@ -69,11 +67,12 @@ dependencies {
     implementation 'io.github.jan-tennert.supabase:storage-kt'
     implementation 'io.github.jan-tennert.supabase:postgrest-kt'
 
-    // Ktor 3.x — client for Android
-    implementation 'io.ktor:ktor-client-android:3.0.0'
-    implementation 'io.ktor:ktor-client-content-negotiation:3.0.0'
-    implementation 'io.ktor:ktor-serialization-kotlinx-json:3.0.0'
-    implementation 'io.ktor:ktor-utils-jvm:3.0.0'
+    // Ktor 3.0.2 — required version for Supabase 3.0.1
+    implementation 'io.ktor:ktor-client-core:3.0.2'
+    implementation 'io.ktor:ktor-client-android:3.0.2'
+    implementation 'io.ktor:ktor-client-content-negotiation:3.0.2'
+    implementation 'io.ktor:ktor-serialization-kotlinx-json:3.0.2'
+    implementation 'io.ktor:ktor-utils-jvm:3.0.2'
 
     // Kotlinx serialization
     implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
