@@ -27,7 +27,7 @@ android {
 
     defaultConfig {
         buildConfigField "String", "SUPABASE_URL",      "\"" + voidaiGet("SUPABASE_URL", "https://wtyksmoqeehmbcqwedkc.supabase.co") + "\""
-        buildConfigField "String", "SUPABASE_ANON_KEY", "\"" + voidaiGet("SUPABASE_ANON_KEY") + "\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"" + voidaiGet("SUPABASE_ANON_KEY", "sb_publishable_xlfATZ6QU2ATxhWrdkfKpQ_l3a0gF4P") + "\""
         buildConfigField "String", "GROQ_API_KEY",      "\"" + voidaiGet("GROQ_API_KEY")      + "\""
         buildConfigField "String", "OPENAI_API_KEY",    "\"" + voidaiGet("OPENAI_API_KEY")    + "\""
         buildConfigField "String", "OPENROUTER_API_KEY","\"" + voidaiGet("OPENROUTER_API_KEY")+ "\""
