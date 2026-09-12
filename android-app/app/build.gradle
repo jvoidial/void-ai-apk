@@ -26,7 +26,7 @@ android {
     compileSdk 34
 
     defaultConfig {
-        buildConfigField "String", "SUPABASE_URL",      "\"" + voidaiGet("SUPABASE_URL")      + "\""
+        buildConfigField "String", "SUPABASE_URL",      "\"" + voidaiGet("SUPABASE_URL", "https://wtyksmoqeehmbcqwedkc.supabase.co") + "\""
         buildConfigField "String", "SUPABASE_ANON_KEY", "\"" + voidaiGet("SUPABASE_ANON_KEY") + "\""
         buildConfigField "String", "GROQ_API_KEY",      "\"" + voidaiGet("GROQ_API_KEY")      + "\""
         buildConfigField "String", "OPENAI_API_KEY",    "\"" + voidaiGet("OPENAI_API_KEY")    + "\""
