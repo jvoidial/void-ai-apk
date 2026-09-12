@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.ExternalAuthAction
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Github
@@ -40,6 +41,7 @@ class MainActivity : AppCompatActivity() {
                 install(Auth) {
                     scheme = "voidai"
                     host = "auth-callback"
+                    defaultExternalAuthAction = ExternalAuthAction.CustomTabs()
                 }
                 install(Storage)
             }.also { Log.i("VOIDAI", "Supabase ready") }
