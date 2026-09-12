@@ -17,7 +17,6 @@ import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Github
 import io.github.jan.supabase.createSupabaseClient
@@ -41,7 +40,6 @@ class MainActivity : AppCompatActivity() {
                 install(Auth) {
                     scheme = "voidai"
                     host = "auth-callback"
-                    flowType = FlowType.PKCE
                 }
                 install(Storage)
             }.also { Log.i("VOIDAI", "Supabase ready") }
