@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
+        android:theme="@style/Theme.VOIDAI"
         android:allowBackup="true"
         android:label="VOIDAI"
         android:usesCleartextTraffic="false"
