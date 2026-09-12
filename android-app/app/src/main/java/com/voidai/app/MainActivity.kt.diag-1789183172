@@ -3,7 +3,6 @@ package com.voidai.app
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
-import androidx.core.net.toUri
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
@@ -17,7 +16,6 @@ import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Github
 import io.github.jan.supabase.createSupabaseClient
@@ -41,7 +39,6 @@ class MainActivity : AppCompatActivity() {
                 install(Auth) {
                     scheme = "voidai"
                     host = "auth-callback"
-                    flowType = FlowType.PKCE
                 }
                 install(Storage)
             }.also { Log.i("VOIDAI", "Supabase ready") }
@@ -197,19 +194,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntent(intent: Intent) {
         val data = intent.data?.toString() ?: return
-        Log.i("VOIDAI_RAW", "handleIntent: $data")
         if (!data.startsWith("voidai://auth-callback")) return
-        // Echo the raw URL to the WebView so it appears on screen for debugging
-        runOnUiThread {
-            val safe = data.replace("'", "\\'").replace("\n", " ")
-            webView.evaluateJavascript(
-                "window.onAuthError && window.onAuthError('RAW: ' + '" + safe + "')", null
-            )
-        }
         val sb = supabase ?: return
         lifecycleScope.launch {
             try {
-                sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, data.toUri()))
+                sb.handleDeeplinks(intent)
                 val u = sb.auth.currentUserOrNull()
                 if (u != null) {
                     val email = u.email ?: ""
