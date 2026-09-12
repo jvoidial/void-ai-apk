@@ -5,10 +5,33 @@ plugins {
 }
 
 android {
+    // ─── Load .env (local only, never committed) ───
+    def voidaiEnv = [:]
+    def envFile = rootProject.file(".env")
+    if (!envFile.exists()) envFile = file("../../.env")
+    if (envFile.exists()) {
+        envFile.eachLine { line ->
+            line = line.trim()
+            if (line && !line.startsWith("#") && line.contains("=")) {
+                def idx = line.indexOf("=")
+                voidaiEnv[line.substring(0, idx).trim()] = line.substring(idx + 1).trim()
+            }
+        }
+    }
+    def voidaiGet = { String k, String fallback = "" ->
+        voidaiEnv[k] ?: System.getenv(k) ?: fallback
+    }
+
     namespace 'com.voidai.app'
     compileSdk 34
 
     defaultConfig {
+        buildConfigField "String", "SUPABASE_URL",      "\"" + voidaiGet("SUPABASE_URL")      + "\""
+        buildConfigField "String", "SUPABASE_ANON_KEY", "\"" + voidaiGet("SUPABASE_ANON_KEY") + "\""
+        buildConfigField "String", "GROQ_API_KEY",      "\"" + voidaiGet("GROQ_API_KEY")      + "\""
+        buildConfigField "String", "OPENAI_API_KEY",    "\"" + voidaiGet("OPENAI_API_KEY")    + "\""
+        buildConfigField "String", "OPENROUTER_API_KEY","\"" + voidaiGet("OPENROUTER_API_KEY")+ "\""
+
         applicationId "com.voidai.app"
         minSdk 26
         targetSdk 34

@@ -35,8 +35,8 @@ class MainActivity : AppCompatActivity() {
     private val supabase: SupabaseClient? by lazy {
         try {
             createSupabaseClient(
-                supabaseUrl = "https://wtyksmoqeehmbcqwedkc.supabase.co",
-                supabaseKey = "sb_publishable_xlfATZ6QU2ATxhWrdkfKpQ_l3a0gF4P"
+                supabaseUrl = BuildConfig.SUPABASE_URL,
+                supabaseKey = BuildConfig.SUPABASE_ANON_KEY
             ) {
                 install(Auth) {
                     scheme = "voidai"

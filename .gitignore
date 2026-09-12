@@ -51,3 +51,5 @@ _archive/
 *.bak-*
 *.old-*
 res/**/*.bak*
+*.diag-*
+local.properties
