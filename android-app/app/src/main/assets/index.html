@@ -549,5 +549,27 @@ html, body {
   }
 })();
 </script>
+
+  <div id="test-storage-btn" style="position:fixed;bottom:80px;left:16px;z-index:20;display:none;">
+    <button onclick="voidaiTestStorage()" style="background:#1a1a1a;border:1px solid #333;color:#888;padding:6px 10px;border-radius:8px;font-size:10px;font-family:ui-monospace,monospace;cursor:pointer;">Test storage</button>
+  </div>
+  <script>
+    window.voidaiTestStorage = function() {
+      if (!window.Android) { status('no bridge'); return; }
+      status('uploading test file…');
+      var payload  = btoa('hello from voidai ' + Date.now());
+      var filename = 'test-' + Date.now() + '.txt';
+      try {
+        window.Android.uploadFile(filename, payload);
+      } catch(e) { status('upload error'); addMsg('assistant', '**Upload error:** ' + e.message); }
+    };
+    // Show the button when signed in
+    var _origUpdateAuthUI = updateAuthUI;
+    updateAuthUI = function(email, name) {
+      _origUpdateAuthUI(email, name);
+      var b = document.getElementById('test-storage-btn');
+      if (b) b.style.display = email ? 'block' : 'none';
+    };
+  </script>
 </body>
 </html>
