@@ -506,6 +506,14 @@ html, body {
 
   function init() {
     console.log('[VOIDAI] init');
+    if (hasBridge()) {
+      try {
+        var e = window.Android.getCurrentUser();
+        var n = window.Android.getUserName();
+        updateAuthUI(e || '', n || '');
+      } catch(err) { updateAuthUI('', ''); }
+    }
+
 
     // Restore auth state from Android bridge
     if (hasBridge()) {
