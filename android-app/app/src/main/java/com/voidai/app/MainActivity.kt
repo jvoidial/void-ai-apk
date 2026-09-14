@@ -202,11 +202,15 @@ class MainActivity : AppCompatActivity() {
         Log.i("VOIDAI_RAW", "handleIntent: $data")
         if (!data.startsWith("voidai://auth-callback")) return
 
-        runOnUiThread {
-            val safe = data.replace("'", "\\'").replace("\n", " ")
-            webView.evaluateJavascript(
-                "window.onAuthError && window.onAuthError('RAW: ' + '" + safe + "')", null
-            )
+        // Only surface genuine OAuth errors. When a token is present, stay quiet.
+        val looksLikeError = data.contains("?error=") || data.contains("#error=")
+        if (looksLikeError) {
+            runOnUiThread {
+                val safe = data.replace("'", "\\'").replace("\n", " ")
+                webView.evaluateJavascript(
+                    "window.onAuthError && window.onAuthError('RAW: ' + '" + safe + "')", null
+                )
+            }
         }
 
         val sb = supabase ?: return
@@ -225,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 if (!accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
+                    Log.i("VOIDAI", "attempting importSession")
                     sb.auth.importSession(
                         UserSession(
                             accessToken = accessToken,
