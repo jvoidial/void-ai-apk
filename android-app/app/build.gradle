@@ -23,7 +23,7 @@ android {
     }
 
     namespace 'com.voidai.app'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         buildConfigField "String", "SUPABASE_URL",      "\"" + voidaiGet("SUPABASE_URL", "https://wtyksmoqeehmbcqwedkc.supabase.co") + "\""
@@ -34,7 +34,7 @@ android {
 
         applicationId "com.voidai.app"
         minSdk 26
-        targetSdk 34
+        targetSdk 36
         versionCode 1
         versionName "1.0"
         multiDexEnabled true
