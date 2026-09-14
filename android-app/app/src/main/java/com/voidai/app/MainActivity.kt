@@ -3,6 +3,7 @@ package com.voidai.app
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import androidx.core.net.toUri
 import android.os.Bundle
 import android.util.Base64
@@ -209,7 +210,7 @@ class MainActivity : AppCompatActivity() {
         val sb = supabase ?: return
         lifecycleScope.launch {
             try {
-                sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, data.toUri()))
+                sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, Uri.parse(data)))
                 val u = sb.auth.currentUserOrNull()
                 if (u != null) {
                     val email = u.email ?: ""
