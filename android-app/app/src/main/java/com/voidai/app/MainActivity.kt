@@ -199,13 +199,10 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         val data = intent.data?.toString() ?: return
         Log.i("VOIDAI_RAW", "handleIntent: $data")
-
         if (!data.startsWith("voidai://auth-callback")) return
 
-        // Echo raw URL to WebView for debugging
         runOnUiThread {
-            val safe = data.replace("'", "\'").replace("
-", " ")
+            val safe = data.replace("'", "\\'").replace("\n", " ")
             webView.evaluateJavascript(
                 "window.onAuthError && window.onAuthError('RAW: ' + '" + safe + "')", null
             )
@@ -213,7 +210,6 @@ class MainActivity : AppCompatActivity() {
 
         val sb = supabase ?: return
 
-        // ── Parse fragment or query for tokens ──
         val parts = data.split("#", limit = 2)
         val fragment = if (parts.size > 1) parts[1] else data.substringAfter("?", "")
 
@@ -222,35 +218,30 @@ class MainActivity : AppCompatActivity() {
             if (i > 0) kv.substring(0, i) to kv.substring(i + 1) else null
         }.toMap()
 
-        val accessToken  = params["access_token"]
+        val accessToken = params["access_token"]
         val refreshToken = params["refresh_token"]
 
         lifecycleScope.launch {
             try {
                 if (!accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
-                    // Manual session import — bypasses handleDeeplinks
                     sb.auth.setSession(accessToken, refreshToken)
-                    Log.i("VOIDAI", "session set manually")
+                    Log.i("VOIDAI", "session set via setSession")
                 } else {
-                    // Fall back to SDK parser (PKCE or error paths)
                     sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, Uri.parse(data)))
                 }
-
                 val u = sb.auth.currentUserOrNull()
                 if (u != null) {
                     val email = u.email ?: ""
                     val m = u.userMetadata
                     val name = m?.get("user_name")?.toString()
                         ?: m?.get("name")?.toString() ?: ""
-                    val safeE = email.replace("'", "\'")
-                    val safeN = name.replace("'", "\'")
+                    val safeE = email.replace("'", "\\'")
+                    val safeN = name.replace("'", "\\'")
                     runOnUiThread {
                         webView.evaluateJavascript(
                             "window.onSignedIn && window.onSignedIn('$safeE', '$safeN')", null
                         )
                     }
-                } else {
-                    Log.w("VOIDAI", "no user after setSession")
                 }
             } catch (e: Exception) {
                 Log.e("VOIDAI", "handleIntent failed", e)
