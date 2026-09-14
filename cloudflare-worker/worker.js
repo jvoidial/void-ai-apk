@@ -1,4 +1,4 @@
-const CHAT_MODEL   = 'groq/compound';
+const CHAT_MODEL   = 'openai/gpt-oss-120b';
 const REASON_MODEL = 'openai/gpt-oss-120b';
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 8000;
