@@ -1,5 +1,5 @@
-const CHAT_MODEL   = 'openai/gpt-oss-120b';
-const REASON_MODEL = 'openai/gpt-oss-120b';
+const CHAT_MODEL   = 'groq/compound';
+const REASON_MODEL = 'groq/compound';
 const MAX_MESSAGES = 20;
 const MAX_CHARS = 8000;
 const RATE_WINDOW = 60000;
