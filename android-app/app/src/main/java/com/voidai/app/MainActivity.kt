@@ -199,32 +199,62 @@ class MainActivity : AppCompatActivity() {
     private fun handleIntent(intent: Intent) {
         val data = intent.data?.toString() ?: return
         Log.i("VOIDAI_RAW", "handleIntent: $data")
+
         if (!data.startsWith("voidai://auth-callback")) return
-        // Echo the raw URL to the WebView so it appears on screen for debugging
+
+        // Echo raw URL to WebView for debugging
         runOnUiThread {
-            val safe = data.replace("'", "\\'").replace("\n", " ")
+            val safe = data.replace("'", "\'").replace("
+", " ")
             webView.evaluateJavascript(
                 "window.onAuthError && window.onAuthError('RAW: ' + '" + safe + "')", null
             )
         }
+
         val sb = supabase ?: return
+
+        // ── Parse fragment or query for tokens ──
+        val parts = data.split("#", limit = 2)
+        val fragment = if (parts.size > 1) parts[1] else data.substringAfter("?", "")
+
+        val params = fragment.split("&").mapNotNull { kv ->
+            val i = kv.indexOf("=")
+            if (i > 0) kv.substring(0, i) to kv.substring(i + 1) else null
+        }.toMap()
+
+        val accessToken  = params["access_token"]
+        val refreshToken = params["refresh_token"]
+
         lifecycleScope.launch {
             try {
-                sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, Uri.parse(data)))
+                if (!accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
+                    // Manual session import — bypasses handleDeeplinks
+                    sb.auth.setSession(accessToken, refreshToken)
+                    Log.i("VOIDAI", "session set manually")
+                } else {
+                    // Fall back to SDK parser (PKCE or error paths)
+                    sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, Uri.parse(data)))
+                }
+
                 val u = sb.auth.currentUserOrNull()
                 if (u != null) {
                     val email = u.email ?: ""
                     val m = u.userMetadata
-                    val name = m?.get("user_name")?.toString() ?: m?.get("name")?.toString() ?: ""
-                    val safeE = email.replace("'", "\\'")
-                    val safeN = name.replace("'", "\\'")
-                    webView.evaluateJavascript(
-                        "if (window.onSignedIn) { window.onSignedIn('" + safeE + "', '" + safeN + "') }", null
-                    )
+                    val name = m?.get("user_name")?.toString()
+                        ?: m?.get("name")?.toString() ?: ""
+                    val safeE = email.replace("'", "\'")
+                    val safeN = name.replace("'", "\'")
+                    runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window.onSignedIn && window.onSignedIn('$safeE', '$safeN')", null
+                        )
+                    }
+                } else {
+                    Log.w("VOIDAI", "no user after setSession")
                 }
             } catch (e: Exception) {
-                Log.e("VOIDAI", "Deep link failed", e)
-                sendAuthError(e.message ?: "deep link failed")
+                Log.e("VOIDAI", "handleIntent failed", e)
+                sendAuthError("auth failed: " + (e.message ?: "unknown"))
             }
         }
     }
