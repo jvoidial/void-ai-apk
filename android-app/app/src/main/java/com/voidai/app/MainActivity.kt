@@ -198,43 +198,22 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
     }
 
-
-    private fun pushStatus(msg: String) {
-        val safe = msg.replace("'", "\\'").replace("\n", " ")
-        runOnUiThread {
-            webView.evaluateJavascript(
-                "window.voidaiDebug && window.voidaiDebug('" + safe + "')", null
-            )
-        }
-    }
-
     private fun handleIntent(intent: Intent) {
-        val data = intent.data?.toString() ?: run {
-            pushStatus("no intent data")
-            return
-        }
-        pushStatus("dl:${data.length}")
+        val data = intent.data?.toString() ?: return
         Log.i("VOIDAI", "handleIntent len=${data.length}")
 
-        if (!data.startsWith("voidai://auth-callback")) {
-            pushStatus("wrong scheme")
-            return
-        }
+        if (!data.startsWith("voidai://auth-callback")) return
 
         if (data.contains("error=")) {
-            pushStatus("err:" + data.take(80))
+            Log.e("VOIDAI", "oauth error: ${data.take(200)}")
+            sendAuthError(data.take(200))
             return
         }
 
-        val sb = supabase
-        if (sb == null) {
-            pushStatus("supabase null")
-            return
-        }
+        val sb = supabase ?: return
 
         val parts = data.split("#", limit = 2)
         val fragment = if (parts.size > 1) parts[1] else data.substringAfter("?", "")
-        pushStatus("frag:${fragment.length}")
 
         val params = fragment.split("&").mapNotNull { kv ->
             val i = kv.indexOf("=")
@@ -244,19 +223,13 @@ class MainActivity : AppCompatActivity() {
         val accessToken = params["access_token"]
         val refreshToken = params["refresh_token"]
 
-        if (accessToken.isNullOrBlank()) {
-            pushStatus("no access_token")
+        if (accessToken.isNullOrBlank() || refreshToken.isNullOrBlank()) {
+            Log.e("VOIDAI", "missing tokens")
             return
         }
-        if (refreshToken.isNullOrBlank()) {
-            pushStatus("no refresh_token")
-            return
-        }
-        pushStatus("tokens ok")
 
         lifecycleScope.launch {
             try {
-                pushStatus("importing")
                 sb.auth.importSession(
                     UserSession(
                         accessToken = accessToken,
@@ -268,57 +241,50 @@ class MainActivity : AppCompatActivity() {
                         providerRefreshToken = params["provider_refresh_token"]
                     )
                 )
-                pushStatus("imported")
+                Log.i("VOIDAI", "session imported")
 
-        // importSession on 3.0.2 stores tokens but leaves currentUserOrNull() null.
-        // Decode the JWT payload directly — no network call needed.
-        var email = ""
-        var name = ""
-        try {
-            val seg = accessToken.split(".").getOrNull(1) ?: ""
-            val padded = seg + "=".repeat((4 - seg.length % 4) % 4)
-            val b64 = padded.replace('-', '+').replace('_', '/')
-            val decoded = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
-            val json = JSONObject(String(decoded, Charsets.UTF_8))
-            email = json.optString("email", "")
-            val meta = json.optJSONObject("user_metadata")
-            name = meta?.optString("user_name") ?: meta?.optString("name") ?: ""
-            pushStatus("jwt:" + email.take(30))
-            Log.i("VOIDAI", "jwt user: " + email + " / " + name)
-        } catch (e: Throwable) {
-            pushStatus("jwt:" + (e.message?.take(30) ?: "?"))
-        }
+                // Decode JWT payload for user info — SDK cache is empty after importSession
+                var email = ""
+                var name = ""
+                try {
+                    val seg = accessToken.split(".").getOrNull(1) ?: ""
+                    val padded = seg + "=".repeat((4 - seg.length % 4) % 4)
+                    val b64 = padded.replace('-', '+').replace('_', '/')
+                    val decoded = Base64.decode(b64, Base64.DEFAULT)
+                    val json = JSONObject(String(decoded, Charsets.UTF_8))
+                    email = json.optString("email", "")
+                    val meta = json.optJSONObject("user_metadata")
+                    name = meta?.optString("user_name") ?: meta?.optString("name") ?: ""
+                    Log.i("VOIDAI", "jwt decoded: $email / $name")
+                } catch (e: Throwable) {
+                    Log.e("VOIDAI", "jwt decode failed", e)
+                }
 
-        // Fallback to SDK if JWT decode somehow failed
-        if (email.isEmpty()) {
-            val u = sb.auth.currentUserOrNull()
-            if (u != null) {
-                email = u.email ?: ""
-                val m = u.userMetadata
-                name = m?.get("user_name")?.toString()
-                    ?: m?.get("name")?.toString() ?: ""
-                pushStatus("sdk:" + email.take(30))
-            }
-        }
+                // Fallback to SDK
+                if (email.isEmpty()) {
+                    val u = sb.auth.currentUserOrNull()
+                    if (u != null) {
+                        email = u.email ?: ""
+                        val m = u.userMetadata
+                        name = m?.get("user_name")?.toString()
+                            ?: m?.get("name")?.toString() ?: ""
+                    }
+                }
 
-        if (email.isNotEmpty()) {
-            val safeE = email.replace("'", "\\'")
-            val safeN = name.replace("'", "\\'")
-            pushStatus("ui:" + (safeN.ifEmpty { safeE }).take(24))
-            runOnUiThread {
-                webView.evaluateJavascript(
-                    "window.onSignedIn && window.onSignedIn('" + safeE + "', '" + safeN + "')",
-                    null
-                )
-            }
-        } else {
-            pushStatus("no user")
-        }
+                if (email.isNotEmpty()) {
+                    val safeE = email.replace("'", "\\'")
+                    val safeN = name.replace("'", "\\'")
+                    runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window.onSignedIn && window.onSignedIn('$safeE', '$safeN')",
+                            null
+                        )
+                    }
+                    Log.i("VOIDAI", "onSignedIn fired: $email")
                 }
             } catch (e: Throwable) {
-                val short = e.javaClass.simpleName + ": " + (e.message ?: "?")
-                pushStatus("EXC:" + short.take(120))
-                Log.e("VOIDAI", "importSession FAILED", e)
+                Log.e("VOIDAI", "importSession failed", e)
+                sendAuthError(e.message ?: "auth failed")
             }
         }
     }

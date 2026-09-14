@@ -503,28 +503,6 @@ html, body {
   window.onFileUploaded = function(name) {
     status('uploaded ' + name);
   };
-
-  // ── Visible debug trace ──
-  window.voidaiDebug = function(msg) {
-    try {
-      var el = document.getElementById('voidai-dbg');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'voidai-dbg';
-        el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40%;overflow:auto;background:#000;color:#0f0;font:10px/1.3 ui-monospace,monospace;padding:6px 10px;border-top:1px solid #333;z-index:100;white-space:pre-wrap;';
-        document.body.appendChild(el);
-      }
-      var t = new Date().toISOString().substr(11,8);
-      el.textContent += t + "  " + msg + "\n";
-      el.scrollTop = el.scrollHeight;
-    } catch(e) {}
-  };
-  // Auto-log page events
-  window.addEventListener('error', function(e) {
-    window.voidaiDebug('JS error: ' + (e.message || '?'));
-  });
-  window.voidaiDebug('page loaded');
-
   function init() {
     console.log('[VOIDAI] init');
     if (hasBridge()) {
