@@ -1,0 +1,26 @@
+name: Deploy Cloudflare Worker
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'cloudflare-worker/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy void-ai-proxy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare-worker
+          command: deploy
+        env:
+          SHARED_SECRET: ${{ secrets.SHARED_SECRET }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
