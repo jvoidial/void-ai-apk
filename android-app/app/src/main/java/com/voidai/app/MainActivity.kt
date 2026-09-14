@@ -8,6 +8,7 @@ import androidx.core.net.toUri
 import android.os.Bundle
 import android.util.Base64
 import android.util.Log
+import org.json.JSONObject
 import android.webkit.JavascriptInterface
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -269,22 +270,50 @@ class MainActivity : AppCompatActivity() {
                 )
                 pushStatus("imported")
 
-                val u = sb.auth.currentUserOrNull()
-                if (u != null) {
-                    val email = u.email ?: ""
-                    val m = u.userMetadata
-                    val name = m?.get("user_name")?.toString()
-                        ?: m?.get("name")?.toString() ?: ""
-                    val safeE = email.replace("'", "\\'")
-                    val safeN = name.replace("'", "\\'")
-                    pushStatus("user:$email")
-                    runOnUiThread {
-                        webView.evaluateJavascript(
-                            "window.onSignedIn && window.onSignedIn('$safeE', '$safeN')", null
-                        )
-                    }
-                } else {
-                    pushStatus("user null")
+        // importSession on 3.0.2 stores tokens but leaves currentUserOrNull() null.
+        // Decode the JWT payload directly — no network call needed.
+        var email = ""
+        var name = ""
+        try {
+            val seg = accessToken.split(".").getOrNull(1) ?: ""
+            val padded = seg + "=".repeat((4 - seg.length % 4) % 4)
+            val b64 = padded.replace('-', '+').replace('_', '/')
+            val decoded = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+            val json = JSONObject(String(decoded, Charsets.UTF_8))
+            email = json.optString("email", "")
+            val meta = json.optJSONObject("user_metadata")
+            name = meta?.optString("user_name") ?: meta?.optString("name") ?: ""
+            pushStatus("jwt:" + email.take(30))
+            Log.i("VOIDAI", "jwt user: " + email + " / " + name)
+        } catch (e: Throwable) {
+            pushStatus("jwt:" + (e.message?.take(30) ?: "?"))
+        }
+
+        // Fallback to SDK if JWT decode somehow failed
+        if (email.isEmpty()) {
+            val u = sb.auth.currentUserOrNull()
+            if (u != null) {
+                email = u.email ?: ""
+                val m = u.userMetadata
+                name = m?.get("user_name")?.toString()
+                    ?: m?.get("name")?.toString() ?: ""
+                pushStatus("sdk:" + email.take(30))
+            }
+        }
+
+        if (email.isNotEmpty()) {
+            val safeE = email.replace("'", "\\'")
+            val safeN = name.replace("'", "\\'")
+            pushStatus("ui:" + (safeN.ifEmpty { safeE }).take(24))
+            runOnUiThread {
+                webView.evaluateJavascript(
+                    "window.onSignedIn && window.onSignedIn('" + safeE + "', '" + safeN + "')",
+                    null
+                )
+            }
+        } else {
+            pushStatus("no user")
+        }
                 }
             } catch (e: Throwable) {
                 val short = e.javaClass.simpleName + ": " + (e.message ?: "?")
