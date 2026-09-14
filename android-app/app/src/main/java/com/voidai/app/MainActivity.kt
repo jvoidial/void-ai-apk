@@ -20,6 +20,7 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.ExternalAuthAction
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
+import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.auth.providers.Github
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.storage.Storage
@@ -224,8 +225,18 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 if (!accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()) {
-                    sb.auth.setSession(accessToken, refreshToken)
-                    Log.i("VOIDAI", "session set via setSession")
+                    sb.auth.importSession(
+                        UserSession(
+                            accessToken = accessToken,
+                            refreshToken = refreshToken,
+                            expiresIn = (params["expires_in"]?.toLongOrNull() ?: 3600L),
+                            tokenType = params["token_type"] ?: "bearer",
+                            user = null,
+                            providerToken = params["provider_token"],
+                            providerRefreshToken = params["provider_refresh_token"]
+                        )
+                    )
+                    Log.i("VOIDAI", "session imported")
                 } else {
                     sb.handleDeeplinks(Intent(Intent.ACTION_VIEW, Uri.parse(data)))
                 }
