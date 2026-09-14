@@ -197,60 +197,65 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
     }
 
+
+    private fun pushStatus(msg: String) {
+        val safe = msg.replace("'", "\\'").replace("\n", " ")
+        runOnUiThread {
+            webView.evaluateJavascript(
+                "window.voidaiDebug && window.voidaiDebug('" + safe + "')", null
+            )
+        }
+    }
+
     private fun handleIntent(intent: Intent) {
-        val data = intent.data?.toString() ?: return
-        Log.i("VOIDAI", "handleIntent len=${data.length} prefix=${data.take(60)}")
+        val data = intent.data?.toString() ?: run {
+            pushStatus("no intent data")
+            return
+        }
+        pushStatus("dl:${data.length}")
+        Log.i("VOIDAI", "handleIntent len=${data.length}")
 
         if (!data.startsWith("voidai://auth-callback")) {
-            Log.i("VOIDAI", "not our scheme")
+            pushStatus("wrong scheme")
             return
         }
 
-        // Only surface genuine errors. Success path stays silent.
         if (data.contains("error=")) {
-            Log.e("VOIDAI", "oauth error: ${data.take(200)}")
-            runOnUiThread {
-                val safe = data.replace("'", "\\'").replace("\n", " ").take(400)
-                webView.evaluateJavascript(
-                    "window.onAuthError && window.onAuthError('${safe}')", null
-                )
-            }
+            pushStatus("err:" + data.take(80))
             return
         }
 
         val sb = supabase
         if (sb == null) {
-            Log.e("VOIDAI", "supabase client null")
+            pushStatus("supabase null")
             return
         }
 
         val parts = data.split("#", limit = 2)
         val fragment = if (parts.size > 1) parts[1] else data.substringAfter("?", "")
-        Log.i("VOIDAI", "fragment len=${fragment.length}")
+        pushStatus("frag:${fragment.length}")
 
         val params = fragment.split("&").mapNotNull { kv ->
             val i = kv.indexOf("=")
             if (i > 0) kv.substring(0, i) to kv.substring(i + 1) else null
         }.toMap()
-        Log.i("VOIDAI", "params keys=${params.keys}")
 
         val accessToken = params["access_token"]
         val refreshToken = params["refresh_token"]
 
         if (accessToken.isNullOrBlank()) {
-            Log.e("VOIDAI", "no access_token in fragment")
+            pushStatus("no access_token")
             return
         }
         if (refreshToken.isNullOrBlank()) {
-            Log.e("VOIDAI", "no refresh_token in fragment")
+            pushStatus("no refresh_token")
             return
         }
-
-        Log.i("VOIDAI", "accessToken len=${accessToken.length} refreshToken len=${refreshToken.length}")
+        pushStatus("tokens ok")
 
         lifecycleScope.launch {
             try {
-                Log.i("VOIDAI", "calling importSession")
+                pushStatus("importing")
                 sb.auth.importSession(
                     UserSession(
                         accessToken = accessToken,
@@ -262,11 +267,9 @@ class MainActivity : AppCompatActivity() {
                         providerRefreshToken = params["provider_refresh_token"]
                     )
                 )
-                Log.i("VOIDAI", "importSession returned OK")
+                pushStatus("imported")
 
                 val u = sb.auth.currentUserOrNull()
-                Log.i("VOIDAI", "currentUserOrNull=${u?.email ?: "null"}")
-
                 if (u != null) {
                     val email = u.email ?: ""
                     val m = u.userMetadata
@@ -274,15 +277,19 @@ class MainActivity : AppCompatActivity() {
                         ?: m?.get("name")?.toString() ?: ""
                     val safeE = email.replace("'", "\\'")
                     val safeN = name.replace("'", "\\'")
+                    pushStatus("user:$email")
                     runOnUiThread {
                         webView.evaluateJavascript(
                             "window.onSignedIn && window.onSignedIn('$safeE', '$safeN')", null
                         )
                     }
-                    Log.i("VOIDAI", "onSignedIn fired for $email")
+                } else {
+                    pushStatus("user null")
                 }
             } catch (e: Throwable) {
-                Log.e("VOIDAI", "importSession FAILED: ${e.javaClass.simpleName}: ${e.message}", e)
+                val short = e.javaClass.simpleName + ": " + (e.message ?: "?")
+                pushStatus("EXC:" + short.take(120))
+                Log.e("VOIDAI", "importSession FAILED", e)
             }
         }
     }
