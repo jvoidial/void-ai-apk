@@ -53,3 +53,4 @@ _archive/
 res/**/*.bak*
 *.diag-*
 local.properties
+cloudflare-worker/worker.local.js
