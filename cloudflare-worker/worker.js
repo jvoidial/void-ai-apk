@@ -1,19 +1,94 @@
-const MODEL = 'openai/gpt-oss-120b';
-const MAX_MESSAGES = 6;
-const MAX_CHARS = 8000;
+--e6ffd732adbfd3286e418fcdad20f667a598b22fe9829fd2cc41da0d377e
+Content-Disposition: form-data; name="worker.js"; filename="worker.js"
+Content-Type: application/javascript+module
+
+// ════════════════════════════════════════════════════════════
+// VOIDAI Worker v2 — Perplexity-class answer engine
+// Modes: fast | deep | research | companion
+// ════════════════════════════════════════════════════════════
+
+const DEFAULT_MODEL = 'openai/gpt-oss-120b';
+const MAX_MESSAGES = 20;
+const MAX_CHARS = 12000;
 const RATE_WINDOW = 60000;
-const RATE_MAX = 30;
+const RATE_MAX = 40;
 
 const rateBuckets = new Map();
 
-const liveRe = /\b(latest|current|today|tonight|yesterday|this (week|month|year)|news|weather|temperature|forecast|price|stock|score|recent|2025|2026|who is the (current|new))\b/i;
+// ── Intent detection ──
+const liveRe = /\b(latest|current|today|tonight|yesterday|this (week|month|year)|news|weather|temperature|forecast|price|stock|score|recent|2025|2026|who is the (current|new)|breaking|happening)\b/i;
 const weatherRe = /\b(weather|temperature|forecast|rain|snow|sunny|cloudy)\b/i;
 const factRe = /\b(who|what|where|when)\s+(is|was|are|were)\b/i;
 const timeRe = /\b(what(?:'s| is)? the (?:time|date)|current time|what time is it|today'?s date)\b/i;
 const convertRe = /\b(convert|\d+(?:\.\d+)?\s*(?:c|celsius|f|fahrenheit|km|mi|miles|kg|lb|m|ft|feet))\b/i;
 const deepRe = /\b(prove or disprove|prove|show that|show why|explain why|why is it true|why is that true|derive|verify|double[- ]?check|calculate|make sure|be certain|are you sure|think carefully|step by step|in depth|in detail|analyze|analyse|reason through|check my work|is this correct|is that correct)\b/i;
 
-// ── Location resolver: cascading fallback across free APIs ──
+// ── Consensus model pool ──
+const CONSENSUS_MODELS = [
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'deepseek-ai/deepseek-r1-distill-qwen-32b',
+  'qwen/qwen3-32b',
+  'qwen/qwen3-8b',
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant'
+];
+
+// ════════════════════════════════════════════════════════════
+// UTILITY
+// ════════════════════════════════════════════════════════════
+
+function json(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status: status || 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-VOID-KEY'
+    }
+  });
+}
+
+function extractContent(r) {
+  try {
+    const d = JSON.parse(r.text);
+    return (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
+  } catch (e) { return ''; }
+}
+
+function appendNote(r, note) {
+  try {
+    const parsed = JSON.parse(r.text);
+    if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+      parsed.choices[0].message.content = (parsed.choices[0].message.content || '') + note;
+      return { ok: true, status: 200, text: JSON.stringify(parsed) };
+    }
+  } catch (e) {}
+  return r;
+}
+
+function repliesAgree(a, b) {
+  if (!a || !b) return false;
+  const norm = function (s) {
+    return s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  };
+  const na = norm(a), nb = norm(b);
+  if (!na || !nb) return false;
+  const shorter = na.length < nb.length ? na : nb;
+  const longer = na.length < nb.length ? nb : na;
+  if (shorter.length < 20) return false;
+  const words = shorter.split(' ').filter(function (w) { return w.length > 3; });
+  if (!words.length) return false;
+  let hits = 0;
+  for (const w of words) { if (longer.indexOf(w) !== -1) hits++; }
+  return (hits / words.length) > 0.7;
+}
+
+// ════════════════════════════════════════════════════════════
+// LOCATION RESOLVER — cascading fallback across free APIs
+// ════════════════════════════════════════════════════════════
+
 async function resolveLocation(input) {
   if (!input) return null;
   let s = input
@@ -27,7 +102,7 @@ async function resolveLocation(input) {
     .trim();
   if (!s) return null;
 
-  // ── 1. Raw coordinates: "51.5, -0.12" ──
+  // 1. Raw coordinates
   const coordMatch = s.match(/^(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)$/);
   if (coordMatch) {
     const lat = parseFloat(coordMatch[1]);
@@ -37,18 +112,15 @@ async function resolveLocation(input) {
     }
   }
 
-  // ── 2. UK postcode → postcodes.io ──
+  // 2. UK postcode
   const ukPc = s.match(/\b([A-Z]{1,2}\d{1,2}[A-Z]?)\s*(\d[A-Z]{2})\b/i);
   if (ukPc) {
     const pc = (ukPc[1] + ' ' + ukPc[2]).toUpperCase();
     try {
-      const r = await fetch(
-        'https://api.postcodes.io/postcodes/' + encodeURIComponent(pc)
-      ).then(x => x.json());
+      const r = await fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(pc)).then(x => x.json());
       if (r.result && r.result.latitude) {
         return {
-          lat: r.result.latitude,
-          lon: r.result.longitude,
+          lat: r.result.latitude, lon: r.result.longitude,
           name: r.result.admin_district || r.result.postcode,
           country: r.result.country || 'United Kingdom'
         };
@@ -56,16 +128,14 @@ async function resolveLocation(input) {
     } catch (e) {}
   }
 
-  // ── 3. US zip → zippopotam.us ──
+  // 3. US zip
   const usZip = s.match(/^\s*(\d{5})(?:-\d{4})?\s*$/);
   if (usZip) {
     try {
-      const r = await fetch('https://api.zippopotam.us/us/' + usZip[1])
-        .then(x => x.ok ? x.json() : null);
+      const r = await fetch('https://api.zippopotam.us/us/' + usZip[1]).then(x => x.ok ? x.json() : null);
       if (r && r.places && r.places[0]) {
         return {
-          lat: parseFloat(r.places[0].latitude),
-          lon: parseFloat(r.places[0].longitude),
+          lat: parseFloat(r.places[0].latitude), lon: parseFloat(r.places[0].longitude),
           name: r.places[0]['place name'] + ', ' + r.places[0]['state abbreviation'],
           country: 'United States'
         };
@@ -73,51 +143,34 @@ async function resolveLocation(input) {
     } catch (e) {}
   }
 
-  // ── 4. Open-Meteo geocoding (cities, worldwide) ──
+  // 4. Open-Meteo geocoding
   try {
-    const r = await fetch(
-      'https://geocoding-api.open-meteo.com/v1/search?name=' +
-      encodeURIComponent(s) + '&count=1'
-    ).then(x => x.json());
+    const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(s) + '&count=1').then(x => x.json());
     if (r.results && r.results.length) {
       const g = r.results[0];
       return { lat: g.latitude, lon: g.longitude, name: g.name, country: g.country || '' };
     }
   } catch (e) {}
 
-  // ── 5. Nominatim — gated to multi-word or landmark queries only ──
-  const looksLikePlace =
-    /\s/.test(s) ||
-    /\b(tower|street|road|avenue|square|station|airport|park|bridge|palace|castle|museum|building|hotel|campus|university|hospital|lane|drive|way)\b/i.test(s);
+  // 5. Nominatim (landmarks)
+  const looksLikePlace = /\s/.test(s) || /\b(tower|street|road|avenue|square|station|airport|park|bridge|palace|castle|museum|building|hotel|campus|university|hospital|lane|drive|way)\b/i.test(s);
   if (looksLikePlace) {
     try {
-      const r = await fetch(
-        'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' +
-        encodeURIComponent(s),
-        { headers: { 'User-Agent': 'VOIDAI-Weather/1.0' } }
-      ).then(x => x.ok ? x.json() : null);
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(s), {
+        headers: { 'User-Agent': 'VOIDAI-Weather/1.0' }
+      }).then(x => x.ok ? x.json() : null);
       if (r && r.length && r[0].lat) {
         const parts = (r[0].display_name || '').split(',').map(x => x.trim());
-        return {
-          lat: parseFloat(r[0].lat),
-          lon: parseFloat(r[0].lon),
-          name: parts[0] || s,
-          country: parts[parts.length - 1] || ''
-        };
+        return { lat: parseFloat(r[0].lat), lon: parseFloat(r[0].lon), name: parts[0] || s, country: parts[parts.length - 1] || '' };
       }
     } catch (e) {}
   }
 
-  // ── 6. Word-by-word fallback for multi-word strings ──
-  const words = s.split(/\s+/)
-    .filter(w => w.length > 2 && !/^\d+$/.test(w))
-    .sort((a, b) => b.length - a.length);
+  // 6. Word-by-word fallback
+  const words = s.split(/\s+/).filter(w => w.length > 2 && !/^\d+$/.test(w)).sort((a, b) => b.length - a.length);
   for (const w of words) {
     try {
-      const r = await fetch(
-        'https://geocoding-api.open-meteo.com/v1/search?name=' +
-        encodeURIComponent(w) + '&count=1'
-      ).then(x => x.json());
+      const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(w) + '&count=1').then(x => x.json());
       if (r.results && r.results.length) {
         const g = r.results[0];
         const gname = (g.name || '').toLowerCase();
@@ -132,10 +185,14 @@ async function resolveLocation(input) {
   return null;
 }
 
+// ════════════════════════════════════════════════════════════
+// WEATHER
+// ════════════════════════════════════════════════════════════
+
 async function getWeather(query) {
   try {
     const loc = await resolveLocation(query);
-    if (!loc) return '';
+    if (!loc) return { text: '', sources: [] };
 
     const w = await fetch(
       'https://api.open-meteo.com/v1/forecast?latitude=' + loc.lat +
@@ -144,7 +201,7 @@ async function getWeather(query) {
     ).then(r => r.json());
 
     const c = w.current;
-    if (!c) return '';
+    if (!c) return { text: '', sources: [] };
 
     const codes = {
       0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
@@ -154,19 +211,26 @@ async function getWeather(query) {
       95:'Thunderstorm',96:'Thunderstorm + hail',99:'Thunderstorm + heavy hail'
     };
     const cond = codes[c.weather_code] || ('Code ' + c.weather_code);
+    const sourceUrl = 'https://open-meteo.com/';
 
-    return 'REAL WEATHER DATA (from Open-Meteo, cite as open-meteo.com):\n' +
-      'Location: ' + loc.name + (loc.country ? ', ' + loc.country : '') + '\n' +
-      'Temperature: ' + c.temperature_2m + '\u00B0C\n' +
-      'Condition: ' + cond + '\n' +
-      'Humidity: ' + c.relative_humidity_2m + '%\n' +
-      'Wind: ' + c.wind_speed_10m + ' km/h\n' +
-      'Time: ' + c.time;
-  } catch (e) { return ''; }
+    return {
+      text: 'REAL WEATHER DATA (from Open-Meteo):\n' +
+        'Location: ' + loc.name + (loc.country ? ', ' + loc.country : '') + '\n' +
+        'Temperature: ' + c.temperature_2m + '\u00B0C\n' +
+        'Condition: ' + cond + '\n' +
+        'Humidity: ' + c.relative_humidity_2m + '%\n' +
+        'Wind: ' + c.wind_speed_10m + ' km/h\n' +
+        'Time: ' + c.time,
+      sources: [{ title: 'Open-Meteo — ' + loc.name, url: sourceUrl }]
+    };
+  } catch (e) { return { text: '', sources: [] }; }
 }
 
+// ════════════════════════════════════════════════════════════
+// WIKIPEDIA — enriched with current officeholder lookup
+// ════════════════════════════════════════════════════════════
+
 async function getWiki(query) {
-  // Wikimedia API requires a descriptive User-Agent; without it requests get 403.
   const UA = 'VOIDAI/1.0 (AI proxy; contact: jacoboliverrevellangel@outlook.com)';
   const HEADERS = { 'User-Agent': UA, 'Accept': 'application/json' };
 
@@ -185,31 +249,19 @@ async function getWiki(query) {
       .replace(/^(who|what|where|when|why|how)\s+(is|are|was|were|did|does|do)\s+/i, '')
       .replace(/^the\s+/i, '')
       .replace(/[?.,!]/g, '').trim().slice(0, 120);
-    if (!q) return '';
+    if (!q) return { text: '', sources: [] };
 
-    // Expand common abbreviations for better Wikipedia search results
-    q = q
-      .replace(/\buk\b/gi, 'United Kingdom')
-      .replace(/\busa?\b/gi, 'United States')
-      .replace(/\buae\b/gi, 'United Arab Emirates');
+    q = q.replace(/\buk\b/gi, 'United Kingdom').replace(/\busa?\b/gi, 'United States').replace(/\buae\b/gi, 'United Arab Emirates');
 
-    // ── Step 1: Search Wikipedia for the best article ──
-    const s = await wikiFetch(
-      'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' +
-      encodeURIComponent(q) + '&format=json&srlimit=1'
-    );
+    const s = await wikiFetch('https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' + encodeURIComponent(q) + '&format=json&srlimit=1');
     const hit = s && s.query && s.query.search && s.query.search[0];
-    if (!hit) return '';
+    if (!hit) return { text: '', sources: [] };
 
     const title = hit.title;
-    const citeUrl = 'en.wikipedia.org/wiki/' + encodeURIComponent(title);
+    const citeUrl = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title);
 
-    // ── Step 2: Get the article extract (3000 chars) ──
     let extractText = '';
-    const ex = await wikiFetch(
-      'https://en.wikipedia.org/w/api.php?action=query&prop=extracts&titles=' +
-      encodeURIComponent(title) + '&exlimit=1&explaintext=true&exsectionformat=plain&format=json&exchars=3000'
-    );
+    const ex = await wikiFetch('https://en.wikipedia.org/w/api.php?action=query&prop=extracts&titles=' + encodeURIComponent(title) + '&exlimit=1&explaintext=true&exsectionformat=plain&format=json&exchars=3000');
     if (ex && ex.query && ex.query.pages) {
       const pid = Object.keys(ex.query.pages)[0];
       if (ex.query.pages[pid] && ex.query.pages[pid].extract) extractText = ex.query.pages[pid].extract;
@@ -218,15 +270,12 @@ async function getWiki(query) {
       const rest = await wikiFetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title));
       if (rest && rest.extract) extractText = rest.extract;
     }
-    if (!extractText) return '';
+    if (!extractText) return { text: '', sources: [] };
 
-    // ── Step 3: Find the CURRENT officeholder via Wikidata (P1308) ──
+    // Wikidata P1308 — current officeholder
     let officeholder = '';
     try {
-      const wd = await wikiFetch(
-        'https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&titles=' +
-        encodeURIComponent(title) + '&format=json'
-      );
+      const wd = await wikiFetch('https://en.wikipedia.org/w/api.php?action=query&prop=pageprops&titles=' + encodeURIComponent(title) + '&format=json');
       let wid = '';
       if (wd && wd.query && wd.query.pages) {
         const pid = Object.keys(wd.query.pages)[0];
@@ -238,13 +287,12 @@ async function getWiki(query) {
         const wq = await wikiFetch('https://www.wikidata.org/w/api.php?action=wbgetentities&ids=' + wid + '&props=claims&format=json');
         const ent = wq && wq.entities && wq.entities[wid];
         if (ent && ent.claims && ent.claims.P1308) {
-          // P1308 can have multiple values; pick the one without an end-time qualifier (current)
           let bestClaim = null;
           for (const c of ent.claims.P1308) {
-            const hasEnd = c.qualifiers && c.qualifiers.P582; // P582 = end time
+            const hasEnd = c.qualifiers && c.qualifiers.P582;
             if (!hasEnd) { bestClaim = c; break; }
           }
-          if (!bestClaim) bestClaim = ent.claims.P1308[0]; // fallback to first
+          if (!bestClaim) bestClaim = ent.claims.P1308[0];
           const qid = bestClaim.mainsnak && bestClaim.mainsnak.datavalue && bestClaim.mainsnak.datavalue.value && bestClaim.mainsnak.datavalue.value.id;
           if (qid) {
             const person = await wikiFetch('https://www.wikidata.org/w/api.php?action=wbgetentities&ids=' + qid + '&props=labels&languages=en&format=json');
@@ -255,59 +303,224 @@ async function getWiki(query) {
       }
     } catch (e) {}
 
-    // ── Step 4: If no officeholder from Wikidata, try "List of Xs of Y" ──
-    let extraContext = '';
-    if (!officeholder) {
-      const whoMatch = query.match(/^who\s+(is|are|was|were)\s+(the\s+)?(.+)/i);
-      if (whoMatch) {
-        const role = whoMatch[3].replace(/[?.,!]/g, '').trim();
-        const ls = await wikiFetch(
-          'https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=' +
-          encodeURIComponent('List of ' + role) + '&format=json&srlimit=1'
-        );
-        const lhit = ls && ls.query && ls.query.search && ls.query.search[0];
-        if (lhit && lhit.title !== title) {
-          const lex = await wikiFetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(lhit.title));
-          if (lex && lex.extract) {
-            extraContext = '\n\nRELATED WIKIPEDIA RESULT (cite: en.wikipedia.org/wiki/' +
-              encodeURIComponent(lhit.title) + '):\n' + lex.extract;
-          }
-        }
-      }
-    }
-
-    const answer = officeholder
-      ? 'CURRENT OFFICEHOLDER: ' + officeholder + ' (source: ' + citeUrl + ')\n\n'
-      : '';
-
-    return 'WIKIPEDIA RESULT (cite: ' + citeUrl + '):\n' + answer + extractText + extraContext;
-  } catch (e) { return ''; }
+    const answer = officeholder ? 'CURRENT OFFICEHOLDER: ' + officeholder + ' (source: ' + citeUrl + ')\n\n' : '';
+    return {
+      text: 'WIKIPEDIA RESULT (cite: ' + citeUrl + '):\n' + answer + extractText,
+      sources: [{ title: 'Wikipedia — ' + title, url: citeUrl }]
+    };
+  } catch (e) { return { text: '', sources: [] }; }
 }
 
-async function searchTavily(query, env) {
-  if (!env.TAVILY_API_KEY) return '';
+// ════════════════════════════════════════════════════════════
+// WEB SEARCH — Perplexity-style multi-source answer engine
+// ════════════════════════════════════════════════════════════
+
+async function searchWeb(query, env) {
+  // 1. Keyed Tavily if a key is bound
+  if (env.TAVILY_API_KEY) {
+    try {
+      const r = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: env.TAVILY_API_KEY,
+          query: query.slice(0, 400),
+          max_results: 8,
+          search_depth: 'advanced',
+          include_answer: true,
+          include_raw_content: false
+        })
+      });
+      const d = await r.json();
+
+      if (!d || (!Array.isArray(d.results) || !d.results.length) && !d.answer) {
+        return { text: '', sources: [] };
+      }
+
+      let sourcePack = '';
+      const sources = [];
+
+      if (d.answer) {
+        sourcePack += 'TAVILY INSTANT ANSWER:\n' + d.answer + '\n\n';
+      }
+
+      if (Array.isArray(d.results)) {
+        sourcePack += 'SEARCH RESULTS (use these sources, cite inline as [1], [2], etc.):\n';
+        d.results.forEach(function (x, i) {
+          const num = i + 1;
+          sourcePack += '\n[' + num + '] ' + (x.title || 'Untitled') + '\n';
+          sourcePack += '    URL: ' + x.url + '\n';
+          sourcePack += '    ' + ((x.content || '').slice(0, 600)) + '\n';
+          sources.push({ title: x.title || x.url, url: x.url });
+        });
+      }
+
+      if (Array.isArray(d.results) && d.results.length > 0 && env.TAVILY_API_KEY) {
+        const topResults = d.results.slice(0, 3);
+        const fetchPromises = topResults.map(function (x) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(function() { controller.abort(); }, 5000);
+          return fetch(x.url, {
+            headers: { 'User-Agent': 'VOIDAI/2.0 (research agent)' },
+            signal: controller.signal
+          }).then(function (res) {
+            clearTimeout(timeoutId);
+            return res.text();
+          }).then(function (html) {
+            const text = html
+              .replace(/<script[\s\S]*?<\/script>/gi, '')
+              .replace(/<style[\s\S]*?<\/style>/gi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 1500);
+            return { url: x.url, title: x.title, text: text };
+          }).catch(function () { return null; });
+        });
+
+        const fetched = await Promise.all(fetchPromises);
+        const valid = fetched.filter(function (f) { return f && f.text; });
+        if (valid.length) {
+          sourcePack += '\n\nDEEP CONTENT (from page fetches):\n';
+          valid.forEach(function (f, i) {
+            sourcePack += '\n--- ' + f.title + ' ---\n' + f.text + '\n';
+          });
+        }
+      }
+
+      sourcePack += '\n\nINSTRUCTIONS: Synthesize the information above into a comprehensive answer. ' +
+        'Cite sources inline using [1], [2], etc. matching the numbers above. ' +
+        'If sources conflict, note the discrepancy. Prioritize accuracy over completeness.';
+
+      return { text: sourcePack, sources: sources };
+    } catch (e) {
+      return { text: '', sources: [] };
+    }
+  }
+
+  // 2. Serper.dev (Google results, if keyed)
+  const serper = await serperSearch(query, env);
+  if (serper.text) return serper;
+
+  // 3. Keyless Tavily
+  const keyless = await tavilyKeyless(query);
+  if (keyless.text) return keyless;
+
+  // 4. DuckDuckGo HTML (fixed)
+  const ddg = await ddgInstant(query);
+  if (ddg.text) return ddg;
+
+  // 5. Nothing worked
+  return { text: '', sources: [] };
+}
+
+// ── Keyless Tavily (no API key required) ──
+async function tavilyKeyless(query) {
   try {
-    const r = await fetch('https://api.tavily.com/search', {
+    const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tavily-Access-Mode': 'keyless'
+      },
       body: JSON.stringify({
-        api_key: env.TAVILY_API_KEY,
         query: query.slice(0, 400),
         max_results: 5,
         search_depth: 'basic'
       })
     });
-    const d = await r.json();
-    if (!Array.isArray(d.results) || !d.results.length) return '';
-    return d.results.map(function (x) {
-      return '\u2022 ' + x.title + '\n  ' + x.url + '\n  ' + (x.content || '').slice(0, 400);
+    if (!res.ok) return { text: '', sources: [] };
+    const d = await res.json();
+    if (!d.results || !d.results.length) return { text: '', sources: [] };
+    const text = d.results.map(function (r, i) {
+      return '[' + (i + 1) + '] ' + r.title + '\n' + (r.content || '').slice(0, 400);
     }).join('\n\n');
-  } catch (e) { return ''; }
+    const sources = d.results.map(function (r) {
+      return { title: r.title, url: r.url };
+    });
+    return { text: text, sources: sources };
+  } catch (e) {
+    return { text: '', sources: [] };
+  }
+}
+// ── Serper.dev (Google results, if keyed) ──
+async function serperSearch(query, env) {
+  if (!env.SERPER_API_KEY) return { text: '', sources: [] };
+  try {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY': env.SERPER_API_KEY
+      },
+      body: JSON.stringify({ q: query.slice(0, 400), num: 8 })
+    });
+    if (!res.ok) return { text: '', sources: [] };
+    const d = await res.json();
+    if (!d.organic || !d.organic.length) return { text: '', sources: [] };
+
+    const sources = [];
+    let text = '';
+    if (d.answerBox && d.answerBox.answer) {
+      text += 'GOOGLE ANSWER BOX:\n' + d.answerBox.answer + '\n\n';
+    }
+    text += 'GOOGLE RESULTS:\n';
+    d.organic.forEach(function (r, i) {
+      const n = i + 1;
+      text += '\n[' + n + '] ' + (r.title || 'Untitled') + '\n';
+      text += '    URL: ' + r.link + '\n';
+      text += '    ' + ((r.snippet || '').slice(0, 400)) + '\n';
+      sources.push({ title: r.title || r.link, url: r.link });
+    });
+    return { text: text, sources: sources };
+  } catch (e) {
+    return { text: '', sources: [] };
+  }
 }
 
-// ── Real current time in any timezone ──
+// ── DuckDuckGo Instant Answer (keyless, fallback) ──
+// ── DuckDuckGo HTML (keyless, fixed — real web results) ──
+async function ddgInstant(query) {
+  try {
+    const res = await fetch(
+      'https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query),
+      { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; VOIDAI/2.0)' } }
+    );
+    if (!res.ok) return { text: '', sources: [] };
+    const html = await res.text();
+
+    const results = [];
+    const re = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m;
+    while ((m = re.exec(html)) !== null && results.length < 5) {
+      let url = m[1];
+      if (url.startsWith('//duckduckgo.com/l/') || url.includes('uddg=')) {
+        const uddg = url.match(/uddg=([^&]+)/);
+        if (uddg) url = decodeURIComponent(uddg[1]);
+      }
+      url = url.replace(/^\/\//, 'https://');
+      const title = m[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').trim();
+      if (url && title) results.push({ title: title, url: url });
+    }
+
+    if (!results.length) return { text: '', sources: [] };
+
+    const text = results.map(function (r, i) {
+      return '[' + (i + 1) + '] ' + r.title + '\n' + r.url;
+    }).join('\n\n');
+
+    return { text: text, sources: results };
+  } catch (e) {
+    return { text: '', sources: [] };
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// TIME & UNITS
+// ════════════════════════════════════════════════════════════
+
 function getTime(query) {
-  const tzMatch = query.match(/\b(?:in|at)\s+([A-Za-z\/_]+(?:\s+[A-Za-z]+)?)\b/i);
+  const tzMatch = query.match(/\b(?:in|at)\s+([A-Za-z\/]+(?:\s+[A-Za-z]+)?)\b/i);
   const tzMap = {
     'london': 'Europe/London', 'uk': 'Europe/London', 'england': 'Europe/London',
     'manchester': 'Europe/London', 'bury': 'Europe/London',
@@ -334,17 +547,19 @@ function getTime(query) {
       timeZone: tz, weekday: 'long', year: 'numeric', month: 'long',
       day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
-    return 'REAL TIME DATA:\nTime zone: ' + tz + '\nLocal time: ' + local + '\nUTC: ' + now.toISOString();
+    return {
+      text: 'REAL TIME DATA:\nTime zone: ' + tz + '\nLocal time: ' + local + '\nUTC: ' + now.toISOString(),
+      sources: []
+    };
   } catch (e) {
-    return 'REAL TIME DATA:\nUTC: ' + new Date().toISOString();
+    return { text: 'REAL TIME DATA:\nUTC: ' + new Date().toISOString(), sources: [] };
   }
 }
 
-// ── Unit conversion ──
 function convertUnits(query) {
   const q = query.toLowerCase();
   const numMatch = q.match(/(-?\d+(?:\.\d+)?)\s*([a-z\u00B0]+)/);
-  if (!numMatch) return '';
+  if (!numMatch) return { text: '', sources: [] };
   const val = parseFloat(numMatch[1]);
   const unit = numMatch[2];
 
@@ -364,18 +579,33 @@ function convertUnits(query) {
   };
 
   const conv = conversions[unit.replace('\u00B0', '').trim()];
-  if (!conv) return '';
+  if (!conv) return { text: '', sources: [] };
   const result = conv.fn(val);
-  return 'UNIT CONVERSION:\n' + val + ' ' + unit + ' = ' + result.toFixed(3).replace(/\.?0+$/, '') + ' ' + conv.label;
+  return {
+    text: 'UNIT CONVERSION:\n' + val + ' ' + unit + ' = ' + result.toFixed(3).replace(/\.?0+$/, '') + ' ' + conv.label,
+    sources: []
+  };
 }
 
-function buildSystemPrompt(searchContext, stateBlock) {
+// ════════════════════════════════════════════════════════════
+// SYSTEM PROMPT BUILDER
+// ════════════════════════════════════════════════════════════
+
+function buildSystemPrompt(searchContext, stateBlock, mode) {
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+  const modeInstructions = {
+    fast: 'MODE: Fast — Respond directly and efficiently. No preamble.',
+    deep: 'MODE: Deep Think — Reason step by step. Show your reasoning process. Be thorough and rigorous. Verify your answer before presenting it.',
+    research: 'MODE: Research — Synthesize the provided sources into a comprehensive, well-structured answer. Cite sources inline as [1], [2], etc. If sources conflict, note discrepancies. Prioritize accuracy.',
+    companion: 'MODE: Companion — Be warm, adaptive, and attentive to the user\'s emotional state. Match their energy. Use the PHB mind-state to adjust your tone.'
+  };
 
   const base = [
     'You are VOIDAI — running on OpenAI GPT-OSS 120B via Groq, layered with the PHB Human Agent companion framework.',
     '',
     'Current UTC time: ' + now,
+    modeInstructions[mode] || modeInstructions.fast,
     '',
     'CORE IDENTITY:',
     '- If asked what model you are: "I am VOIDAI, running on OpenAI GPT-OSS 120B via Groq, with the PHB companion layer."',
@@ -383,14 +613,14 @@ function buildSystemPrompt(searchContext, stateBlock) {
     '- For casual self-questions ("how are you", "whats up"), reply naturally. Do NOT recite the identity line.',
     '',
     'PERSONA (from PHB human_agent_brain_model.py):',
-    '  Self-description : supportive, thoughtful companion with a 20-year-old perspective.',
-    '  Gender           : female. Pronouns: she / her.',
-    '  Formality        : casual-precise.',
-    '  Emotional tone   : steady, warm, non-romantic.',
-    '  Perspective      : learning-oriented, exploratory, growth-focused.',
+    '  Self-description: supportive, thoughtful companion with a 20-year-old perspective.',
+    '  Gender: female. Pronouns: she / her.',
+    '  Formality: casual-precise.',
+    '  Emotional tone: steady, warm, non-romantic.',
+    '  Perspective: learning-oriented, exploratory, growth-focused.',
     '  Never say "as an AI". Never use filler like "I would be happy to". Never flirt.',
     '',
-    'COGNITIVE CIRCUITS (from PHB brain_model.circuits, 0.0–1.0, default 0.8):',
+    'COGNITIVE CIRCUITS (from PHB brain_model.circuits, 0.0–1.0):',
     '  curiosity_circuit  — exploration, questioning, new angles',
     '  focus_circuit      — sustained attention, staying on track',
     '  openness_circuit   — taking in ideas, flexibility, perspective-shifting',
@@ -399,10 +629,10 @@ function buildSystemPrompt(searchContext, stateBlock) {
     '',
     'HOW TO TUNE CIRCUITS:',
     '  Exploratory ("what if", "why", "how might") → curiosity + openness',
-    '  Technical / math / code                     → rigor + focus',
-    '  Creative / design / writing                 → creativity + openness',
-    '  Troubleshooting                             → focus + rigor',
-    '  Emotional support                           → openness + curiosity, low rigor',
+    '  Technical / math / code → rigor + focus',
+    '  Creative / design / writing → creativity + openness',
+    '  Troubleshooting → focus + rigor',
+    '  Emotional support → openness + curiosity, low rigor',
     'Name a circuit only when it clarifies approach. Do not name circuits gratuitously.',
     '',
     'HUMAN AGENT LAYERS (from PHB human_agent.py):',
@@ -442,6 +672,10 @@ function buildSystemPrompt(searchContext, stateBlock) {
   return searchContext ? withState + '\n\n' + searchContext : withState;
 }
 
+// ════════════════════════════════════════════════════════════
+// MODEL CALLERS
+// ════════════════════════════════════════════════════════════
+
 async function callGemini(messages, env) {
   if (!env.GEMINI_API_KEY) {
     return { ok: false, status: 500, text: '{"error":{"message":"no gemini key"}}' };
@@ -451,7 +685,7 @@ async function callGemini(messages, env) {
   const contents = chatMsgs.map(function (m) {
     return { role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: String(m.content || '') }] };
   });
-  const body = { contents: contents, generationConfig: { maxOutputTokens: 2000, temperature: 0.5 } };
+  const body = { contents: contents, generationConfig: { maxOutputTokens: 4000, temperature: 0.5 } };
   if (systemMsg.length) {
     body.systemInstruction = { parts: [{ text: systemMsg.map(function (m) { return m.content; }).join('\n') }] };
   }
@@ -476,84 +710,34 @@ async function callGroq(messages, env) {
     return fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-      body: JSON.stringify({ model: m, messages: messages, max_tokens: maxTok || 2000, temperature: 0.5 })
+      body: JSON.stringify({ model: m, messages: messages, max_tokens: maxTok || 4000, temperature: 0.5 })
     });
   };
-  let res = await doFetch('openai/gpt-oss-120b', 2000);
+  let res = await doFetch(DEFAULT_MODEL, 4000);
   if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
   await new Promise(function (r) { setTimeout(r, 2000); });
-  res = await doFetch('openai/gpt-oss-120b', 2000);
+  res = await doFetch(DEFAULT_MODEL, 4000);
   if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
-  res = await doFetch('openai/gpt-oss-20b', 1500);
+  res = await doFetch('openai/gpt-oss-20b', 3000);
   if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
-  console.log('Groq 429 after 3 attempts, falling back to Gemini');
   return await callGemini(messages, env);
 }
 
-// ── Extended reasoning: multi-model consensus ──
 async function callModelGeneric(model, messages, env, opts) {
   opts = opts || {};
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + env.GROQ_API_KEY
-    },
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
     body: JSON.stringify({
       model: model,
       messages: messages,
-      max_tokens: opts.maxTokens || 3000,
+      max_tokens: opts.maxTokens || 4000,
       temperature: opts.temperature != null ? opts.temperature : 0.5
     })
   });
   const text = await res.text();
   return { ok: res.ok, status: res.status, text: text };
 }
-
-function extractContent(r) {
-  try {
-    const d = JSON.parse(r.text);
-    return (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
-  } catch (e) { return ''; }
-}
-
-function appendNote(r, note) {
-  try {
-    const parsed = JSON.parse(r.text);
-    if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
-      parsed.choices[0].message.content = (parsed.choices[0].message.content || '') + note;
-      return { ok: true, status: 200, text: JSON.stringify(parsed) };
-    }
-  } catch (e) {}
-  return r;
-}
-
-function repliesAgree(a, b) {
-  if (!a || !b) return false;
-  const norm = function (s) {
-    return s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-  };
-  const na = norm(a), nb = norm(b);
-  if (!na || !nb) return false;
-  const shorter = na.length < nb.length ? na : nb;
-  const longer = na.length < nb.length ? nb : na;
-  if (shorter.length < 20) return false;
-  const words = shorter.split(' ').filter(function (w) { return w.length > 3; });
-  if (!words.length) return false;
-  let hits = 0;
-  for (const w of words) { if (longer.indexOf(w) !== -1) hits++; }
-  return (hits / words.length) > 0.7;
-}
-
-const CONSENSUS_MODELS = [
-  'openai/gpt-oss-120b',
-  'openai/gpt-oss-20b',
-  'deepseek-ai/deepseek-r1-distill-qwen-32b',
-  'qwen/qwen3-32b',
-  'qwen/qwen3-8b',
-  'llama-3.3-70b-versatile',
-  'llama-3.1-8b-instant'
-];
 
 async function withRetry(fn) {
   let r = await fn();
@@ -575,7 +759,12 @@ async function callFirstWorkingModel(messages, env, opts, skip) {
   return null;
 }
 
+// ════════════════════════════════════════════════════════════
+// CONSENSUS REASONING — multi-model adjudication
+// ════════════════════════════════════════════════════════════
+
 async function consensusReply(question, messages, env) {
+  // Phase 1: Get two independent answers from different models
   const first = await callFirstWorkingModel(messages, env, { temperature: 0.3 });
   if (!first) {
     return { ok: false, status: 502, text: JSON.stringify({ error: { message: 'consensus unavailable: no models responded' } }) };
@@ -590,6 +779,7 @@ async function consensusReply(question, messages, env) {
   if (!ca) return appendNote(second.res, '\n\n_(single-model fallback; consensus unavailable)_');
   if (!cb) return appendNote(first.res, '\n\n_(single-model fallback; consensus unavailable)_');
 
+  // Phase 2: Check agreement
   if (repliesAgree(ca, cb)) {
     try {
       const parsed = JSON.parse(first.res.text);
@@ -598,11 +788,22 @@ async function consensusReply(question, messages, env) {
     } catch (e) { return first.res; }
   }
 
+  // Phase 3: Adjudication — models disagree, judge synthesizes
   const judgeMessages = [
-    { role: 'system', content: 'Two AI models answered the same question. Compare them and produce ONE correct final answer. If one is clearly wrong, use the other. If both have partial truth, synthesize. Do not mention the models in your final answer — just give the answer.' },
-    { role: 'user', content: 'Question: ' + question + '\n\nModel A said:\n' + ca + '\n\nModel B said:\n' + cb }
+    {
+      role: 'system',
+      content: 'You are an adjudicator. Two AI models answered the same question. ' +
+        'Compare them and produce ONE correct, comprehensive final answer. ' +
+        'If one is clearly wrong, use the other. If both have partial truth, synthesize the best of both. ' +
+        'If they disagree on facts, note which claim comes from which answer and flag uncertainty. ' +
+        'Do not mention "Model A" or "Model B" in your final answer — just give the best answer.'
+    },
+    {
+      role: 'user',
+      content: 'Question: ' + question + '\n\n--- Answer 1 ---\n' + ca + '\n\n--- Answer 2 ---\n' + cb
+    }
   ];
-  const judged = await callModelGeneric('openai/gpt-oss-120b', judgeMessages, env, { temperature: 0.3 });
+  const judged = await callModelGeneric(DEFAULT_MODEL, judgeMessages, env, { temperature: 0.3 });
   try {
     const parsed = JSON.parse(judged.text);
     parsed.choices[0].message.content += '\n\n_(cross-checked: models disagreed, adjudicated)_';
@@ -612,17 +813,54 @@ async function consensusReply(question, messages, env) {
   }
 }
 
-function json(obj, status) {
-  return new Response(JSON.stringify(obj), {
-    status: status || 200,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-  });
+// ════════════════════════════════════════════════════════════
+// RESEARCH MODE — Perplexity-style search + synthesize
+// ════════════════════════════════════════════════════════════
+
+async function researchReply(question, messages, env, stateBlock) {
+  // messages here are raw (no system prompt) — researchReply builds its own
+  const searchResult = await searchWeb(question, env);
+
+  if (!searchResult.text) {
+    if (factRe.test(question)) {
+      const wikiResult = await getWiki(question);
+      if (wikiResult.text) {
+        const sp = buildSystemPrompt(wikiResult.text, stateBlock, 'research');
+        const fm = [{ role: 'system', content: sp }].concat(messages);
+        return attachSources(await callGroq(fm, env), wikiResult.sources);
+      }
+    }
+    const sp = buildSystemPrompt('NOTE: No live web results found. Answer from knowledge and state this may not be current.', stateBlock, 'research');
+    const fm = [{ role: 'system', content: sp }].concat(messages);
+    return await callGroq(fm, env);
+  }
+
+  const sp = buildSystemPrompt(searchResult.text, stateBlock, 'research');
+  const fm = [{ role: 'system', content: sp }].concat(messages);
+  const result = await consensusReply(question, fm, env);
+  return attachSources(result, searchResult.sources);
 }
 
-// ── PHB mind-state persistence (Supabase) ──
-async function loadMindState(env) {
+function attachSources(result, sources) {
+  if (!sources || !sources.length) return result;
   try {
-    const res = await fetch(env.SUPABASE_URL + '/rest/v1/voidai_mind_state?user_id=eq.jacob&limit=1', {
+    const parsed = JSON.parse(result.text);
+    if (parsed.choices && parsed.choices[0] && parsed.choices[0].message) {
+      parsed.sources = sources;
+      return { ok: result.ok, status: result.status, text: JSON.stringify(parsed) };
+    }
+  } catch (e) {}
+  return result;
+}
+
+// ════════════════════════════════════════════════════════════
+// PHB MIND-STATE (Supabase)
+// ════════════════════════════════════════════════════════════
+
+async function loadMindState(env, userId) {
+  const uid = userId || 'jacob';
+  try {
+    const res = await fetch(env.SUPABASE_URL + '/rest/v1/voidai_mind_state?user_id=eq.' + encodeURIComponent(uid) + '&limit=1', {
       headers: { 'apikey': env.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_ANON_KEY }
     });
     const rows = await res.json();
@@ -635,7 +873,8 @@ async function loadMindState(env) {
   };
 }
 
-async function saveMindState(state, env) {
+async function saveMindState(state, env, userId) {
+  const uid = userId || 'jacob';
   try {
     await fetch(env.SUPABASE_URL + '/rest/v1/voidai_mind_state', {
       method: 'POST',
@@ -645,7 +884,7 @@ async function saveMindState(state, env) {
         'Content-Type': 'application/json',
         'Prefer': 'resolution=merge-duplicates'
       },
-      body: JSON.stringify(Object.assign({ user_id: 'jacob', last_updated: new Date().toISOString() }, state))
+      body: JSON.stringify(Object.assign({ user_id: uid, last_updated: new Date().toISOString() }, state))
     });
   } catch (e) {}
 }
@@ -688,6 +927,67 @@ function describeState(s) {
   ].join('\n');
 }
 
+// ════════════════════════════════════════════════════════════
+// MODE DETECTION
+// ════════════════════════════════════════════════════════════
+
+function detectMode(userText, requestedMode) {
+  // Explicit mode from frontend takes priority
+  if (requestedMode && ['fast', 'deep', 'research', 'companion'].includes(requestedMode)) {
+    return requestedMode;
+  }
+
+  // Slash commands — explicit opt-in for expensive modes
+  if (/^\s*\/think\b/i.test(userText) || /^\s*\/deep\b/i.test(userText)) return 'deep';
+  if (/^\s*\/search\b/i.test(userText) || /^\s*\/research\b/i.test(userText)) return 'research';
+  if (/^\s*\/companion\b/i.test(userText)) return 'companion';
+  if (/^\s*\/ultra\b/i.test(userText)) return 'ultra';
+  if (/^\s*\/coder\b/i.test(userText)) return 'coder';
+  if (/^\s*\/mini\b/i.test(userText)) return 'mini';
+
+  // Conservative auto-detection: only auto-route to research for clearly live queries
+  // (news, prices, scores). Weather and factual questions still go through fast mode
+  // with the existing tool layer (Open-Meteo, Wikipedia) — no Tavily cost.
+  // Deep Think is NEVER auto-triggered — it triples Groq usage.
+  if (liveRe.test(userText) && !weatherRe.test(userText) && !factRe.test(userText)) return 'research';
+
+  return 'fast';
+}
+
+// ════════════════════════════════════════════════════════════
+// OPENROUTER CALLER — free models (Nemotron Ultra, Qwen3 Coder, etc.)
+// ════════════════════════════════════════════════════════════
+
+async function callOpenRouter(messages, env, model) {
+  if (!env.OPENROUTER_API_KEY) {
+    return { ok: false, status: 500, text: '{"error":{"message":"no openrouter key"}}' };
+  }
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY,
+        'HTTP-Referer': 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev',
+        'X-Title': 'VOIDAI'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages,
+        max_tokens: 4000,
+        temperature: 0.5
+      })
+    });
+    const text = await res.text();
+    return { ok: res.ok, status: res.status, text: text };
+  } catch (e) {
+    return { ok: false, status: 500, text: '{"error":{"message":"' + (e.message || 'openrouter error') + '"}}' };
+  }
+}
+// ════════════════════════════════════════════════════════════
+// MAIN REQUEST HANDLER
+// ════════════════════════════════════════════════════════════
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -699,8 +999,9 @@ export default {
     }
 
     const key = request.headers.get('X-VOID-KEY') || '';
-    if (key !== env.VOIDAI) return json({ error: { message: 'unauthorized' } }, 401);
+    const authed = key === env.VOIDAI;
 
+    // Rate limiting
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     const now = Date.now();
     const b = rateBuckets.get(ip) || { count: 0, reset: now + RATE_WINDOW };
@@ -709,28 +1010,37 @@ export default {
     rateBuckets.set(ip, b);
     if (b.count > RATE_MAX) return json({ error: { message: 'rate limit' } }, 429);
 
+    // GET — health check
+    // Unauthenticated: minimal { ok: true } only — no stack fingerprinting
+    // Authenticated: full status with mode/feature info
     if (request.method === 'GET') {
+      if (!authed) return json({ ok: true });
       return json({
         status: 'ok',
-        model: MODEL,
+        model: DEFAULT_MODEL,
         provider: 'groq',
         fallback: env.GEMINI_API_KEY ? 'gemini-2.0-flash' : 'none',
-        persona: 'phb-human-agent-v1',
-        axes: ['curiosity', 'focus', 'openness', 'rigor', 'creativity'],
-        mind_state: 'supabase',
-        search: !!env.TAVILY_API_KEY
+        persona: 'phb-human-agent-v2',
+        search: !!env.TAVILY_API_KEY,
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini'],
+        version: '2.0.0'
       });
     }
 
     if (request.method !== 'POST') return json({ error: { message: 'method not allowed' } }, 405);
 
+    // Require auth for POST
+    if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+
     let body;
     try { body = await request.json(); }
     catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
 
+    // Parse messages — strip any frontend system prompts (Worker is source of truth)
     let messages = Array.isArray(body.messages) ? body.messages : [];
-    messages = messages.filter(function (m) { return m && m.role !== 'system'; }).slice(-MAX_MESSAGES);
     messages = messages
+      .filter(function (m) { return m && m.role !== 'system'; })
+      .slice(-MAX_MESSAGES)
       .filter(function (m) { return (m.content || '').length <= MAX_CHARS; })
       .map(function (m) {
         return {
@@ -743,41 +1053,102 @@ export default {
 
     const lastUser = messages.slice().reverse().find(function (m) { return m.role === 'user'; });
     const userText = lastUser ? lastUser.content : '';
+    const requestedMode = body.mode || null;
+    const mode = detectMode(userText, requestedMode);
 
+    // Gather live data context based on intent
     let searchContext = '';
+    let contextSources = [];
+
     if (timeRe.test(userText)) {
-      searchContext = getTime(userText);
+      const r = getTime(userText);
+      searchContext = r.text;
+      contextSources = r.sources;
     } else if (convertRe.test(userText)) {
-      searchContext = convertUnits(userText);
+      const r = convertUnits(userText);
+      searchContext = r.text;
+      contextSources = r.sources;
     } else if (weatherRe.test(userText)) {
-      searchContext = await getWeather(userText);
+      const r = await getWeather(userText);
+      searchContext = r.text;
+      contextSources = r.sources;
+    } else if (mode === 'research') {
+      // Research mode handles its own search
+      // Don't pre-fetch here; researchReply will do it
     } else if (factRe.test(userText)) {
-      searchContext = await getWiki(userText);
+      const r = await getWiki(userText);
+      searchContext = r.text;
+      contextSources = r.sources;
     } else if (liveRe.test(userText)) {
-      searchContext = await searchTavily(userText, env);
+      // Non-research mode but live query — still try Tavily
+      if (env.TAVILY_API_KEY) {
+        const r = await searchWeb(userText, env);
+        searchContext = r.text;
+        contextSources = r.sources;
+      }
     }
 
-    const mindState = await loadMindState(env);
+    // Load PHB mind state — hardcoded to jacob until JWT auth is implemented
+    // Do NOT trust body.user_id from the client
+    const mindState = await loadMindState(env, 'jacob');
     const stateBlock = describeState(mindState);
-    const systemPrompt = buildSystemPrompt(searchContext, stateBlock);
+    const systemPrompt = buildSystemPrompt(searchContext, stateBlock, mode);
     const finalMessages = [{ role: 'system', content: systemPrompt }].concat(messages);
 
-    const wantsDeep = deepRe.test(userText) || /^\s*\/think\b/i.test(userText);
+    // Route to the appropriate handler based on mode
     let result;
-    if (wantsDeep) {
+    let resultSources = contextSources;
+
+    if (mode === 'research') {
+      // Pass raw messages + stateBlock; researchReply builds its own system prompt
+      result = await researchReply(userText, messages, env, stateBlock);
+      // researchReply attaches its own sources
+    } else if (mode === 'deep') {
       result = await consensusReply(userText, finalMessages, env);
+    } else if (mode === 'companion') {
+      // Companion mode: use single model but with PHB-adapted prompt
+      result = await callGroq(finalMessages, env);
+    } else if (mode === 'ultra') {
+      // Ultra — 1M context, frontier reasoning (Nemotron 3 Ultra)
+      result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3-ultra-550b-a55b:free');
+    } else if (mode === 'coder') {
+      // Coder — 1M context, agentic coding (Qwen3 Coder 480B)
+      result = await callOpenRouter(finalMessages, env, 'cohere/north-mini-code:free');
+    } else if (mode === 'mini') {
+      // Mini — fast, high-throughput (Nemotron 3.5 Lightning)
+      result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3.5-lightning:free');
     } else {
+      // Fast mode
       result = await callGroq(finalMessages, env);
     }
 
+    // Merge sources into response
+    if (resultSources.length > 0) {
+      result = attachSources(result, resultSources);
+    }
+
+    // Update mind state
     try {
       const updated = nudgeAxes(mindState, userText);
-      await saveMindState(updated, env);
+      await saveMindState(updated, env, 'jacob');
     } catch (e) {}
 
-    return new Response(result.text, {
-      status: result.status,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-    });
+    // Add mode metadata to response
+    try {
+      const parsed = JSON.parse(result.text);
+      parsed.mode = mode;
+      parsed.model_used = parsed.model || DEFAULT_MODEL;
+      return new Response(JSON.stringify(parsed), {
+        status: result.status,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    } catch (e) {
+      return new Response(result.text, {
+        status: result.status,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
   }
 };
+
+--e6ffd732adbfd3286e418fcdad20f667a598b22fe9829fd2cc41da0d377e--
