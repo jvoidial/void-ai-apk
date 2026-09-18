@@ -1,4 +1,4 @@
---e6ffd732adbfd3286e418fcdad20f667a598b22fe9829fd2cc41da0d377e
+--22a364c5e3624f701ea0eea131960fe1d6a6740f4c669b0f8e7b3c74500d
 Content-Disposition: form-data; name="worker.js"; filename="worker.js"
 Content-Type: application/javascript+module
 
@@ -261,7 +261,7 @@ async function getWiki(query) {
     const citeUrl = 'https://en.wikipedia.org/wiki/' + encodeURIComponent(title);
 
     let extractText = '';
-    const ex = await wikiFetch('https://en.wikipedia.org/w/api.php?action=query&prop=extracts&titles=' + encodeURIComponent(title) + '&exlimit=1&explaintext=true&exsectionformat=plain&format=json&exchars=3000');
+    const ex = await wikiFetch('https://en.wikipedia.org/w/api.php?action=query&prop=extracts&titles=' + encodeURIComponent(title) + '&exlimit=1&explaintext=true&exsectionformat=plain&format=json&exchars=1500');
     if (ex && ex.query && ex.query.pages) {
       const pid = Object.keys(ex.query.pages)[0];
       if (ex.query.pages[pid] && ex.query.pages[pid].extract) extractText = ex.query.pages[pid].extract;
@@ -356,7 +356,7 @@ async function searchWeb(query, env) {
       }
 
       if (Array.isArray(d.results) && d.results.length > 0 && env.TAVILY_API_KEY) {
-        const topResults = d.results.slice(0, 3);
+        const topResults = d.results.slice(0, 2);
         const fetchPromises = topResults.map(function (x) {
           const controller = new AbortController();
           const timeoutId = setTimeout(function() { controller.abort(); }, 5000);
@@ -373,7 +373,7 @@ async function searchWeb(query, env) {
               .replace(/<[^>]+>/g, ' ')
               .replace(/\s+/g, ' ')
               .trim()
-              .slice(0, 1500);
+              .slice(0, 1200);
             return { url: x.url, title: x.title, text: text };
           }).catch(function () { return null; });
         });
@@ -1094,6 +1094,22 @@ export default {
     const stateBlock = describeState(mindState);
     const systemPrompt = buildSystemPrompt(searchContext, stateBlock, mode);
     const finalMessages = [{ role: 'system', content: systemPrompt }].concat(messages);
+    // ── Total context cap — prevents upstream 413 ──
+    const MAX_TOTAL_CHARS = 24000;
+    {
+      let totalChars = finalMessages.reduce(function (sum, m) {
+        return sum + String(m.content || '').length;
+      }, 0);
+      while (totalChars > MAX_TOTAL_CHARS && finalMessages.length > 2) {
+        finalMessages.splice(1, 1);
+        totalChars = finalMessages.reduce(function (sum, m) {
+          return sum + String(m.content || '').length;
+        }, 0);
+      }
+      if (totalChars > MAX_TOTAL_CHARS) {
+        finalMessages[0].content = String(finalMessages[0].content || '').slice(0, MAX_TOTAL_CHARS - 500);
+      }
+    }
 
     // Route to the appropriate handler based on mode
     let result;
@@ -1133,6 +1149,14 @@ export default {
       await saveMindState(updated, env, 'jacob');
     } catch (e) {}
 
+    // ── 413 error handling ──
+    if (result.status === 413) {
+      return json({
+        error: { message: 'Request too large. Try a shorter message or start a new conversation.' },
+        mode: mode,
+        model_used: 'n/a'
+      }, 413);
+    }
     // Add mode metadata to response
     try {
       const parsed = JSON.parse(result.text);
@@ -1151,4 +1175,5 @@ export default {
   }
 };
 
---e6ffd732adbfd3286e418fcdad20f667a598b22fe9829fd2cc41da0d377e--
+
+--22a364c5e3624f701ea0eea131960fe1d6a6740f4c669b0f8e7b3c74500d--
