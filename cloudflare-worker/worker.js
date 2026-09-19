@@ -1003,8 +1003,11 @@ function ghHeaders(env) {
 }
 
 async function ghReadFile(owner, repo, path, env) {
-  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/'), { headers: ghHeaders(env) });
+  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents' + (path ? '/' + path.split('/').map(encodeURIComponent).join('/') : ''), { headers: ghHeaders(env) });
   if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  if (r.status === 401) return { text: 'GITHUB_TOKEN not configured.', sources: [] };
+  if (r.status === 403) return { text: 'GitHub HTTP 403 — token lacks `repo` scope, or API rate limit hit.', sources: [] };
+  if (r.status === 404) return { text: 'Not found: `' + owner + '/' + repo + '/' + path + '`', sources: [] };
   const d = await r.json();
   if (Array.isArray(d)) {
     const lines = d.map(function (x) { return (x.type === 'dir' ? '📁 ' : '📄 ') + x.path; });
@@ -1071,6 +1074,8 @@ async function ghBranches(owner, repo, env) {
 
 async function ghListRepos(env) {
   const r = await fetch(GH + '/user/repos?per_page=30&sort=updated', { headers: ghHeaders(env) });
+  if (r.status === 401) return { text: 'GITHUB_TOKEN not configured. Add it in Worker Settings → Variables.', sources: [] };
+  if (r.status === 403) return { text: 'GITHUB_TOKEN lacks the `repo` scope. Regenerate it with that scope checked.', sources: [] };
   if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
   const d = await r.json();
   const lines = d.map(function (x) { return '• ' + x.full_name + (x.private ? ' (private)' : ''); });
@@ -1101,7 +1106,7 @@ async function ghWriteFile(owner, repo, path, content, message, env) {
   }
 
   // 4. Check if file exists (to get its blob SHA)
-  const existRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/') + '?ref=' + newBranch, { headers: ghHeaders(env) });
+  const existRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents' + (path ? '/' + path.split('/').map(encodeURIComponent).join('/') : '') + '?ref=' + newBranch, { headers: ghHeaders(env) });
   let existingSha = null;
   if (existRes.ok) {
     const existData = await existRes.json();
@@ -1116,7 +1121,7 @@ async function ghWriteFile(owner, repo, path, content, message, env) {
   };
   if (existingSha) putBody.sha = existingSha;
 
-  const putRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/'), {
+  const putRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents' + (path ? '/' + path.split('/').map(encodeURIComponent).join('/') : ''), {
     method: 'PUT',
     headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders(env)),
     body: JSON.stringify(putBody)
@@ -1330,7 +1335,16 @@ export default {
   const owner = rp[0];
   const repo = rp[1];
 
-  if (!owner || !repo) {
+  // /gh repos doesn't need owner/repo
+  if (cmd === 'repos') {
+    const gh = await ghListRepos(env);
+    result = { ok: true, status: 200, text: JSON.stringify({
+      id: 'gh-' + Date.now(), object: 'chat.completion', model: 'github-api',
+      choices: [{ index: 0, message: { role: 'assistant', content: gh.text }, finish_reason: 'stop' }],
+      sources: gh.sources || [],
+      mode: 'github', model_used: 'github-api'
+    })};
+  } else if (!owner || !repo) {
     result = { ok: true, status: 200, text: JSON.stringify({
       id: 'gh-help', object: 'chat.completion', model: 'github-api',
       choices: [{ index: 0, message: { role: 'assistant', content:
@@ -1358,7 +1372,6 @@ export default {
     else if (cmd === 'prs')     gh = await ghPRs(owner, repo, env);
     else if (cmd === 'issues')  gh = await ghIssues(owner, repo, env);
     else if (cmd === 'branches') gh = await ghBranches(owner, repo, env);
-    else if (cmd === 'repos')   gh = await ghListRepos(env);
     else if (cmd === 'write') {
       const sp = tail.split(/\s+--\s+/);
       if (sp.length < 2) gh = { text: 'Usage: `/gh write owner/repo path -- new content`', sources: [] };
