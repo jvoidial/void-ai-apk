@@ -1,7 +1,3 @@
---22a364c5e3624f701ea0eea131960fe1d6a6740f4c669b0f8e7b3c74500d
-Content-Disposition: form-data; name="worker.js"; filename="worker.js"
-Content-Type: application/javascript+module
-
 // ════════════════════════════════════════════════════════════
 // VOIDAI Worker v2 — Perplexity-class answer engine
 // Modes: fast | deep | research | companion
@@ -932,6 +928,8 @@ function describeState(s) {
 // ════════════════════════════════════════════════════════════
 
 function detectMode(userText, requestedMode) {
+  if (/^\s*\/gh\b/i.test(userText)) return 'github';
+
   // Explicit mode from frontend takes priority
   if (requestedMode && ['fast', 'deep', 'research', 'companion'].includes(requestedMode)) {
     return requestedMode;
@@ -988,6 +986,196 @@ async function callOpenRouter(messages, env, model) {
 // MAIN REQUEST HANDLER
 // ════════════════════════════════════════════════════════════
 
+
+// ════════════════════════════════════════════════════════════
+// GITHUB INTEGRATION — Cursor-style repo access
+// ════════════════════════════════════════════════════════════
+const GH = 'https://api.github.com';
+
+function ghHeaders(env) {
+  const h = {
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'VOIDAI'
+  };
+  if (env.GITHUB_TOKEN) h['Authorization'] = 'Bearer ' + env.GITHUB_TOKEN;
+  return h;
+}
+
+async function ghReadFile(owner, repo, path, env) {
+  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/'), { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  if (Array.isArray(d)) {
+    const lines = d.map(function (x) { return (x.type === 'dir' ? '📁 ' : '📄 ') + x.path; });
+    return { text: 'Directory `' + owner + '/' + repo + '/' + path + '`:\n\n' + lines.join('\n'), sources: [] };
+  }
+  if (d.encoding === 'base64' && d.content) {
+    let content;
+    try { content = atob(d.content.replace(/\n/g, '')); }
+    catch (e) { content = '[binary file]'; }
+    return {
+      text: '**`' + d.path + '`** (' + d.size + ' bytes)\n\n```\n' + content.slice(0, 8000) + '\n```',
+      sources: [{ title: d.path, url: d.html_url }]
+    };
+  }
+  return { text: 'Unexpected response shape.', sources: [] };
+}
+
+async function ghSearchCode(owner, repo, query, env) {
+  const url = GH + '/search/code?q=' + encodeURIComponent(query + ' repo:' + owner + '/' + repo);
+  const r = await fetch(url, { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub search HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  if (!d.items || !d.items.length) return { text: 'No matches for `' + query + '`.', sources: [] };
+  const lines = d.items.slice(0, 10).map(function (x) { return '• `' + x.path + '`'; });
+  const sources = d.items.slice(0, 10).map(function (x) { return { title: x.path, url: x.html_url }; });
+  return { text: '**Matches for `' + query + '`:**\n\n' + lines.join('\n'), sources: sources };
+}
+
+async function ghCommits(owner, repo, env) {
+  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/commits?per_page=10', { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  const lines = d.map(function (c) {
+    return '• `' + c.sha.slice(0, 7) + '` — ' + (c.commit.message || '').split('\n')[0] + '  (' + (c.commit.author && c.commit.author.name) + ')';
+  });
+  return { text: '**Recent commits in `' + owner + '/' + repo + '`:**\n\n' + lines.join('\n'), sources: [] };
+}
+
+async function ghPRs(owner, repo, env) {
+  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/pulls?state=open&per_page=10', { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  if (!d.length) return { text: 'No open PRs.', sources: [] };
+  const lines = d.map(function (p) { return '• #' + p.number + ' — ' + p.title; });
+  return { text: '**Open PRs:**\n\n' + lines.join('\n'), sources: [] };
+}
+
+async function ghIssues(owner, repo, env) {
+  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/issues?state=open&per_page=10', { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  if (!d.length) return { text: 'No open issues.', sources: [] };
+  const lines = d.map(function (i) { return '• #' + i.number + ' — ' + i.title; });
+  return { text: '**Open issues:**\n\n' + lines.join('\n'), sources: [] };
+}
+
+async function ghBranches(owner, repo, env) {
+  const r = await fetch(GH + '/repos/' + owner + '/' + repo + '/branches?per_page=30', { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  const lines = d.map(function (b) { return '• ' + b.name; });
+  return { text: '**Branches:**\n\n' + lines.join('\n'), sources: [] };
+}
+
+async function ghListRepos(env) {
+  const r = await fetch(GH + '/user/repos?per_page=30&sort=updated', { headers: ghHeaders(env) });
+  if (!r.ok) return { text: 'GitHub HTTP ' + r.status, sources: [] };
+  const d = await r.json();
+  const lines = d.map(function (x) { return '• ' + x.full_name + (x.private ? ' (private)' : ''); });
+  return { text: '**Your repos:**\n\n' + lines.join('\n'), sources: [] };
+}
+
+// ── Write path: create branch + commit + PR (never touches main) ──
+async function ghWriteFile(owner, repo, path, content, message, env) {
+  // 1. Get default branch
+  const repoInfo = await fetch(GH + '/repos/' + owner + '/' + repo, { headers: ghHeaders(env) }).then(function (r) { return r.json(); });
+  const base = repoInfo.default_branch || 'main';
+
+  // 2. Get base SHA
+  const refInfo = await fetch(GH + '/repos/' + owner + '/' + repo + '/git/refs/heads/' + base, { headers: ghHeaders(env) }).then(function (r) { return r.json(); });
+  const baseSha = refInfo.object && refInfo.object.sha;
+  if (!baseSha) return { text: 'Could not read base branch SHA for `' + base + '`.', sources: [] };
+
+  // 3. Create new branch
+  const newBranch = 'voidai/' + Date.now();
+  const mkRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/git/refs', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders(env)),
+    body: JSON.stringify({ ref: 'refs/heads/' + newBranch, sha: baseSha })
+  });
+  if (!mkRes.ok) {
+    const e = await mkRes.text();
+    return { text: 'Branch create failed: HTTP ' + mkRes.status + ' ' + e.slice(0, 200), sources: [] };
+  }
+
+  // 4. Check if file exists (to get its blob SHA)
+  const existRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/') + '?ref=' + newBranch, { headers: ghHeaders(env) });
+  let existingSha = null;
+  if (existRes.ok) {
+    const existData = await existRes.json();
+    if (!Array.isArray(existData)) existingSha = existData.sha;
+  }
+
+  // 5. Commit
+  const putBody = {
+    message: message || 'VOIDAI: update ' + path,
+    content: btoa(unescape(encodeURIComponent(content))),
+    branch: newBranch
+  };
+  if (existingSha) putBody.sha = existingSha;
+
+  const putRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/'), {
+    method: 'PUT',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders(env)),
+    body: JSON.stringify(putBody)
+  });
+  if (!putRes.ok) {
+    const e = await putRes.text();
+    return { text: 'Commit failed: HTTP ' + putRes.status + ' ' + e.slice(0, 300), sources: [] };
+  }
+
+  // 6. Open PR
+  const prRes = await fetch(GH + '/repos/' + owner + '/' + repo + '/pulls', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders(env)),
+    body: JSON.stringify({
+      title: message || 'VOIDAI: update ' + path,
+      head: newBranch,
+      base: base,
+      body: 'Automated change by VOIDAI.\n\n**File:** `' + path + '`\n\n' + content.slice(0, 500)
+    })
+  });
+  const prData = await prRes.json();
+
+  if (prData.html_url) {
+    return {
+      text: '✅ **PR opened:** ' + prData.html_url + '\n\nBranch: `' + newBranch + '`',
+      sources: [{ title: 'PR #' + prData.number, url: prData.html_url }]
+    };
+  }
+  return { text: 'PR create failed: HTTP ' + prRes.status + ' ' + JSON.stringify(prData).slice(0, 200), sources: [] };
+}
+
+// ── Agent: LLM reads repo, proposes changes ──
+async function ghAgent(owner, repo, task, env) {
+  // 1. List root
+  const root = await ghReadFile(owner, repo, '', env);
+  // 2. Ask the model what to do
+  const messages = [
+    { role: 'system', content: 'You are a coding agent. The user has given you a task and a repo root listing. Reply with a JSON object: {"action":"read"|"write","path":"...","content":"...","message":"..."}. Read first to understand the code, then propose a change.' },
+    { role: 'user', content: 'Task: ' + task + '\n\nRepo: ' + owner + '/' + repo + '\nRoot listing:\n' + root.text.slice(0, 2000) }
+  ];
+  const result = await callGroq(messages, env);
+  let plan;
+  try {
+    const raw = extractContent(result);
+    const match = raw.match(/\{[\s\S]*\}/);
+    plan = JSON.parse(match ? match[0] : raw);
+  } catch (e) {
+    return { text: 'Could not parse agent plan. Raw reply:\n' + extractContent(result).slice(0, 500), sources: [] };
+  }
+  if (plan.action === 'read') {
+    return await ghReadFile(owner, repo, plan.path || '', env);
+  }
+  if (plan.action === 'write') {
+    return await ghWriteFile(owner, repo, plan.path, plan.content, plan.message || task, env);
+  }
+  return { text: 'Unknown agent action.', sources: [] };
+}
+
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -1022,7 +1210,7 @@ export default {
         fallback: env.GEMINI_API_KEY ? 'gemini-2.0-flash' : 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini'],
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github'],
         version: '2.0.0'
       });
     }
@@ -1133,7 +1321,60 @@ export default {
     } else if (mode === 'mini') {
       // Mini — fast, high-throughput (Nemotron 3.5 Lightning)
       result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3.5-lightning:free');
-    } else {
+    } else if (mode === 'github') {
+  const rest = (userText || '').replace(/^\s*\/gh\s*/i, '').trim();
+  const parts = rest.split(/\s+/);
+  const cmd = (parts[0] || '').toLowerCase();
+  const repoSpec = parts[1] || '';
+  const rp = repoSpec.split('/');
+  const owner = rp[0];
+  const repo = rp[1];
+
+  if (!owner || !repo) {
+    result = { ok: true, status: 200, text: JSON.stringify({
+      id: 'gh-help', object: 'chat.completion', model: 'github-api',
+      choices: [{ index: 0, message: { role: 'assistant', content:
+        '**GitHub commands:**\n\n' +
+        '• `/gh read owner/repo path` — read a file\n' +
+        '• `/gh list owner/repo [path]` — list a directory\n' +
+        '• `/gh search owner/repo query` — search code\n' +
+        '• `/gh commits owner/repo` — recent commits\n' +
+        '• `/gh prs owner/repo` — open PRs\n' +
+        '• `/gh issues owner/repo` — open issues\n' +
+        '• `/gh branches owner/repo` — list branches\n' +
+        '• `/gh repos` — your repos\n' +
+        '• `/gh write owner/repo path -- new content` — open PR with edit\n' +
+        '• `/gh agent owner/repo task` — agent reads repo and proposes change'
+      }, finish_reason: 'stop' }],
+      mode: 'github', model_used: 'github-api'
+    })};
+  } else {
+    const tail = parts.slice(2).join(' ');
+    let gh;
+    if (cmd === 'read')         gh = await ghReadFile(owner, repo, tail, env);
+    else if (cmd === 'list')    gh = await ghReadFile(owner, repo, tail, env);
+    else if (cmd === 'search')  gh = await ghSearchCode(owner, repo, tail, env);
+    else if (cmd === 'commits') gh = await ghCommits(owner, repo, env);
+    else if (cmd === 'prs')     gh = await ghPRs(owner, repo, env);
+    else if (cmd === 'issues')  gh = await ghIssues(owner, repo, env);
+    else if (cmd === 'branches') gh = await ghBranches(owner, repo, env);
+    else if (cmd === 'repos')   gh = await ghListRepos(env);
+    else if (cmd === 'write') {
+      const sp = tail.split(/\s+--\s+/);
+      if (sp.length < 2) gh = { text: 'Usage: `/gh write owner/repo path -- new content`', sources: [] };
+      else gh = await ghWriteFile(owner, repo, sp[0].trim(), sp[1], 'VOIDAI: update ' + sp[0].trim(), env);
+    }
+    else if (cmd === 'agent') gh = await ghAgent(owner, repo, tail, env);
+    else gh = { text: 'Unknown command. Try `/gh` for help.', sources: [] };
+
+    result = { ok: true, status: 200, text: JSON.stringify({
+      id: 'gh-' + Date.now(), object: 'chat.completion', model: 'github-api',
+      choices: [{ index: 0, message: { role: 'assistant', content: gh.text }, finish_reason: 'stop' }],
+      sources: gh.sources || [],
+      mode: 'github', model_used: 'github-api'
+    })};
+  }
+} else {
       // Fast mode
       result = await callGroq(finalMessages, env);
     }
@@ -1175,5 +1416,3 @@ export default {
   }
 };
 
-
---22a364c5e3624f701ea0eea131960fe1d6a6740f4c669b0f8e7b3c74500d--
