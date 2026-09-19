@@ -944,46 +944,5 @@ function voidaiDoStreaming() {
 })();
 </script>
 
-<script>
-// ── Delegation-based button handling (survives DOM rebuilds on sign-in) ──
-document.addEventListener('click', function(e) {
-  var t = e.target;
-  while (t && t !== document) {
-    if (t.id === 'voidai-menu-btn')  { e.preventDefault(); voidaiToggleSidebar(); return; }
-    if (t.id === 'voidai-new-btn')   { e.preventDefault(); voidaiNewConversation(); return; }
-    if (t.id === 'voidai-image-btn') { e.preventDefault(); voidaiAttachImage(); return; }
-    if (t.id === 'voidai-read-btn')  { e.preventDefault(); voidaiReadLast(); return; }
-    t = t.parentNode;
-  }
-}, true);
-
-document.addEventListener('touchend', function(e) {
-  var t = e.target;
-  while (t && t !== document) {
-    if (t.id === 'voidai-menu-btn')  { e.preventDefault(); voidaiToggleSidebar(); return; }
-    if (t.id === 'voidai-new-btn')   { e.preventDefault(); voidaiNewConversation(); return; }
-    if (t.id === 'voidai-image-btn') { e.preventDefault(); voidaiAttachImage(); return; }
-    if (t.id === 'voidai-read-btn')  { e.preventDefault(); voidaiReadLast(); return; }
-    t = t.parentNode;
-  }
-}, true);
-
-// Re-assert the sidebar after every DOM change (sign-in rebuilds the page)
-function voidaiReassertSidebar() {
-  var sb = document.getElementById('voidai-sidebar');
-  if (!sb) return;
-  if (!sb.__voidaiPresent) {
-    sb.__voidaiPresent = true;
-    // Make sure it's the last child of body so nothing paints over it
-    if (sb.parentNode !== document.body) document.body.appendChild(sb);
-  }
-  var menu = document.getElementById('voidai-menu-btn');
-  if (menu && menu.parentNode !== document.body) document.body.appendChild(menu);
-}
-
-var voidaiBodyObs = new MutationObserver(function() { voidaiReassertSidebar(); });
-voidaiBodyObs.observe(document.body, { childList: true });
-voidaiReassertSidebar();
-</script>
 </body>
 </html>
