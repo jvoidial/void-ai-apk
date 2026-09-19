@@ -1,15 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-<head><script id="voidai-toggle-fn">
-window.voidaiToggleSidebar = function() {
-  var btn = document.getElementById('voidai-menu-btn');
-  if (btn) { var b = btn.style.background; btn.style.background = '#c00'; setTimeout(function(){ btn.style.background = '#1a1a1a'; }, 250); }
-  var sb = document.getElementById('voidai-sidebar');
-  if (!sb) return;
-  if (sb.classList.contains('open')) { sb.classList.remove('open'); sb.style.left = '-320px'; }
-  else { sb.classList.add('open'); sb.style.left = '0px'; }
-};
-</script>
+<head>
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -189,11 +180,107 @@ html, body {
 }
 </style>
 </head>
-<body><div id="voidai-menu-bar" style="position:absolute;top:12px;left:12px;z-index:1000;">
-  <button id="voidai-menu-btn" onclick="voidaiToggleSidebar()" style="background:#1a1a1a;border:1px solid #333;color:#fff;padding:6px 10px;border-radius:8px;font-size:16px;cursor:pointer;">&#9776;</button>
+<body><div id="voidai-menu-bar" style="position:absolute;top:6px;left:12px;z-index:1000;">
+  <button id="voidai-menu-btn" type="button" style="background:transparent;border:1px solid #2a2a2a;color:#ccc;padding:4px 9px;border-radius:6px;font-size:14px;line-height:1;cursor:pointer;font-family:inherit;">&#9776;</button>
 </div>
 
+<script id="voidai-toggle-fn">
+(function(){
+  'use strict';
 
+  // Self-contained toggle — no external dependencies, no delegation
+  function doToggle(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+
+    var btn = document.getElementById('voidai-menu-btn');
+    // Visual confirmation the click reached the handler
+    if (btn) {
+      var orig = btn.style.background;
+      btn.style.background = '#c22';
+      setTimeout(function(){ btn.style.background = orig || 'transparent'; }, 220);
+    }
+
+    var sb = document.getElementById('voidai-sidebar');
+    if (!sb) {
+      // Lazy-create the sidebar if it doesn't exist
+      sb = document.createElement('div');
+      sb.id = 'voidai-sidebar';
+      sb.innerHTML = '<h3>CONVERSATIONS</h3>'
+        + '<button id="voidai-new-btn" type="button" style="display:block;width:100%;background:#1a1a1a;border:1px solid #333;color:#fff;padding:9px;border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:14px;font-family:inherit;">+ New conversation</button>'
+        + '<div id="voidai-conv-list"></div>';
+      sb.style.cssText = 'position:fixed;top:0;left:-320px;bottom:0;width:300px;max-width:85vw;background:#0b0b0b;border-right:1px solid #222;z-index:999998;transition:left .22s ease;padding:16px;overflow-y:auto;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ccc;';
+      document.body.appendChild(sb);
+      if (!document.getElementById('voidai-sb-css')) {
+        var st = document.createElement('style');
+        st.id = 'voidai-sb-css';
+        st.textContent = '#voidai-sidebar h3{margin:8px 0 12px;font-size:11px;letter-spacing:2px;color:#666;font-weight:600;}'
+          + '.voidai-conv{padding:9px 10px;margin-bottom:5px;background:#141414;border:1px solid #222;border-radius:6px;cursor:pointer;color:#ccc;font-size:12px;}'
+          + '.voidai-conv.active{border-color:#4a8;background:#12201a;}'
+          + '.voidai-conv .conv-title{font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
+          + '.voidai-conv .conv-meta{font-size:10px;color:#666;}'
+          + '.voidai-empty{color:#555;padding:10px 4px;font-size:11px;font-style:italic;}';
+        document.head.appendChild(st);
+      }
+    }
+
+    if (sb.style.left === '0px' || sb.classList.contains('open')) {
+      sb.style.left = '-320px';
+      sb.classList.remove('open');
+    } else {
+      sb.style.left = '0px';
+      sb.classList.add('open');
+      // Render conversation list if a renderer exists
+      try { if (typeof window.voidaiRenderConvs === 'function') window.voidaiRenderConvs(); } catch(e) {}
+    }
+  }
+
+  // Bind via direct addEventListener — bypasses all delegation and inline issues
+  function bind() {
+    var btn = document.getElementById('voidai-menu-btn');
+    if (!btn || btn.__bound) return;
+    btn.__bound = true;
+    btn.addEventListener('click', doToggle, false);
+    btn.addEventListener('touchend', doToggle, false);
+  }
+
+  // New-conversation button (also self-contained)
+  function bindNew() {
+    var nb = document.getElementById('voidai-new-btn');
+    if (!nb || nb.__bound) return;
+    nb.__bound = true;
+    var go = function(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      try { if (typeof window.voidaiNewConversation === 'function') window.voidaiNewConversation(); } catch(e) {}
+      var sb = document.getElementById('voidai-sidebar');
+      if (sb) { sb.style.left = '-320px'; sb.classList.remove('open'); }
+    };
+    nb.addEventListener('click', go, false);
+    nb.addEventListener('touchend', go, false);
+  }
+
+  // Conversation item clicks — delegated on document so list re-renders keep working
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    while (t && t !== document) {
+      if (t.getAttribute && t.getAttribute('data-conv-id')) {
+        e.preventDefault(); e.stopPropagation();
+        try { if (typeof window.voidaiSwitchConv === 'function') window.voidaiSwitchConv(t.getAttribute('data-conv-id')); } catch(err) {}
+        return;
+      }
+      t = t.parentNode;
+    }
+  }, true);
+
+  function boot() { bind(); bindNew(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  setTimeout(boot, 300);
+  setTimeout(boot, 1200);
+
+  // Expose the toggle globally in case anything else needs it
+  window.voidaiToggleSidebar = doToggle;
+})();
+</script>
 <div id="app">
   <div id="hero">VOIDAI</div>
   <div id="signin-bar" style="position:absolute; top:12px; right:16px; z-index:10;">
