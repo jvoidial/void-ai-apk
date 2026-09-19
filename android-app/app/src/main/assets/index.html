@@ -985,5 +985,176 @@ var voidaiBodyObs = new MutationObserver(function() { voidaiReassertSidebar(); }
 voidaiBodyObs.observe(document.body, { childList: true });
 voidaiReassertSidebar();
 </script>
+<style id="voidai-sb-css">
+  #voidai-menu-btn { position: fixed; top: 12px; left: 12px; z-index: 2147483647;
+    width: 40px; height: 40px; background: #1a1a1a; border: 1px solid #333;
+    color: #fff; border-radius: 8px; font-size: 18px; cursor: pointer; }
+  #voidai-sidebar { position: fixed; top: 0; left: -320px; bottom: 0; width: 300px;
+    background: #0b0b0b; border-right: 1px solid #222; z-index: 2147483646;
+    transition: left 0.2s ease; padding: 16px; overflow-y: auto; box-sizing: border-box;
+    font-family: ui-monospace, monospace; color: #ccc; }
+  #voidai-sidebar.open { left: 0; }
+  #voidai-sidebar h3 { margin: 8px 0 12px; font-size: 11px; letter-spacing: 2px;
+    color: #666; font-weight: 600; }
+  #voidai-new-btn { display: block; width: 100%; box-sizing: border-box;
+    background: #1a1a1a; border: 1px solid #333; color: #fff; padding: 9px;
+    border-radius: 6px; font-size: 11px; cursor: pointer; margin-bottom: 14px;
+    font-family: inherit; }
+  .voidai-conv { padding: 9px 10px; margin-bottom: 5px; background: #141414;
+    border: 1px solid #222; border-radius: 6px; cursor: pointer;
+    color: #ccc; font-size: 12px; }
+  .voidai-conv.active { border-color: #4a8; background: #12201a; }
+  .voidai-conv .conv-title { font-weight: 600; margin-bottom: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .voidai-conv .conv-meta { font-size: 10px; color: #666; }
+  .voidai-empty { color: #555; padding: 10px 4px; font-size: 11px; font-style: italic; }
+</style>
+<button id="voidai-menu-btn" type="button">&#9776;</button>
+<div id="voidai-sidebar">
+  <h3>CONVERSATIONS</h3>
+  <button id="voidai-new-btn" type="button">+ New conversation</button>
+  <div id="voidai-conv-list"></div>
+</div>
+<script id="voidai-sb-js">
+(function(){
+  'use strict';
+  if (window.__voidaiSbLoaded) return;
+  window.__voidaiSbLoaded = true;
+  var convs = [], activeId = null;
+  try { convs = JSON.parse(localStorage.getItem('voidai_convs') || '[]'); } catch(e) {}
+  try { activeId = localStorage.getItem('voidai_active_conv'); } catch(e) {}
+
+  function persist() {
+    try {
+      localStorage.setItem('voidai_convs', JSON.stringify(convs));
+      localStorage.setItem('voidai_active_conv', activeId || '');
+    } catch(e) {}
+  }
+  function findMsgs() {
+    return document.getElementById('messages') || document.getElementById('chat')
+        || document.querySelector('.messages') || document.querySelector('main');
+  }
+  function appHistory() {
+    try { if (typeof history !== 'undefined' && Array.isArray(history)) return history; } catch(e) {}
+    return null;
+  }
+  function clearAppHistory() {
+    var h = appHistory();
+    if (h) while (h.length > 0) h.pop();
+  }
+  function render() {
+    var list = document.getElementById('voidai-conv-list');
+    if (!list) return;
+    if (!convs.length) { list.innerHTML = '<div class="voidai-empty">No conversations yet</div>'; return; }
+    var html = '';
+    for (var i = 0; i < convs.length; i++) {
+      var c = convs[i];
+      var cls = 'voidai-conv' + (c.id === activeId ? ' active' : '');
+      var n = (c.messages && c.messages.length) || 0;
+      html += '<div class="' + cls + '" data-conv-id="' + c.id + '">' +
+              '<div class="conv-title">' + (c.title || 'Untitled') + '</div>' +
+              '<div class="conv-meta">' + n + ' msgs</div></div>';
+    }
+    list.innerHTML = html;
+  }
+  function toggle() {
+    var sb = document.getElementById('voidai-sidebar');
+    if (!sb) return;
+    if (sb.classList.contains('open')) sb.classList.remove('open');
+    else { render(); sb.classList.add('open'); }
+  }
+  function newConv() {
+    var id = 'c' + Date.now();
+    convs.unshift({ id: id, title: 'New chat', messages: [], created: Date.now() });
+    activeId = id;
+    persist();
+    var m = findMsgs();
+    if (m) m.innerHTML = '';
+    clearAppHistory();
+    render();
+    var sb = document.getElementById('voidai-sidebar');
+    if (sb) sb.classList.remove('open');
+  }
+  function switchConv(id) {
+    activeId = id;
+    persist();
+    var c = null;
+    for (var i = 0; i < convs.length; i++) if (convs[i].id === id) { c = convs[i]; break; }
+    if (!c) return;
+    var m = findMsgs();
+    if (!m) return;
+    m.innerHTML = '';
+    clearAppHistory();
+    var msgs = c.messages || [];
+    for (var j = 0; j < msgs.length; j++) {
+      try { if (typeof addMsg === 'function') addMsg(msgs[j].role, msgs[j].content, true); } catch(e) {}
+      var h = appHistory();
+      if (h) h.push({ role: msgs[j].role, content: msgs[j].content });
+    }
+    render();
+    var sb = document.getElementById('voidai-sidebar');
+    if (sb) sb.classList.remove('open');
+  }
+  function saveCur() {
+    var h = appHistory();
+    if (!h || !h.length) return;
+    if (!activeId) {
+      activeId = 'c' + Date.now();
+      convs.unshift({ id: activeId, title: 'New chat', messages: [], created: Date.now() });
+    }
+    var c = null;
+    for (var i = 0; i < convs.length; i++) if (convs[i].id === activeId) { c = convs[i]; break; }
+    if (!c) return;
+    c.messages = h.slice();
+    if ((!c.title || c.title === 'New chat') && h[0] && h[0].role === 'user') c.title = h[0].content.slice(0, 28);
+    persist();
+    render();
+  }
+  function onTap(e) {
+    var t = e.target;
+    while (t && t !== document) {
+      if (t.id === 'voidai-menu-btn') { e.preventDefault(); e.stopPropagation(); toggle(); return; }
+      if (t.id === 'voidai-new-btn')  { e.preventDefault(); e.stopPropagation(); newConv(); return; }
+      if (t.getAttribute) {
+        var cid = t.getAttribute('data-conv-id');
+        if (cid) { e.preventDefault(); e.stopPropagation(); switchConv(cid); return; }
+      }
+      t = t.parentNode;
+    }
+  }
+  document.addEventListener('click', onTap, true);
+  document.addEventListener('touchend', onTap, true);
+  function attach() {
+    var m = findMsgs();
+    if (!m || m.__vObs) return;
+    m.__vObs = true;
+    try { new MutationObserver(function(){ setTimeout(saveCur, 400); }).observe(m, { childList: true, subtree: true }); } catch(e) {}
+  }
+  function ensure() {
+    if (!document.getElementById('voidai-menu-btn')) {
+      var b = document.createElement('button');
+      b.id = 'voidai-menu-btn'; b.type = 'button'; b.innerHTML = '&#9776;';
+      document.body.appendChild(b);
+    }
+    if (!document.getElementById('voidai-sidebar')) {
+      var s = document.createElement('div');
+      s.id = 'voidai-sidebar';
+      s.innerHTML = '<h3>CONVERSATIONS</h3><button id="voidai-new-btn" type="button">+ New conversation</button><div id="voidai-conv-list"></div>';
+      document.body.appendChild(s);
+    }
+    render();
+  }
+  function boot() { ensure(); attach(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+  setTimeout(boot, 500);
+  setTimeout(boot, 1500);
+  setTimeout(boot, 3000);
+  window.voidaiToggleSidebar = toggle;
+  window.voidaiNewConversation = newConv;
+  window.voidaiSwitchConv = switchConv;
+  window.voidaiSaveConv = saveCur;
+})();
+</script>
 </body>
 </html>
