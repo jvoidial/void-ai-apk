@@ -581,5 +581,164 @@ html, body {
   }
 })();
 </script>
+
+<style>
+  #voidai-sidebar { position: fixed; left: -300px; top: 0; bottom: 0; width: 280px;
+    background: #0a0a0a; border-right: 1px solid #222; z-index: 100;
+    transition: left 0.25s ease; padding: 16px; overflow-y: auto;
+    font-family: ui-monospace, monospace; font-size: 12px; color: #ccc; }
+  #voidai-sidebar.open { left: 0; }
+  #voidai-sidebar h3 { margin: 0 0 12px; font-size: 12px; color: #888; }
+  .voidai-conv { padding: 8px 10px; margin-bottom: 4px; background: #141414;
+    border: 1px solid #222; border-radius: 6px; cursor: pointer; color: #ccc; }
+  .voidai-conv.active { border-color: #4a8; background: #1a2a1a; }
+  .voidai-conv .conv-title { font-weight: 600; margin-bottom: 2px; }
+  .voidai-conv .conv-meta { font-size: 10px; color: #666; }
+  #voidai-menu-btn { position: fixed; top: 12px; left: 12px; z-index: 20;
+    background: #1a1a1a; border: 1px solid #333; color: #ccc; padding: 6px 10px;
+    border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .voidai-msg-tools { position: absolute; right: 8px; top: 8px; display: flex; gap: 4px; }
+  .voidai-msg-tools button { background: transparent; border: 1px solid #222;
+    color: #666; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer; }
+  .voidai-msg-tools button:hover { color: #fff; border-color: #444; }
+  #voidai-image-btn { background: #1a1a1a; border: 1px solid #333; color: #888;
+    padding: 6px 10px; border-radius: 20px; font-size: 11px; cursor: pointer; }
+</style>
+
+<button id="voidai-menu-btn" onclick="voidaiToggleSidebar()">&#9776;</button>
+
+<div id="voidai-sidebar">
+  <h3>CONVERSATIONS</h3>
+  <button onclick="voidaiNewConversation()" style="width:100%;background:#1a1a1a;
+    border:1px solid #333;color:#fff;padding:6px;border-radius:6px;cursor:pointer;
+    margin-bottom:10px;font-size:11px;">+ New conversation</button>
+  <div id="voidai-conv-list"></div>
+</div>
+
+
+<script>
+// Streaming send override — falls back to the original send() if anything fails
+var voidaiUseStreaming = true;
+var voidaiOrigSend = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Capture the original send after the page loads
+  setTimeout(function() {
+    if (typeof window.send === 'function') {
+      voidaiOrigSend = window.send;
+      window.send = voidaiStreamingSend;
+    }
+  }, 100);
+});
+
+function voidaiStreamingSend() {
+  if (!voidaiUseStreaming || !voidaiOrigSend) {
+    return voidaiOrigSend ? voidaiOrigSend() : null;
+  }
+  try {
+    return voidaiDoStreaming();
+  } catch (e) {
+    console.warn('streaming failed, falling back:', e);
+    voidaiUseStreaming = false;
+    return voidaiOrigSend();
+  }
+}
+
+function voidaiDoStreaming() {
+  if (typeof busy !== 'undefined' && busy) return;
+  var text = (els && els.input ? els.input.value : '').trim();
+  if (!text) { if (typeof status === 'function') status('type a message'); return; }
+
+  busy = true;
+  els.input.value = '';
+  els.input.disabled = true;
+  if (els.send) els.send.disabled = true;
+
+  if (typeof addMsg === 'function') addMsg('user', text);
+  if (typeof history !== 'undefined') history.push({ role: 'user', content: text });
+  if (typeof status === 'function') status('thinking…');
+
+  // Create an empty assistant message we'll append to
+  var container = document.getElementById('messages') || document.getElementById('chat');
+  var msgEl = document.createElement('div');
+  msgEl.className = 'msg assistant streaming';
+  msgEl.style.cssText = 'margin:12px 0;padding:0 0 0 0;';
+  msgEl.innerHTML = '<div style="font-size:10px;color:#666;margin-bottom:4px;">VOIDAI</div><div class="stream-body" style="white-space:pre-wrap;"></div>';
+  if (container) container.appendChild(msgEl);
+  var body = msgEl.querySelector('.stream-body');
+  var fullText = '';
+
+  fetch(PROXY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': VOIDAI_KEY },
+    body: JSON.stringify({
+      messages: (typeof history !== 'undefined' ? history : []).slice(0, -0),
+      stream: true,
+      max_tokens: 2000
+    })
+  })
+  .then(function(res) {
+    if (!res.body || !res.body.getReader) {
+      throw new Error('no stream body');
+    }
+    var reader = res.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    function pump() {
+      return reader.read().then(function(result) {
+        if (result.done) {
+          if (typeof history !== 'undefined') history.push({ role: 'assistant', content: fullText });
+          if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+          busy = false;
+          els.input.disabled = false;
+          if (els.send) els.send.disabled = false;
+          if (typeof status === 'function') status('ready');
+          return;
+        }
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (!line.startsWith('data: ')) continue;
+          var data = line.slice(6).trim();
+          if (data === '[DONE]') continue;
+          try {
+            var obj = JSON.parse(data);
+            var delta = obj.choices && obj.choices[0] && obj.choices[0].delta && obj.choices[0].delta.content;
+            if (delta) {
+              fullText += delta;
+              body.textContent = fullText;
+              if (container) container.scrollTop = container.scrollHeight;
+            }
+          } catch (e) {}
+        }
+        return pump();
+      });
+    }
+    return pump();
+  })
+  .catch(function(err) {
+    console.warn('stream error, keeping partial:', err);
+    if (fullText) {
+      if (typeof history !== 'undefined') history.push({ role: 'assistant', content: fullText });
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+    } else {
+      msgEl.remove();
+      // Re-run the original send if streaming gave us nothing
+      if (voidaiOrigSend) {
+        els.input.value = text;
+        voidaiUseStreaming = false;
+        return voidaiOrigSend();
+      }
+    }
+    busy = false;
+    els.input.disabled = false;
+    if (els.send) els.send.disabled = false;
+    if (typeof status === 'function') status('error');
+  });
+}
+</script>
+
 </body>
 </html>

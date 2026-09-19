@@ -1275,6 +1275,40 @@ async function callWithRetry(fn, maxAttempts) {
 
 export default {
   async fetch(request, env) {
+    // /vision — image understanding via Groq's Llama 4 vision model
+    if (new URL(request.url).pathname === '/vision' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const imageB64 = body.image || '';
+        const prompt = body.prompt || 'Describe this image in detail.';
+        const model = body.model || 'meta-llama/llama-4-scout-17b-16e-instruct';
+
+        const visRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
+          body: JSON.stringify({
+            model: model,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imageB64 } }
+              ]
+            }],
+            max_tokens: 2000
+          })
+        });
+        const text = await visRes.text();
+        return new Response(text, {
+          status: visRes.status,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      } catch (e) {
+        return json({ error: { message: 'vision failed: ' + (e.message || 'unknown') } }, 500);
+      }
+    }
+
+
     // Public web UI at /web — serves the same frontend for any browser
     if (new URL(request.url).pathname === '/web') {
       const WEB_UI = `<!DOCTYPE html>
