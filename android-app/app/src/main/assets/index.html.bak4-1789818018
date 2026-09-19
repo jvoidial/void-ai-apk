@@ -605,11 +605,11 @@ html, body {
     padding: 6px 10px; border-radius: 20px; font-size: 11px; cursor: pointer; }
 </style>
 
-<button id="voidai-menu-btn" data-voidai="sidebar">&#9776;</button>
+<button id="voidai-menu-btn" onclick="voidaiToggleSidebar()">&#9776;</button>
 
 <div id="voidai-sidebar">
   <h3>CONVERSATIONS</h3>
-  <button data-voidai="new" style="width:100%;background:#1a1a1a;
+  <button onclick="voidaiNewConversation()" style="width:100%;background:#1a1a1a;
     border:1px solid #333;color:#fff;padding:6px;border-radius:6px;cursor:pointer;
     margin-bottom:10px;font-size:11px;">+ New conversation</button>
   <div id="voidai-conv-list"></div>
@@ -883,65 +883,6 @@ function voidaiDoStreaming() {
     if (typeof status === 'function') status('error');
   });
 }
-</script>
-
-
-<script>
-// ── VOIDAI button wiring — explicit listeners, bypasses inline onclick issues ──
-(function() {
-  function bindAll() {
-    // Sidebar toggle
-    var menu = document.getElementById('voidai-menu-btn');
-    if (menu && !menu.__voidaiBound) {
-      menu.__voidaiBound = true;
-      var toggle = function(e) { e.preventDefault(); e.stopPropagation(); voidaiToggleSidebar(); };
-      menu.addEventListener('click', toggle, false);
-      menu.addEventListener('touchend', toggle, false);
-    }
-
-    // New conversation
-    var newBtn = document.querySelector('[data-voidai="new"]');
-    if (newBtn && !newBtn.__voidaiBound) {
-      newBtn.__voidaiBound = true;
-      var nw = function(e) { e.preventDefault(); e.stopPropagation(); voidaiNewConversation(); };
-      newBtn.addEventListener('click', nw, false);
-      newBtn.addEventListener('touchend', nw, false);
-    }
-
-    // Image
-    var imgBtn = document.querySelector('[data-voidai="image"]');
-    if (imgBtn && !imgBtn.__voidaiBound) {
-      imgBtn.__voidaiBound = true;
-      var im = function(e) { e.preventDefault(); e.stopPropagation(); voidaiAttachImage(); };
-      imgBtn.addEventListener('click', im, false);
-      imgBtn.addEventListener('touchend', im, false);
-    }
-
-    // Close sidebar when tapping outside
-    var sidebar = document.getElementById('voidai-sidebar');
-    if (sidebar && !sidebar.__voidaiOutsideBound) {
-      sidebar.__voidaiOutsideBound = true;
-      document.addEventListener('click', function(e) {
-        if (!sidebar.classList.contains('open')) return;
-        if (sidebar.contains(e.target)) return;
-        if (menu && menu.contains(e.target)) return;
-        sidebar.classList.remove('open');
-        sidebar.style.left = '-300px';
-      }, false);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindAll);
-  } else {
-    bindAll();
-  }
-
-  // Retry in case the app's init() re-renders the DOM
-  setTimeout(bindAll, 500);
-  setTimeout(bindAll, 1500);
-  setTimeout(bindAll, 3000);
-})();
 </script>
 
 </body>
