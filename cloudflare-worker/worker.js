@@ -960,8 +960,8 @@ async function callOpenRouter(messages, env, model) {
   if (!env.OPENROUTER_API_KEY) {
     return { ok: false, status: 500, text: '{"error":{"message":"no openrouter key"}}' };
   }
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const doFetch = function () {
+    return fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -976,6 +976,13 @@ async function callOpenRouter(messages, env, model) {
         temperature: 0.5
       })
     });
+  };
+  try {
+    let res = await doFetch();
+    if (res.status === 429) {
+      await new Promise(function (r) { setTimeout(r, 2000); });
+      res = await doFetch();
+    }
     const text = await res.text();
     return { ok: res.ok, status: res.status, text: text };
   } catch (e) {
@@ -1015,7 +1022,10 @@ async function ghReadFile(owner, repo, path, env) {
   }
   if (d.encoding === 'base64' && d.content) {
     let content;
-    try { content = atob(d.content.replace(/\n/g, '')); }
+    try { const bin = atob(d.content.replace(/\n/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    content = new TextDecoder('utf-8').decode(bytes); }
     catch (e) { content = '[binary file]'; }
     return {
       text: '**`' + d.path + '`** (' + d.size + ' bytes)\n\n```\n' + content.slice(0, 8000) + '\n```',
@@ -1155,77 +1165,93 @@ async function ghWriteFile(owner, repo, path, content, message, env) {
 
 // ── Agent: LLM reads repo, proposes changes ──
 async function ghAgent(owner, repo, task, env) {
+  const MAX_STEPS = 3;
+  const trace = [];
+
+  // Step 0 — root listing
   const root = await ghReadFile(owner, repo, '', env);
   if (!root || !root.text || root.text.startsWith('GitHub HTTP')) {
     return { text: 'Could not read repo: ' + (root ? root.text : 'unknown'), sources: [] };
   }
+  trace.push('Root listing:\n' + root.text.slice(0, 1200));
 
-  const messages = [
-    {
-      role: 'system',
-      content: 'You are a code agent. Given a repo listing and a task, decide ONE action.\n\n' +
-        'Reply in EXACTLY one of these two formats, nothing else:\n\n' +
-        'READ <path>\n\n' +
-        'or\n\n' +
-        'WRITE <path>\n' +
-        '---\n' +
-        '<file content>\n\n' +
-        'Rules:\n' +
-        '- To understand existing code, use READ.\n' +
-        '- To create or change a file, use WRITE.\n' +
-        '- WRITE includes file content after the "---" line.\n' +
-        '- One action only. No explanation. No markdown fences.'
-    },
-    {
-      role: 'user',
-      content: 'Task: ' + task + '\n\nRepo: ' + owner + '/' + repo + '\n\nRoot listing:\n' + root.text.slice(0, 1500)
+  for (let step = 1; step <= MAX_STEPS; step++) {
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a code agent. Given a task and the context gathered so far, decide the next action.\n\n' +
+          'Reply in EXACTLY one of these formats, nothing else:\n\n' +
+          'READ <path>\n\n' +
+          'WRITE <path>\n' +
+          '---\n' +
+          '<file content>\n\n' +
+          'DONE\n' +
+          '<summary of what you found or did>\n\n' +
+          'Rules:\n' +
+          '- Use READ to inspect existing code before writing.\n' +
+          '- Use WRITE to create or modify a file (content after the "---" line).\n' +
+          '- Use DONE when the task is complete or you have enough to answer.\n' +
+          '- Only one action per reply. No markdown fences. No explanation outside the format.'
+      },
+      {
+        role: 'user',
+        content: 'Task: ' + task + '\n\nRepo: ' + owner + '/' + repo + '\n\nContext so far:\n' +
+          trace.join('\n\n---\n\n').slice(0, 6000)
+      }
+    ];
+
+    const result = await callGroq(messages, env);
+    let raw = '';
+    if (result && result.text) {
+      try {
+        const parsed = JSON.parse(result.text);
+        raw = (parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content) || '';
+      } catch (e) { raw = result.text; }
     }
-  ];
 
-  const result = await callGroq(messages, env);
-
-  let raw = '';
-  if (result && result.text) {
-    try {
-      const parsed = JSON.parse(result.text);
-      raw = (parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content) || '';
-    } catch (e) {
-      raw = result.text;
+    if (!raw || !raw.trim()) {
+      return { text: 'Step ' + step + ': model returned empty. Trace:\n\n' + trace.join('\n---\n').slice(0, 800), sources: [] };
     }
-  }
 
-  if (!raw || !raw.trim()) {
-    return { text: 'Agent got an empty reply. Try `/gh read ' + owner + '/' + repo + ' README.md` directly.', sources: [] };
-  }
+    raw = raw.replace(/```[a-z]*\s*/gi, '').replace(/```/g, '').trim();
+    const firstLine = (raw.split('\n')[0] || '').trim();
 
-  raw = raw.replace(/```[a-z]*\s*/gi, '').replace(/```/g, '').trim();
+    const readMatch  = firstLine.match(/^READ\s+(.+)$/i);
+    const writeMatch = firstLine.match(/^WRITE\s+(.+)$/i);
+    const doneMatch  = /^DONE\b/i.test(firstLine);
 
-  const lines = raw.split('\n');
-  const firstLine = (lines[0] || '').trim();
-
-  const readMatch  = firstLine.match(/^READ\s+(.+)$/i);
-  const writeMatch = firstLine.match(/^WRITE\s+(.+)$/i);
-
-  if (readMatch) {
-    return await ghReadFile(owner, repo, readMatch[1].trim(), env);
-  }
-
-  if (writeMatch) {
-    const path = writeMatch[1].trim();
-    const sepIndex = raw.indexOf('---');
-    if (sepIndex === -1) {
-      return { text: 'Agent chose WRITE ' + path + ' but did not include content after "---".', sources: [] };
+    if (readMatch) {
+      const path = readMatch[1].trim();
+      const file = await ghReadFile(owner, repo, path, env);
+      trace.push('READ ' + path + ':\n' + (file.text || '').slice(0, 3000));
+      continue;
     }
-    const content = raw.slice(sepIndex + 3).replace(/^\s*\n/, '');
-    if (!content.trim()) {
-      return { text: 'Agent chose WRITE ' + path + ' but content was empty.', sources: [] };
+
+    if (writeMatch) {
+      const path = writeMatch[1].trim();
+      const sep = raw.indexOf('---');
+      if (sep === -1) {
+        return { text: 'Step ' + step + ': WRITE ' + path + ' but no content after "---".', sources: [] };
+      }
+      const content = raw.slice(sep + 3).replace(/^\s*\n/, '');
+      const wr = await ghWriteFile(owner, repo, path, content, task, env);
+      return { text: 'Agent completed in ' + step + ' step(s).\n\n' + wr.text, sources: wr.sources || [] };
     }
-    return await ghWriteFile(owner, repo, path, content, task, env);
+
+    if (doneMatch) {
+      const summary = raw.replace(/^DONE\s*/i, '').trim();
+      return { text: summary || 'Agent finished.', sources: [] };
+    }
+
+    return {
+      text: 'Step ' + step + ': reply did not match READ/WRITE/DONE. Raw:\n\n' + raw.slice(0, 400) +
+        '\n\nTrace:\n' + trace.join('\n---\n').slice(0, 600),
+      sources: []
+    };
   }
 
   return {
-    text: 'Agent reply did not match READ or WRITE format. Raw reply:\n\n' + raw.slice(0, 600) +
-          '\n\n---\nUse `/gh read ' + owner + '/' + repo + ' <path>` for a direct read.',
+    text: 'Agent hit max steps (' + MAX_STEPS + ') without completing. Trace:\n\n' + trace.join('\n---\n').slice(0, 1200),
     sources: []
   };
 }
