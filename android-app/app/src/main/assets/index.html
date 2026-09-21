@@ -181,10 +181,6 @@ html, body {
 </style>
 </head>
 <body>
-<div id="voidai-menu-wrapper" style="position:absolute;top:12px;left:16px;z-index:10;">
-  <button id="voidai-menu-btn" onclick="voidaiToggleSidebar()" style="background:transparent;border:1px solid #2a2a2a;color:#ccc;padding:5px 10px;border-radius:8px;font-size:14px;line-height:1;cursor:pointer;font-family:inherit;">&#9776;</button>
-</div>
-
 <script>
 // Defined at top of body so onclick= can find it globally
 window.voidaiToggleSidebar = function() {
@@ -200,7 +196,10 @@ window.voidaiToggleSidebar = function() {
 <div id="voidai-sidebar" style="position:fixed;top:0;left:-320px;bottom:0;width:300px;max-width:85vw;background:#0b0b0b;border-right:1px solid #222;z-index:999998;transition:left 0.22s ease;padding:16px;overflow-y:auto;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ccc;"><div style="font-size:11px;letter-spacing:2px;color:#666;font-weight:600;margin-bottom:12px;">CONVERSATIONS</div><button id="voidai-new-btn" type="button" style="display:block;width:100%;background:#1a1a1a;border:1px solid #333;color:#fff;padding:9px;border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:14px;font-family:inherit;">+ New conversation</button><div id="voidai-conv-list"></div></div>
 <div id="app">
   <div id="hero">VOIDAI</div>
-  <div id="signin-bar" style="position:absolute; top:12px; right:16px; z-index:10;">
+    <div id="voidai-menu-wrapper" style="position:absolute;top:12px;left:16px;z-index:10;">
+    <button id="voidai-menu-btn" onclick="voidaiToggleSidebar()" style="background:#1a1a1a;border:1px solid #444;color:#fff;padding:5px 10px;border-radius:8px;font-size:14px;line-height:1;cursor:pointer;font-family:inherit;">&#9776;</button>
+  </div>
+<div id="signin-bar" style="position:absolute; top:12px; right:16px; z-index:10;">
     <button id="signin-btn" onclick="voidaiSignIn()" style="background:#fff;border:none;color:#000;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Sign in</button>
   </div>
   <div id="auth-bar" style="display:none; position:absolute; top:12px; right:16px; z-index:10; align-items:center; gap:8px;">
