@@ -16,13 +16,13 @@ const RATE_MAX = 40;
 const rateBuckets = new Map();
 
 // ── Intent detection ──
-const liveRe = /\b(latest|current|today|tonight|yesterday|this (week|month|year)|news|weather|temperature|forecast|price|stock|score|recent|2025|2026|who is the (current|new)|breaking|happening)\b/i;
+const liveRe = /\b(latest|current|today|tonight|yesterday|this (week|month|year)|news|weather|temperature|price|stock|score|recent|2025|2026|who is the (current|new)|breaking|happening)\b/i;
 const weatherRe = /\b(weather|temperature|forecast|rain|snow|sunny|cloudy)\b/i;
 const factRe = /\b(who|what|where|when)\s+(is|was|are|were)\b/i;
 const timeRe = /\b(what(?:'s| is)? the (?:time|date)|current (?:utc\s+|gmt\s+)?time|what time is it|today'?s date|utc time|gmt time)\b/i;
 const convertRe = /\b(convert|\d+(?:\.\d+)?\s*(?:c|celsius|f|fahrenheit|km|mi|miles|kg|lb|m|ft|feet))\b/i;
 const deepRe = /\b(prove or disprove|prove|show that|show why|explain why|why is it true|why is that true|derive|verify|double[- ]?check|calculate|make sure|be certain|are you sure|think carefully|step by step|in depth|in detail|analyze|analyse|reason through|check my work|is this correct|is that correct)\b/i;
-const predictRe = /\b(predict|prediction|forecast|foresight|future of|what (will|might|could) happen|by 20(2[7-9]|3\d)|next (decade|five years|ten years)|timeline for|projection)\b/i;
+const predictRe = /\b(predict|prediction|foresight|future of|what (will|might|could) happen|by 20(2[7-9]|3\d)|next (decade|five years|ten years)|timeline for|projection)\b/i;
 
 // ── Consensus model pool ──
 const CONSENSUS_MODELS = [
@@ -36,7 +36,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.0.3';
+const WORKER_VERSION = '3.0.4';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -1740,7 +1740,7 @@ export default {
         fallback: 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast','deep','research','companion','ultra','coder','mini','github'],
+        modes: ['fast','deep','research','companion','ultra','coder','mini','github','predict'],
         consciousness: true,
         brain_module: true,
         resonance_layers: 6,
@@ -1824,8 +1824,8 @@ export default {
         fallback: env.GEMINI_API_KEY ? 'gemini-2.0-flash' : 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github'],
-        version: '3.0.3',
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'],
+        version: '3.0.4',
         source_route: true,
         consciousness: true,
         capabilities_route: true,
@@ -1841,7 +1841,7 @@ export default {
       if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
       return json({
         ok: true,
-        diagnose_version: '3.0.3',
+        diagnose_version: '3.0.4',
         brain_ok: (function(){try{var r=BRAIN.resonance();return !!(r&&r.phases&&Object.keys(r.phases).length===6)}catch(e){return false}})(),
         topology_ok: (typeof BRAINSTEM_TOPOLOGY === 'object' &&
                       Object.keys(BRAINSTEM_TOPOLOGY.layers).length === 6),
@@ -1893,14 +1893,14 @@ export default {
         return Response.json({ error: 'unauthorized' }, { status: 401 });
       }
       return Response.json({
-        version: '3.0.3',
+        version: '3.0.4',
         worker: 'void-ai-proxy',
         model: 'openai/gpt-oss-120b',
         provider: 'groq',
         fallbacks: ['openrouter', 'gemini'],
         persona: 'phb-human-agent-v2',
         circuits: ['curiosity', 'focus', 'openness', 'rigor', 'creativity'],
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github'],
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
         tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github'],
@@ -2122,7 +2122,7 @@ export default {
       }
     } else if (mode === 'predict') {
       result = await callGroq(finalMessages, env, callOpts);
-    } else if (mode === 'chunked' || totalChars > VOIDAI_CHUNK_THRESHOLD) {
+    } else if (totalChars > VOIDAI_CHUNK_THRESHOLD) {
       result = await callGroqChunked(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else {
       result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
