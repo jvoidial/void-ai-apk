@@ -1119,6 +1119,12 @@ function convertUnits(query) {
 }
 
 
+function withoutSystem(messages) {
+  return (messages || []).filter(function (m) {
+    return m && m.role !== 'system';
+  });
+}
+
 function buildSystemPrompt(searchContext, stateBlock, mode) {
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 
@@ -1474,17 +1480,17 @@ async function researchReply(question, messages, env, stateBlock, opts) {
       const wikiResult = await getWiki(question);
       if (wikiResult.text) {
         const sp = buildSystemPrompt(wikiResult.text, stateBlock, 'research');
-        const fm = [{ role: 'system', content: sp }].concat(messages);
+        const fm = [{ role: 'system', content: sp }].concat(withoutSystem(messages));
         return attachSources(await callGroq(fm, env, opts), wikiResult.sources);
       }
     }
     const sp = buildSystemPrompt('NOTE: No live web results found. Answer from knowledge and state this may not be current.', stateBlock, 'research');
-    const fm = [{ role: 'system', content: sp }].concat(messages);
+    const fm = [{ role: 'system', content: sp }].concat(withoutSystem(messages));
     return await callGroq(fm, env, opts);
   }
 
   const sp = buildSystemPrompt(searchResult.text, stateBlock, 'research');
-  const fm = [{ role: 'system', content: sp }].concat(messages);
+  const fm = [{ role: 'system', content: sp }].concat(withoutSystem(messages));
   const result = await consensusReply(question, fm, env, opts);
   return attachSources(result, searchResult.sources);
 }
@@ -2002,7 +2008,7 @@ export default {
     }
 
     const systemPrompt = buildSystemPrompt(searchContext, stateBlock + memoryBlock, mode);
-    const finalMessages = [{ role: 'system', content: systemPrompt }].concat(messages);
+    const finalMessages = [{ role: 'system', content: systemPrompt }].concat(withoutSystem(messages));
 
     let result;
     let resultSources = contextSources;
