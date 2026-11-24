@@ -12,6 +12,8 @@ final class ViewController: UIViewController {
         view.backgroundColor = .black
 
         let config = WKWebViewConfiguration()
+        config.allowsInlineMediaPlayback = true
+        config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.add(self, name: "voidai")
         config.userContentController.addUserScript(
             WKUserScript(

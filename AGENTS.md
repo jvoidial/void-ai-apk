@@ -34,7 +34,7 @@ VOIDAI has four runtime surfaces:
 - Keep the Python core dependency-free; `networkx`, `pandas`, `flask` are optional extras.
 - All per-user data goes under `$VOIDAI_HOME/users/<id>/` through `voidai.config`.
 - Every user id passes through `config.sanitize_user` before it touches the filesystem.
-- Credentials come from environment variables. Never hardcode keys in source or tests.
+- Provider credentials come from environment variables. The WebView carries only the pre-existing Worker gate key; never add a Groq/OpenRouter/Gemini/Supabase-service key to source, tests, or the app.
 - The Cloudflare Worker and Supabase wiring are load-bearing; do not change keys or bindings.
 - The six PHB layers are a style guide, not a medical or physiological claim.
   Keep Android, iOS, Worker and Python persona copy aligned.
@@ -51,6 +51,28 @@ VOIDAI has four runtime surfaces:
   `macos-15-intel` (or another Intel label that the account supports).
 - WKWebView's `runOpenPanelWith` delegate is iOS 18.4+. On older iOS, the built-in
   file input handles images; do not remove the availability guard.
+
+## Astra layer (web UI)
+
+- `index.html` appends a self-contained Astra script after the main app IIFE. It
+  adds the toolbar (`LIVE / CAM / MIC / READ / TOOLS`), mode selector, capability
+  sheet, live camera modal, screen capture, SpeechRecognition dictation, and TTS.
+- Live frame capture draws the current video frame to a canvas and sends a
+  downscaled JPEG through the existing `voidaiSendImage` -> `/vision` bridge.
+- Keep the camera fallback: if `getUserMedia` is unavailable or denied, the
+  file input with `capture="environment"` must still open the phone camera.
+- Android needs `CAMERA` and `RECORD_AUDIO` in the manifest plus
+  `WebChromeClient.onPermissionRequest` runtime grants. iOS needs
+  `NSCameraUsageDescription` and `NSMicrophoneUsageDescription`.
+- Slash commands are normalized by removing the leading `@` or `/`; local
+  commands return before the Worker request. Do not reintroduce the old
+  `replace(/^@/, '')` form.
+- Keep all ten modes aligned with `phb.MODES`, the Worker `modeInstructions`,
+  and the Astra `MODES` table.
+- Never render `VOIDAI_KEY` or provider keys in the capability sheet, chat,
+  logs, or artifacts. The sheet may show model/provider names and tool names.
+- Full PHB system prompt stays server-side in the Worker. The client may show a
+  persona summary but must not replace the Worker prompt.
 
 ## PHB behavior
 

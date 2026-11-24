@@ -45,11 +45,18 @@ callback and stores the display identity (email/name) plus tokens in
 `UserDefaults`. It does not change the Worker's `X-VOID-KEY` auth, Supabase
 tables, or Cloudflare configuration.
 
+## Live camera and voice
+
+The shared `index.html` includes the same Astra live layer as Android. WKWebView
+requests camera and microphone access through the usage descriptions in
+`Info.plist`. If the installed iOS runtime does not expose `getUserMedia`, the
+photo picker and typed chat still work.
+
 ## Files
 
 - `VOIDAI/AppDelegate.swift` — app entry point.
 - `VOIDAI/ViewController.swift` — WKWebView, file picker, JS bridge.
 - `VOIDAI/AuthManager.swift` — Supabase GitHub OAuth.
-- `VOIDAI/Info.plist` — URL scheme, photo permission, launch screen.
+- `VOIDAI/Info.plist` — URL scheme, camera/microphone/photo permissions, launch screen.
 - `project.yml` — XcodeGen project definition.
 - `build-unsigned-ipa.sh` — build and package script.

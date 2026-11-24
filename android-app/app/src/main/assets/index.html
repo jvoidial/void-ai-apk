@@ -348,7 +348,7 @@ window.voidaiToggleSidebar = function() {
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
-    <input id="input" type="text" placeholder="Ask anything · /sim /webgl /image" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input id="input" type="text" placeholder="Ask anything · /live /sim /webgl" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <button id="send" aria-label="Send">↑</button>
   </div>
 </div>
@@ -572,6 +572,9 @@ window.voidaiToggleSidebar = function() {
     els.messages.appendChild(div);
     renderMath(div);
     if (!silent) scroll();
+    if (!silent && role === 'assistant' && window.voidaiAutoSpeak && typeof window.voidaiSpeak === 'function') {
+      setTimeout(function () { try { window.voidaiSpeak(text); } catch(e) {} }, 60);
+    }
     return div;
   }
 
@@ -635,7 +638,93 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
-    var command = text.toLowerCase().replace(/^@/, '').trim();
+    els.input.value = '';
+    var command = text.toLowerCase().replace(/^[@\/]/, '').trim();
+
+    var helpCmd = command === 'help' || command === 'commands';
+    if (helpCmd) {
+      addMsg('user', text);
+      var helpLines = [
+        '**VOIDAI commands**',
+        '',
+        '**Astra live tools**',
+        '- `/live` or `/astra` — live camera + voice',
+        '- `/camera` or `/look PROMPT` — capture and analyze a photo',
+        '- `/screen` — share a screen or window and analyze it',
+        '- `/voice` or `/mic` — dictate into the composer',
+        '- `/read` — read the last reply aloud',
+        '- `/tools` or `/capabilities` — modes, routing, PHB, and abilities',
+        '',
+        '**Modes**',
+        '- `/mode` — list all 10 modes',
+        '- `/mode fast|deep|research|companion|ultra|coder|mini|github|predict|protein`',
+        '',
+        '**Tools**',
+        '- `/image PROMPT` (alias `/img`, `/draw`) — generate an image',
+        '- `/fold SEQUENCE` — ESMFold structure prediction',
+        '- `/design SEQUENCE | TARGET` — CPU protein design',
+        '- `/protein` — benign protein-engineering mode',
+        '- `/predict` or `/future` — technology forecast',
+        '- `/sim` or `/builder` — Canvas N-D workbench',
+        '- `/webgl` or `/three` — sandboxed Three.js lab',
+        '- `/sync` — refresh the PHB six-layer state',
+        '- `/recap` — one-line recap',
+        '',
+        'The full PHB system prompt, all Worker providers, and all memory tools remain active.'
+      ];
+      var helpText = helpLines.join('\n');
+      addMsg('assistant', helpText);
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: helpText });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+      status('ready');
+      return;
+    }
+
+    var modeCmd = text.match(/^[@\/]modes?\b\s*([a-z]+)?$/i);
+    if (modeCmd) {
+      var wantedMode = (modeCmd[1] || '').toLowerCase();
+      if (!wantedMode) {
+        addMsg('assistant', '**Modes:** fast, deep, research, companion, ultra, coder, mini, github, predict, protein.\nUse `/mode deep`, or pick a mode in the toolbar.');
+        return;
+      }
+      if (typeof window.voidaiSetMode !== 'function' || !window.voidaiSetMode(wantedMode, true)) {
+        addMsg('assistant', 'Unknown mode. Available: fast, deep, research, companion, ultra, coder, mini, github, predict, protein.');
+      }
+      return;
+    }
+
+    var simpleTools = {
+      'live': 'voidaiOpenLive', 'astra': 'voidaiOpenLive',
+      'camera': 'voidaiCaptureCamera', 'screen': 'voidaiCaptureScreen',
+      'voice': 'voidaiToggleMic', 'mic': 'voidaiToggleMic',
+      'read': 'voidaiReadLast', 'capabilities': 'voidaiShowCapabilities',
+      'tools': 'voidaiShowCapabilities'
+    };
+    if (simpleTools[command]) {
+      var fn = window[simpleTools[command]];
+      if (typeof fn === 'function') {
+        addMsg('user', text);
+        fn();
+        status('astra tool opened');
+      } else {
+        addMsg('assistant', '**Astra error:** this tool failed to load.');
+      }
+      return;
+    }
+
+    var lookCmd = text.match(/^[@\/](?:look|camera)\b\s*([\s\S]*)$/i);
+    if (lookCmd) {
+      addMsg('user', text);
+      if (typeof window.voidaiLook === 'function') {
+        window.voidaiLook(lookCmd[1].trim());
+        status('camera requested');
+      } else {
+        addMsg('assistant', '**Camera error:** live vision failed to load.');
+      }
+      return;
+    }
 
     if (command === 'recap' || command === 'recap now') {
       var previous = '';
@@ -979,7 +1068,7 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
-    var requestedMode = null;
+    var requestedMode = (window.voidaiMode || null);
     var outboundText = text;
     var proteinCmd = text.match(/^[@\/]protein\b\s*([\s\S]*)$/i);
     if (proteinCmd) {
@@ -2568,10 +2657,11 @@ function voidaiReadImage(file, cb) {
   img.src = url;
 }
 
-function voidaiAttachImage() {
+function voidaiAttachImage(capture) {
   var input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
+  if (capture) { try { input.setAttribute('capture', 'environment'); } catch(e) {} }
   input.onchange = function() {
     var f = input.files && input.files[0];
     if (!f) return;
@@ -2596,7 +2686,7 @@ function voidaiAttachImage() {
   input.click();
 }
 
-function voidaiSendImage(dataUrl, fname) {
+function voidaiSendImage(dataUrl, fname, promptOverride, onReply) {
   var app = window.voidaiApp;
   if (!app) return;
   if (app.busy) { if (app.status) app.status('busy'); return; }
@@ -2609,7 +2699,8 @@ function voidaiSendImage(dataUrl, fname) {
     return;
   }
   if (app.status) app.status('analysing image…');
-  var promptText = (app.els && app.els.input) ? app.els.input.value.trim() : '';
+  var inputPrompt = (app.els && app.els.input) ? app.els.input.value.trim() : '';
+  var promptText = (promptOverride != null) ? String(promptOverride).trim() : inputPrompt;
   var cleanName = String(fname || 'image').replace(/[\[\]\r\n]/g, ' ').slice(0, 80);
   var userLine = '[Image: ' + cleanName + ']' + (promptText ? ' ' + promptText : '');
   app.busy = true;
@@ -2622,7 +2713,11 @@ function voidaiSendImage(dataUrl, fname) {
   fetch(app.PROXY_URL + '/vision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
-    body: JSON.stringify({ image: dataUrl, prompt: 'Describe this image. ' + promptText }),
+    body: JSON.stringify({
+      image: dataUrl,
+      prompt: 'You are VOIDAI, a direct multimodal assistant with the PHB companion layer. Use the image and answer the user. '
+        + (promptText ? ('User question: ' + promptText) : 'Describe the image concisely and name the most useful detail.')
+    }),
     signal: controller ? controller.signal : undefined
   })
   .then(function(r) {
@@ -2646,11 +2741,13 @@ function voidaiSendImage(dataUrl, fname) {
     if (app.saveMemory) app.saveMemory();
     if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
     if (app.status) app.status('ready');
+    if (typeof onReply === 'function') { try { onReply(reply, null); } catch(e) {} }
   })
   .catch(function(e) {
     var message = e && e.name === 'AbortError' ? 'image request timed out' : (e.message || 'unknown');
     if (app.addMsg) app.addMsg('assistant', '**Image error:** ' + message);
     if (app.status) app.status('error');
+    if (typeof onReply === 'function') { try { onReply(null, message); } catch(e) {} }
   })
   .then(function() {
     if (timeout) clearTimeout(timeout);
@@ -2766,6 +2863,681 @@ function voidaiReassertSidebar() {
 var voidaiBodyObs = new MutationObserver(function() { voidaiReassertSidebar(); });
 voidaiBodyObs.observe(document.body, { childList: true });
 voidaiReassertSidebar();
+</script>
+
+<script>
+// VOIDAI ASTRA LAYER — live vision, voice, modes, capabilities
+// Keeps the Worker's PHB persona, provider routing, and keys intact.
+(function () {
+  'use strict';
+
+  var app = window.voidaiApp;
+  if (!app) return;
+
+  var MODES = [
+    { id: 'fast', label: 'FAST', desc: 'Direct, efficient, no preamble.' },
+    { id: 'deep', label: 'DEEP', desc: 'Step-by-step reasoning, verification.' },
+    { id: 'research', label: 'RESEARCH', desc: 'Synthesize sources, cite, flag conflicts.' },
+    { id: 'companion', label: 'COMPANION', desc: 'Warm, adaptive, PHB-tuned tone.' },
+    { id: 'ultra', label: 'ULTRA', desc: 'Maximum compression.' },
+    { id: 'coder', label: 'CODER', desc: 'Runnable code, minimal diffs.' },
+    { id: 'mini', label: 'MINI', desc: 'Smallest correct answer.' },
+    { id: 'github', label: 'GITHUB', desc: 'Repository-aware, minimal patches.' },
+    { id: 'predict', label: 'PREDICT', desc: 'Falsifiable forecasts and indicators.' },
+    { id: 'protein', label: 'PROTEIN', desc: 'Benign computational protein work.' }
+  ];
+
+  var state = {
+    mode: 'fast',
+    liveActive: false,
+    liveVoice: false,
+    autoSpeak: false,
+    stream: null,
+    streamLabel: '',
+    recognition: null,
+    micActive: false,
+    capsLoaded: false
+  };
+
+  try {
+    var savedMode = localStorage.getItem('voidai_mode');
+    if (savedMode && MODES.some(function (m) { return m.id === savedMode; })) state.mode = savedMode;
+    state.autoSpeak = localStorage.getItem('voidai_autospeak') === '1';
+  } catch (e) {}
+
+  window.voidaiMode = state.mode;
+  window.voidaiAutoSpeak = state.autoSpeak;
+  window.voidaiLiveVoice = false;
+
+  function modeInfo(id) {
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].id === id) return MODES[i];
+    return MODES[0];
+  }
+
+  function setStatus(text) {
+    if (app.status) app.status(text);
+    var el = document.getElementById('voidai-live-status');
+    if (el) el.textContent = text || '';
+  }
+
+  function addMsg(role, text) {
+    if (!app.addMsg) return null;
+    return app.addMsg(role, text);
+  }
+
+  function persistMode() {
+    try { localStorage.setItem('voidai_mode', state.mode); } catch (e) {}
+    window.voidaiMode = state.mode;
+  }
+
+  function setMode(mode, announce) {
+    var found = null;
+    for (var i = 0; i < MODES.length; i++) if (MODES[i].id === mode) found = MODES[i];
+    if (!found) return false;
+    state.mode = found.id;
+    persistMode();
+    var chip = document.getElementById('voidai-mode-chip');
+    if (chip) chip.value = found.id;
+    var buttons = document.querySelectorAll('[data-va-mode]');
+    for (var j = 0; j < buttons.length; j++) {
+      buttons[j].className = buttons[j].getAttribute('data-va-mode') === found.id ? 'va-mode-btn active' : 'va-mode-btn';
+    }
+    if (announce) {
+      var text = '**Mode: ' + found.label + '**\n' + found.desc + '\n\nThe full PHB system prompt and Worker routing are unchanged.';
+      addMsg('assistant', text);
+      if (app.history) app.history.push({ role: 'assistant', content: text });
+      if (app.saveMemory) app.saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+      setStatus('mode ' + found.id);
+    }
+    return true;
+  }
+  window.voidaiSetMode = setMode;
+
+  function modeOptionsHtml() {
+    return MODES.map(function (m) {
+      return '<option value="' + m.id + '">' + m.label + '</option>';
+    }).join('');
+  }
+
+  function modeButtonsHtml() {
+    return MODES.map(function (m) {
+      return '<button type="button" class="va-mode-btn' + (m.id === state.mode ? ' active' : '') +
+        '" data-va-mode="' + m.id + '" title="' + m.desc + '">' + m.label + '</button>';
+    }).join('');
+  }
+
+  function buildUi() {
+    if (document.getElementById('voidai-astra-style')) return;
+    var style = document.createElement('style');
+    style.id = 'voidai-astra-style';
+    style.textContent = [
+      '#voidai-astra-tools{display:flex;gap:6px;align-items:center;padding:0 2px 7px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;}',
+      '#voidai-astra-tools::-webkit-scrollbar{display:none;}',
+      '#voidai-astra-tools button,#voidai-mode-chip{border:1px solid #242424;background:#0d0d0d;color:#9a9a9a;border-radius:8px;font:10px ui-monospace,monospace;letter-spacing:.08em;padding:7px 9px;white-space:nowrap;cursor:pointer;}',
+      '#voidai-astra-tools button:hover,#voidai-mode-chip:hover{color:#fff;border-color:#555;}',
+      '#voidai-mode-chip{max-width:92px;appearance:none;}',
+      '.va-modal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ddd;}',
+      '.va-modal.open{display:flex;}',
+      '.va-panel{width:100%;max-width:720px;max-height:90vh;overflow:auto;background:#080808;border:1px solid #2a2a2a;border-radius:14px;box-shadow:0 20px 80px #000;}',
+      '.va-head{position:sticky;top:0;background:#080808;border-bottom:1px solid #1d1d1d;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:2;}',
+      '.va-kicker{font-size:9px;letter-spacing:.2em;color:#666;margin-bottom:4px;}',
+      '.va-title{font-size:15px;letter-spacing:.08em;color:#fff;}',
+      '.va-close{border:1px solid #333;background:#111;color:#aaa;border-radius:7px;padding:6px 10px;font:10px ui-monospace,monospace;cursor:pointer;}',
+      '.va-close:hover{color:#fff;border-color:#666;}',
+      '.va-body{padding:16px;}',
+      '.va-lede{color:#999;font-size:12px;line-height:1.6;margin:0 0 16px;}',
+      '.va-body h3{font-size:10px;letter-spacing:.16em;color:#666;margin:18px 0 8px;font-weight:600;}',
+      '.va-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px;}',
+      '.va-mode-btn{border:1px solid #222;background:#101010;color:#999;border-radius:7px;padding:9px 7px;font:10px ui-monospace,monospace;letter-spacing:.06em;cursor:pointer;}',
+      '.va-mode-btn:hover{color:#fff;border-color:#555;}',
+      '.va-mode-btn.active{border-color:#8fb7a0;color:#d9efe2;background:#142117;}',
+      '.va-actions{display:flex;flex-wrap:wrap;gap:7px;}',
+      '.va-actions button{border:1px solid #2c2c2c;background:#111;color:#ccc;border-radius:8px;padding:9px 11px;font:10px ui-monospace,monospace;letter-spacing:.06em;cursor:pointer;}',
+      '.va-actions button:hover{color:#fff;border-color:#666;}',
+      '.va-pre{white-space:pre-wrap;word-break:break-word;background:#0d0d0d;border:1px solid #1c1c1c;border-radius:8px;padding:10px;color:#bdbdbd;font:11px/1.55 ui-monospace,monospace;margin:0;}',
+      '.va-note{color:#888;font-size:11px;line-height:1.6;border-left:2px solid #333;padding-left:10px;}',
+      '#voidai-live-modal{position:fixed;inset:0;z-index:2147483002;background:#000;display:none;overflow:hidden;font-family:ui-monospace,monospace;color:#eee;}',
+      '#voidai-live-modal.open{display:block;}',
+      '#voidai-live-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}',
+      '.va-live-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.75),transparent 26%,transparent 58%,rgba(0,0,0,.86));pointer-events:none;}',
+      '.va-live-top{position:absolute;top:0;left:0;right:0;padding:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}',
+      '.va-live-title{font-size:10px;letter-spacing:.18em;color:#9fcdb0;background:rgba(0,0,0,.5);border:1px solid rgba(143,183,160,.35);border-radius:7px;padding:7px 10px;}',
+      '.va-live-status{font-size:10px;color:#ccc;background:rgba(0,0,0,.55);border:1px solid #333;border-radius:7px;padding:7px 10px;}',
+      '.va-live-bottom{position:absolute;left:0;right:0;bottom:0;padding:16px 16px 26px;display:flex;flex-direction:column;gap:9px;}',
+      '#voidai-live-reply{max-height:32vh;overflow:auto;white-space:pre-wrap;font:12px/1.55 ui-monospace,monospace;color:#e6e6e6;text-shadow:0 1px 7px #000;background:rgba(0,0,0,.45);border-radius:8px;padding:8px 10px;display:none;}',
+      '#voidai-live-prompt{width:100%;box-sizing:border-box;background:rgba(0,0,0,.62);border:1px solid #444;border-radius:10px;color:#fff;padding:12px 14px;font:12px ui-monospace,monospace;outline:none;}',
+      '#voidai-live-prompt::placeholder{color:#777;}',
+      '.va-live-actions{display:flex;gap:8px;flex-wrap:wrap;}',
+      '.va-live-actions button{flex:1;min-width:74px;border:1px solid #444;background:rgba(0,0,0,.55);color:#eee;border-radius:10px;padding:11px 8px;font:10px ui-monospace,monospace;letter-spacing:.1em;cursor:pointer;}',
+      '.va-live-actions button:hover{border-color:#aaa;}',
+      '@media (max-width:520px){.va-panel{max-height:94vh}.va-live-bottom{padding-bottom:18px}}'
+    ].join('');
+    document.head.appendChild(style);
+
+    var tools = document.createElement('div');
+    tools.id = 'voidai-astra-tools';
+    tools.innerHTML = '<select id="voidai-mode-chip" aria-label="Reasoning mode">' + modeOptionsHtml() + '</select>' +
+      '<button type="button" data-va-tool="live">LIVE</button>' +
+      '<button type="button" data-va-tool="camera">CAM</button>' +
+      '<button type="button" data-va-tool="mic">MIC</button>' +
+      '<button type="button" data-va-tool="read">READ</button>' +
+      '<button type="button" data-va-tool="tools">TOOLS</button>';
+    var dock = document.getElementById('dock');
+    var appEl = document.getElementById('app');
+    if (dock && dock.parentNode) dock.parentNode.insertBefore(tools, dock);
+    else if (appEl) appEl.appendChild(tools);
+
+    var cap = document.createElement('div');
+    cap.id = 'voidai-cap-modal';
+    cap.className = 'va-modal';
+    cap.setAttribute('aria-hidden', 'true');
+    cap.innerHTML = '<div class="va-panel">' +
+      '<div class="va-head"><div><div class="va-kicker">VOIDAI ASTRA</div><div class="va-title">CAPABILITIES</div></div><button type="button" class="va-close" data-va-close="cap">CLOSE</button></div>' +
+      '<div class="va-body">' +
+        '<p class="va-lede">Live vision, camera, screen, voice, 10 reasoning modes, PHB Human Agent v2, persistent memory, and every Worker tool. Provider keys stay server-side; this panel never displays a secret.</p>' +
+        '<h3>REASONING MODES (10)</h3><div class="va-grid" id="va-modes">' + modeButtonsHtml() + '</div>' +
+        '<h3>ASTRA ACTIONS</h3><div class="va-actions">' +
+          '<button type="button" data-va-action="live">LIVE CAMERA</button>' +
+          '<button type="button" data-va-action="image">ATTACH IMAGE</button>' +
+          '<button type="button" data-va-action="camera">SNAP PHOTO</button>' +
+          '<button type="button" data-va-action="screen">SHARE SCREEN</button>' +
+          '<button type="button" data-va-action="mic">VOICE INPUT</button>' +
+          '<button type="button" data-va-action="read">READ LAST</button>' +
+          '<button type="button" data-va-action="speak">AUTO-SPEAK: ON</button>' +
+          '<button type="button" data-va-action="capabilities">REFRESH ROUTING</button>' +
+        '</div>' +
+        '<h3>AI ROUTING</h3><pre class="va-pre" id="va-routing">PRIMARY: openai/gpt-oss-120b via Groq\nFALLBACKS: OpenRouter, Gemini\nVISION: Groq Scout; OpenRouter Gemini fallback\nCONSENSUS: multi-model adjudication in deep mode</pre>' +
+        '<h3>PHB PERSONA</h3><div class="va-note" id="va-phb">Human Agent v2: six layers (coherence, reflex, working, circuit, intent, narrative), five circuits (curiosity, focus, openness, rigor, creativity), female she/her, 20-year-old perspective, casual-precise, steady and warm, non-romantic. Full system prompt remains in the Worker; this client does not rewrite it.</div>' +
+        '<h3>COMMANDS</h3><pre class="va-pre">/live  /camera  /screen  /image  /look  /fold  /design  /protein\n/predict  /future  /webgl  /sim  /sync  /recap  /mode  /help\n/image PROMPT  = generate an image\n/look PROMPT   = capture and analyze what the camera sees</pre>' +
+        '<div class="va-pre" id="va-cap-status" style="margin-top:12px">Capabilities not loaded yet.</div>' +
+      '</div></div>';
+    document.body.appendChild(cap);
+
+    var live = document.createElement('div');
+    live.id = 'voidai-live-modal';
+    live.setAttribute('aria-hidden', 'true');
+    live.innerHTML = '<video id="voidai-live-video" autoplay playsinline muted></video><canvas id="voidai-live-canvas" style="display:none"></canvas>' +
+      '<div class="va-live-shade"></div>' +
+      '<div class="va-live-top"><div class="va-live-title">VOIDAI LIVE <span id="voidai-live-source">VISION</span></div><div class="va-live-status" id="voidai-live-status">idle</div></div>' +
+      '<div class="va-live-bottom">' +
+        '<div id="voidai-live-reply"></div>' +
+        '<input id="voidai-live-prompt" type="text" placeholder="Ask about what you see, or tap LOOK" autocomplete="off" />' +
+        '<div class="va-live-actions">' +
+          '<button type="button" data-va-live="snap">LOOK</button>' +
+          '<button type="button" data-va-live="mic">VOICE</button>' +
+          '<button type="button" data-va-live="read">READ</button>' +
+          '<button type="button" data-va-live="switch">SWITCH</button>' +
+          '<button type="button" data-va-live="close">CLOSE</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(live);
+
+    var chip = document.getElementById('voidai-mode-chip');
+    if (chip) {
+      chip.value = state.mode;
+      chip.addEventListener('change', function () { setMode(chip.value, true); });
+    }
+    var speakBtn = document.querySelector('[data-va-action="speak"]');
+    if (speakBtn) speakBtn.textContent = 'AUTO-SPEAK: ' + (state.autoSpeak ? 'ON' : 'OFF');
+
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      while (t && t !== document) {
+        if (t.getAttribute && t.getAttribute('data-va-close') === 'cap') { e.preventDefault(); closeCap(); return; }
+        if (t.getAttribute && t.getAttribute('data-va-mode')) { e.preventDefault(); setMode(t.getAttribute('data-va-mode'), true); return; }
+        if (t.getAttribute && t.getAttribute('data-va-tool')) { e.preventDefault(); runTool(t.getAttribute('data-va-tool')); return; }
+        if (t.getAttribute && t.getAttribute('data-va-action')) { e.preventDefault(); runAction(t.getAttribute('data-va-action')); return; }
+        if (t.getAttribute && t.getAttribute('data-va-live')) { e.preventDefault(); runLive(t.getAttribute('data-va-live')); return; }
+        t = t.parentNode;
+      }
+    }, true);
+  }
+
+  function openCap() {
+    var modal = document.getElementById('voidai-cap-modal');
+    if (!modal) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    if (!state.capsLoaded) loadCapabilities();
+  }
+
+  function closeCap() {
+    var modal = document.getElementById('voidai-cap-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function runTool(name) {
+    if (name === 'live') return openLive();
+    if (name === 'camera') return captureCamera();
+    if (name === 'mic') return toggleMic(false);
+    if (name === 'read') return readLast();
+    if (name === 'tools') return openCap();
+  }
+
+  function runAction(name) {
+    if (name === 'live') return openLive();
+    if (name === 'image') return attachImage();
+    if (name === 'camera') return captureCamera();
+    if (name === 'screen') return captureScreen();
+    if (name === 'mic') return toggleMic(false);
+    if (name === 'read') return readLast();
+    if (name === 'speak') return toggleAutoSpeak();
+    if (name === 'capabilities') { state.capsLoaded = false; return loadCapabilities(); }
+  }
+
+  function runLive(name) {
+    if (name === 'snap') return captureLiveFrame();
+    if (name === 'mic') return toggleMic(true);
+    if (name === 'read') return readLast();
+    if (name === 'switch') return switchCamera();
+    if (name === 'close') return closeLive();
+  }
+
+  function toggleAutoSpeak(force) {
+    state.autoSpeak = (typeof force === 'boolean') ? force : !state.autoSpeak;
+    window.voidaiAutoSpeak = state.autoSpeak;
+    try { localStorage.setItem('voidai_autospeak', state.autoSpeak ? '1' : '0'); } catch (e) {}
+    var btn = document.querySelector('[data-va-action="speak"]');
+    if (btn) btn.textContent = 'AUTO-SPEAK: ' + (state.autoSpeak ? 'ON' : 'OFF');
+    setStatus(state.autoSpeak ? 'auto-speak on' : 'auto-speak off');
+    if (!state.autoSpeak && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
+  }
+
+  function attachImage() {
+    closeCap();
+    if (typeof window.voidaiAttachImage === 'function') window.voidaiAttachImage(false);
+  }
+
+  function captureCamera() {
+    closeCap();
+    if (state.liveActive && state.stream) return captureLiveFrame();
+    openLive();
+  }
+
+  function openLive() {
+    closeCap();
+    var modal = document.getElementById('voidai-live-modal');
+    if (!modal) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    state.liveActive = true;
+    setStatus('requesting camera…');
+    var video = document.getElementById('voidai-live-video');
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus('camera API unavailable — opening photo capture');
+      state.liveActive = false;
+      closeLive();
+      if (typeof window.voidaiAttachImage === 'function') window.voidaiAttachImage(true);
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    }).then(function (stream) {
+      if (!modal.classList.contains('open')) { stopStream(stream); return; }
+      state.stream = stream;
+      state.streamLabel = 'CAMERA';
+      if (video) {
+        video.srcObject = stream;
+        var p = video.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+      setSource('CAMERA');
+      setStatus('camera live · tap LOOK');
+      if (window.voidaiLiveVoice && !app.busy) startMic(true);
+    }).catch(function (err) {
+      state.liveActive = false;
+      setStatus('camera unavailable: ' + (err && err.name ? err.name : 'error') + ' — opening photo capture');
+      closeLive();
+      if (typeof window.voidaiAttachImage === 'function') window.voidaiAttachImage(true);
+    });
+  }
+
+  function closeLive() {
+    state.liveActive = false;
+    state.liveVoice = false;
+    window.voidaiLiveVoice = false;
+    stopMic();
+    stopSpeak();
+    stopStream(state.stream);
+    state.stream = null;
+    var modal = document.getElementById('voidai-live-modal');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    var video = document.getElementById('voidai-live-video');
+    if (video) { try { video.pause(); video.srcObject = null; } catch (e) {} }
+    var reply = document.getElementById('voidai-live-reply');
+    if (reply) { reply.style.display = 'none'; reply.textContent = ''; }
+    setStatus('ready');
+  }
+
+  function stopStream(stream) {
+    if (!stream) return;
+    try {
+      var tracks = stream.getTracks ? stream.getTracks() : [];
+      for (var i = 0; i < tracks.length; i++) tracks[i].stop();
+    } catch (e) {}
+  }
+
+  function setSource(label) {
+    var el = document.getElementById('voidai-live-source');
+    if (el) el.textContent = label || 'VISION';
+  }
+
+  function captureLiveFrame(promptOverride) {
+    var video = document.getElementById('voidai-live-video');
+    if (!video || !state.stream || !video.videoWidth) {
+      setStatus('camera not ready');
+      return false;
+    }
+    var w = video.videoWidth || 1280;
+    var h = video.videoHeight || 720;
+    var max = 1280;
+    var scale = Math.min(1, max / Math.max(w, h));
+    var canvas = document.getElementById('voidai-live-canvas');
+    if (!canvas) return false;
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.84);
+    var promptEl = document.getElementById('voidai-live-prompt');
+    var prompt = (promptOverride != null)
+      ? String(promptOverride)
+      : String((promptEl && promptEl.value) || '').trim();
+    if (promptEl && promptOverride == null) promptEl.value = '';
+    setStatus('analysing frame…');
+    sendFrame(dataUrl, prompt, 'camera');
+    return true;
+  }
+
+  function switchCamera() {
+    if (!state.stream) return;
+    var current = 'environment';
+    try {
+      var vt = state.stream.getVideoTracks && state.stream.getVideoTracks()[0];
+      var settings = vt && vt.getSettings ? vt.getSettings() : {};
+      if (settings && settings.facingMode === 'environment') current = 'user';
+    } catch (e) {}
+    var target = current === 'environment' ? 'user' : 'environment';
+    var modal = document.getElementById('voidai-live-modal');
+    setStatus('switching camera…');
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: target } }, audio: false })
+      .then(function (stream) {
+        if (!modal.classList.contains('open')) { stopStream(stream); return; }
+        stopStream(state.stream);
+        state.stream = stream;
+        var video = document.getElementById('voidai-live-video');
+        if (video) { video.srcObject = stream; var p = video.play(); if (p && p.catch) p.catch(function () {}); }
+        setSource(target === 'user' ? 'CAMERA FRONT' : 'CAMERA');
+        setStatus('camera live · tap LOOK');
+      })
+      .catch(function (err) {
+        setStatus('camera switch failed: ' + (err && err.name ? err.name : 'error'));
+      });
+  }
+
+  function captureScreen() {
+    closeCap();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      setStatus('screen share unavailable on this WebView');
+      return;
+    }
+    navigator.mediaDevices.getDisplayMedia({ video: true }).then(function (stream) {
+      var modal = document.getElementById('voidai-live-modal');
+      modal.classList.add('open');
+      modal.setAttribute('aria-hidden', 'false');
+      state.liveActive = true;
+      state.stream = stream;
+      state.streamLabel = 'SCREEN';
+      var video = document.getElementById('voidai-live-video');
+      if (video) { video.srcObject = stream; var p = video.play(); if (p && p.catch) p.catch(function () {}); }
+      setSource('SCREEN');
+      setStatus('screen live · tap LOOK');
+    }).catch(function (err) {
+      setStatus('screen share cancelled: ' + (err && err.name ? err.name : 'error'));
+    });
+  }
+
+  function sendFrame(dataUrl, prompt, source) {
+    if (app.busy) { setStatus('busy — wait for the current reply'); return; }
+    if (typeof window.voidaiSendImage !== 'function') {
+      setStatus('vision bridge unavailable');
+      return;
+    }
+    var name = source === 'screen' ? 'screen.jpg' : 'camera.jpg';
+    var text = String(prompt || '').trim();
+    window.voidaiSendImage(dataUrl, name, text, function (reply, err) {
+      var box = document.getElementById('voidai-live-reply');
+      if (box) {
+        box.style.display = 'block';
+        box.textContent = err ? ('Error: ' + err) : reply;
+      }
+      setStatus(err ? 'vision error' : 'vision reply ready');
+      if (!err && state.liveVoice && !state.autoSpeak && !app.busy) {
+        setTimeout(function () { startMic(true); }, 600);
+      }
+    });
+  }
+
+  function look(prompt) {
+    var text = String(prompt || '').trim();
+    if (state.stream) {
+      var input = document.getElementById('voidai-live-prompt');
+      if (input && text) input.value = text;
+      return captureLiveFrame(text);
+    }
+    openLive();
+    if (text) {
+      setTimeout(function () {
+        var input = document.getElementById('voidai-live-prompt');
+        if (input) input.value = text;
+      }, 150);
+    }
+    return true;
+  }
+
+  function speechCtor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function startMic(liveAuto) {
+    var SR = speechCtor();
+    if (!SR) { setStatus('speech recognition unavailable — use keyboard'); return; }
+    stopMic(true);
+    state.liveVoice = !!liveAuto;
+    window.voidaiLiveVoice = state.liveVoice;
+    try {
+      var rec = new SR();
+      state.recognition = rec;
+      rec.lang = 'en-US';
+      rec.interimResults = true;
+      rec.continuous = !!liveAuto;
+      rec.maxAlternatives = 1;
+      var finalText = '';
+      rec.onresult = function (event) {
+        if (state.recognition !== rec) return;
+        var interim = '';
+        finalText = '';
+        for (var i = event.resultIndex; i < event.results.length; i++) {
+          var item = event.results[i];
+          if (item.isFinal) finalText += item[0].transcript;
+          else interim += item[0].transcript;
+        }
+        var text = (finalText || interim || '').trim();
+        if (text && app.els && app.els.input) app.els.input.value = text;
+        if (text) setStatus('heard: ' + text.slice(0, 80));
+        if (finalText && text) {
+          if (liveAuto && state.liveActive) {
+            if (state.stream) captureLiveFrame(text);
+            else if (app.els && app.els.send) app.send();
+          }
+        }
+      };
+      rec.onerror = function (event) {
+        if (state.recognition !== rec) return;
+        var err = event && event.error ? event.error : 'error';
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          state.liveVoice = false;
+          window.voidaiLiveVoice = false;
+          setStatus('microphone permission denied');
+        } else if (err !== 'no-speech' && err !== 'aborted') {
+          setStatus('voice: ' + err);
+        }
+      };
+      rec.onend = function () {
+        if (state.recognition !== rec) return;
+        state.micActive = false;
+        updateMicButtons();
+        if (state.liveVoice && !app.busy && state.liveActive) {
+          setTimeout(function () { if (state.liveVoice && state.liveActive) startMic(true); }, 500);
+        }
+      };
+      state.micActive = true;
+      updateMicButtons();
+      rec.start();
+      setStatus(liveAuto ? 'voice live · speak' : 'listening…');
+    } catch (e) {
+      state.micActive = false;
+      updateMicButtons();
+      setStatus('voice unavailable: ' + (e.message || e));
+    }
+  }
+
+  function stopMic(preserveLive) {
+    var rec = state.recognition;
+    state.recognition = null;
+    state.micActive = false;
+    if (!preserveLive) {
+      state.liveVoice = false;
+      window.voidaiLiveVoice = false;
+    }
+    if (rec) { try { rec.stop(); } catch (e) {} }
+    updateMicButtons();
+  }
+
+  function toggleMic(fromLive) {
+    if (state.micActive) { stopMic(); setStatus('mic off'); return; }
+    if (fromLive) {
+      startMic(true);
+      var modal = document.getElementById('voidai-live-modal');
+      if (modal && !modal.classList.contains('open')) openLive();
+    } else {
+      closeCap();
+      startMic(false);
+    }
+  }
+
+  function updateMicButtons() {
+    var buttons = document.querySelectorAll('[data-va-tool="mic"],[data-va-live="mic"],[data-va-action="mic"]');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].style.color = state.micActive ? '#d9efe2' : '';
+      buttons[i].style.borderColor = state.micActive ? '#8fb7a0' : '';
+    }
+  }
+
+  function stopSpeak() {
+    try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+  }
+
+  // Wrap TTS so live voice does not feed back into the microphone.
+  window.voidaiSpeak = function (text) {
+    var wasLive = state.liveVoice;
+    stopMic(true);
+    var clean = String(text == null ? '' : text)
+      .replace(/```[\s\S]*?```/g, ' code block ')
+      .replace(/[#*_`>]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 5000);
+    if (!clean) return;
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+      setStatus('text-to-speech unavailable');
+      return;
+    }
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    var u = new SpeechSynthesisUtterance(clean);
+    u.rate = 1.0;
+    u.pitch = 1.0;
+    u.onend = function () {
+      if (wasLive && state.liveActive && !app.busy) {
+        state.liveVoice = true;
+        window.voidaiLiveVoice = true;
+        setTimeout(function () { if (state.liveVoice && state.liveActive) startMic(true); }, 550);
+      }
+    };
+    window.speechSynthesis.speak(u);
+  };
+  window.voidaiStopSpeak = stopSpeak;
+
+  function readLast() {
+    var nodes = app.els && app.els.messages ? app.els.messages.querySelectorAll('.msg.assistant .text') : [];
+    if (!nodes.length) { setStatus('nothing to read'); return; }
+    var last = nodes[nodes.length - 1];
+    var text = last.innerText || last.textContent || '';
+    if (!text.trim()) { setStatus('last reply is empty'); return; }
+    setStatus('reading last reply');
+    window.voidaiSpeak(text);
+  }
+
+  function loadCapabilities() {
+    var statusEl = document.getElementById('va-cap-status');
+    var routingEl = document.getElementById('va-routing');
+    if (statusEl) statusEl.textContent = 'Loading Worker capabilities…';
+    fetch(app.PROXY_URL + '/capabilities', { headers: { 'X-VOID-KEY': app.VOIDAI_KEY } })
+      .then(function (r) {
+        return r.text().then(function (raw) {
+          var d = null;
+          try { d = raw ? JSON.parse(raw) : null; } catch (e) {}
+          if (!r.ok) throw new Error((d && (d.error || d.message)) || ('HTTP ' + r.status));
+          if (!d) throw new Error('empty capabilities response');
+          return d;
+        });
+      })
+      .then(function (d) {
+        state.capsLoaded = true;
+        var modes = Array.isArray(d.modes) ? d.modes : [];
+        var tools = Array.isArray(d.tools) ? d.tools : [];
+        var fallbacks = Array.isArray(d.fallbacks) ? d.fallbacks : [];
+        if (routingEl) {
+          routingEl.textContent = [
+            'PRIMARY: ' + (d.model || 'openai/gpt-oss-120b') + ' via ' + (d.provider || 'groq'),
+            'FALLBACKS: ' + (fallbacks.join(', ') || 'server-side only'),
+            'PERSONA: ' + (d.persona || 'phb-human-agent-v2'),
+            'MODES: ' + (modes.join(', ') || 'all 10'),
+            'TOOLS: ' + (tools.join(', ') || 'server-side tools'),
+            'MEMORY: ' + (d.consciousness && d.consciousness.enabled ? 'persistent (3 Supabase tables)' : 'server-side'),
+            'VISION: Groq vision, OpenRouter fallback',
+            'CONSENSUS: multi-model adjudication'
+          ].join('\n');
+        }
+        if (statusEl) statusEl.textContent = 'Worker capabilities loaded. Secrets are not returned by this endpoint.';
+      })
+      .catch(function (err) {
+        if (statusEl) statusEl.textContent = 'Capabilities unavailable: ' + (err.message || err) + '. Static routing shown; the chat still works.';
+      });
+  }
+
+  buildUi();
+
+  window.voidaiShowCapabilities = openCap;
+  window.voidaiOpenLive = openLive;
+  window.voidaiCloseLive = closeLive;
+  window.voidaiCaptureCamera = captureCamera;
+  window.voidaiCaptureScreen = captureScreen;
+  window.voidaiLook = look;
+  window.voidaiToggleMic = toggleMic;
+  window.voidaiReadLast = readLast;
+  window.voidaiToggleAutoSpeak = toggleAutoSpeak;
+})();
+
 </script>
 
 </body>

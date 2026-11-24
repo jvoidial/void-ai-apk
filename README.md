@@ -19,10 +19,39 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Consensus reasoning — two models in parallel, adjudication on disagreement
 - Time & units — timezone clock, C-F, km-mi, kg-lb, m-ft
 - Image vision — attach a photo, downscaled on-device, analyzed via Groq with OpenRouter fallback
-- Sign-in — GitHub OAuth via Supabase (Android + iOS)
+- Astra live layer — live camera preview, snap-and-ask vision, screen share, voice input, spoken replies, and a continuous voice loop
+- Ten modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein
+- Sandboxed creative tools — Three.js/WebGL lab and Canvas N-D simulation workbench
 - PHB layers — coherence, reflex, working, circuit, intent, narrative
+- Sign-in — GitHub OAuth via Supabase (Android + iOS)
 - Storage — per-user files, RLS-isolated
 - Cost: **$0**
+
+### Astra-style live use
+
+Tap **LIVE** to open the camera. Ask a question in the box and tap **LOOK**, or tap
+**VOICE** for a hands-free loop: VOIDAI captures the current frame, answers, and
+speaks the answer. **CAM** takes a photo, **MIC** dictates into the composer,
+**READ** speaks the last reply, and **TOOLS** opens the mode, routing, PHB, and
+capability panel.
+
+The same tools are available as commands:
+
+    /live  /astra  /camera  /look PROMPT  /screen  /voice  /read  /tools
+    /mode  /mode deep  /help  /sync  /recap
+
+Android asks for camera and microphone permission the first time a live tool
+uses them. iOS does the same through the usage descriptions in `Info.plist`.
+The phone camera has a file-picker fallback, so photo analysis still works when
+`getUserMedia` is unavailable.
+
+### Secrets
+
+Provider keys (Groq, OpenRouter, Gemini, Supabase service role) stay in the
+Cloudflare Worker environment. The app only carries the Worker access gate and
+the Supabase anon key that the existing Android build already needs. No key is
+shown in the UI, chat, or capability panel. Never put a provider key in the
+WebView, a bundle, a screenshot, or a commit.
 
 ## CLI (GPT, PHB basis)
 
@@ -33,9 +62,9 @@ API, keeps per-user memory, and applies the same PHB persona as the worker.
     PYTHONPATH=python-src python3 -m voidai --user alice --mode deep
     PYTHONPATH=python-src python3 -m voidai --print-system
 
-Modes: `fast`, `deep`, `research`, `companion`, `coder`, `ultra`, `mini`,
-`github`, `predict`. Each mode sets a circuit emphasis, and the PHB layers
-update after each turn through a short behavioral reflection pass.
+Modes: `fast`, `deep`, `research`, `companion`, `ultra`, `coder`, `mini`,
+`github`, `predict`, `protein`. Each mode sets a circuit emphasis, and the PHB
+layers update after each turn through a short behavioral reflection pass.
 
 Prediction commands:
 - `@future` forecasts the default AI/AGI/robotics/biotech/energy/quantum outlook.
@@ -80,7 +109,8 @@ Run the tests:
 ## iOS unsigned IPA
 
 `ios-app/` is a WKWebView clone that reuses the same `index.html`. It supports
-image attachment and Supabase GitHub sign-in through `ASWebAuthenticationSession`.
+image attachment, live camera/voice when the installed iOS runtime allows it,
+and Supabase GitHub sign-in through `ASWebAuthenticationSession`.
 
     brew install xcodegen
     cd ios-app
@@ -93,13 +123,16 @@ or your own certificate before a stock iPhone will install it. The
 ## Architecture
 
     APK WebView -> Cloudflare Worker -> Groq (LLM)
-                         |
-                    Open-Meteo (weather)
-                    Wikipedia  (facts)
+         |               |          |
+         |          OpenRouter    Gemini (fallbacks)
+         |               |
+         |          Supabase memory + storage
+         |
+    camera / mic / screen -> /vision (Groq, OpenRouter fallback)
 
 ## Verify the live Worker
 
-    KEY=$(grep -o "VOIDAI_KEY = '[^']*'" android-app/app/src/main/assets/index.html | sed "s/VOIDAI_KEY = '//;s/'//")
+    read -rsp "Worker gate key: " KEY; echo
     curl -H "X-VOID-KEY: $KEY" https://void-ai-proxy.jacoboliverrevellangel.workers.dev
 
 Expected: `{"status":"ok","model":"openai/gpt-oss-120b","provider":"groq","search":false}`

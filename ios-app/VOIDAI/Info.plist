@@ -37,6 +37,10 @@
 </array>
 <key>NSPhotoLibraryUsageDescription</key>
 <string>Attach an image to a VOIDAI message.</string>
+<key>NSCameraUsageDescription</key>
+<string>VOIDAI Live uses the camera to see and answer questions about what you show it.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>VOIDAI Live uses the microphone for voice questions and spoken replies.</string>
 <key>CFBundleURLTypes</key>
 <array>
 <dict>
