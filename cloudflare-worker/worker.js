@@ -36,7 +36,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.0.4';
+const WORKER_VERSION = '3.0.5';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -492,43 +492,85 @@ async function updateIntentState(userId, newIntent, env) {
   } catch (e) { return { meta_fatigue: false }; }
 }
 
-async function runReflectionPass(userText, assistantText, userId, env) {
+async function runReflectionPass(userText, assistantText, userId, env, mode) {
+  var uid = userId || 'jacob';
+  var parsed = {};
+
   try {
-    var uid = userId || 'jacob';
-    var prompt = 'Extract a JSON object from this exchange. Fields: mood (one word), insight (one sentence), learned (boolean), intent (object with primary and confidence 0-1).\n\nUser: ' + (userText || '').slice(0, 500) + '\n\nAssistant: ' + (assistantText || '').slice(0, 500);
+    var prompt = 'Return only a JSON object, no markdown and no prose. Fields: '
+      + 'mood (one word), insight (one sentence), learned (boolean), '
+      + 'intent (object with primary and confidence 0-1).\n\n'
+      + 'User: ' + (userText || '').slice(0, 500) + '\n\n'
+      + 'Assistant: ' + (assistantText || '').slice(0, 500);
     var res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-      body: JSON.stringify({ model: 'openai/gpt-oss-20b', messages: [{ role: 'user', content: prompt }], max_tokens: 200, temperature: 0.3 })
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.2
+      })
     });
     var data = await readJsonSafe(res, {});
-    var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '{}';
-    var parsed = JSON.parse(content);
-    if (parsed && parsed.intent) {
-      try {
-        const _r = await updateIntentState(userId, parsed.intent, env);
-        if (_r && _r.meta_fatigue) BRAIN.stimulate('intent', 0.9);
-        else BRAIN.stimulate('intent', parsed.intent.confidence || 0.5);
-      } catch (e) { /* silent */ }
+    var content = data.choices && data.choices[0] && data.choices[0].message
+      && data.choices[0].message.content || '{}';
+    content = String(content).trim()
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
+    var first = content.indexOf('{');
+    var last = content.lastIndexOf('}');
+    if (first >= 0 && last > first) content = content.slice(first, last + 1);
+    var candidate = JSON.parse(content);
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      parsed = candidate;
     }
-    if (parsed.learned || parsed.mood || parsed.insight) {
-      try { await saveReflection(env, uid, userText.slice(0, 200), parsed.mood || '', parsed.insight || '', ''); } catch (e) {}
-    }
-    if (parsed.learned && parsed.insight) {
-      try { await saveWorkingMemoryItem(env, uid, 'learned', parsed.insight); } catch (e) {}
-    }
-    if (parsed.insight) {
-      try {
-        var recent = await loadRecentReflections(env, uid);
-        var insights = recent.slice(0, 5).map(function (r) {
-          return reflectionFields(r).insight;
-        }).filter(function (v) { return !!v; });
-        if (insights.length) {
-          await updateSelfNarrative(uid, 'Recent threads: ' + insights.join(' | '), env);
-        }
-      } catch (e) {}
-    }
-  } catch (e) {}
+  } catch (e) {
+    parsed = {};
+  }
+
+  var insight = (parsed.insight != null) ? String(parsed.insight).slice(0, 500) : '';
+  var mood = (parsed.mood != null) ? String(parsed.mood).slice(0, 100) : '';
+  var note = (parsed.note != null) ? String(parsed.note).slice(0, 300) : '';
+  if (!insight && !mood) {
+    insight = (assistantText || userText || '').slice(0, 240);
+  }
+
+  var intent = (parsed.intent && typeof parsed.intent === 'object' && !Array.isArray(parsed.intent))
+    ? parsed.intent
+    : {};
+  if (!intent.primary) intent.primary = mode || 'unknown';
+  var confidence = Number(intent.confidence);
+  intent.confidence = Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0.4;
+
+  try {
+    var result = await updateIntentState(uid, intent, env);
+    if (result && result.meta_fatigue) BRAIN.stimulate('intent', 0.9);
+    else BRAIN.stimulate('intent', intent.confidence);
+  } catch (e) { /* silent */ }
+
+  if (mood || insight) {
+    try {
+      await saveReflection(env, uid, (userText || '').slice(0, 200), mood, insight, note);
+    } catch (e) { /* silent */ }
+  }
+
+  if (parsed.learned === true && insight) {
+    try { await saveWorkingMemoryItem(env, uid, 'learned', insight); } catch (e) { /* silent */ }
+  }
+
+  if (insight) {
+    try {
+      var recent = await loadRecentReflections(env, uid);
+      var insights = recent.slice(0, 5).map(function (r) {
+        return reflectionFields(r).insight;
+      }).filter(function (v) { return !!v; });
+      if (insights.length) {
+        await updateSelfNarrative(uid, 'Recent threads: ' + insights.join(' | '), env);
+      }
+    } catch (e) { /* silent */ }
+  }
 }
 
 const VOIDAI_CHUNK_THRESHOLD = 24000;
@@ -1825,7 +1867,7 @@ export default {
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'],
-        version: '3.0.4',
+        version: '3.0.5',
         source_route: true,
         consciousness: true,
         capabilities_route: true,
@@ -1841,7 +1883,7 @@ export default {
       if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
       return json({
         ok: true,
-        diagnose_version: '3.0.4',
+        diagnose_version: '3.0.5',
         brain_ok: (function(){try{var r=BRAIN.resonance();return !!(r&&r.phases&&Object.keys(r.phases).length===6)}catch(e){return false}})(),
         topology_ok: (typeof BRAINSTEM_TOPOLOGY === 'object' &&
                       Object.keys(BRAINSTEM_TOPOLOGY.layers).length === 6),
@@ -1893,7 +1935,7 @@ export default {
         return Response.json({ error: 'unauthorized' }, { status: 401 });
       }
       return Response.json({
-        version: '3.0.4',
+        version: '3.0.5',
         worker: 'void-ai-proxy',
         model: 'openai/gpt-oss-120b',
         provider: 'groq',
@@ -2143,7 +2185,7 @@ export default {
     } catch (e) {}
 
     ctx.waitUntil(
-      runReflectionPass(userText, assistantText, 'jacob', env)
+      runReflectionPass(userText, assistantText, 'jacob', env, mode)
         .catch(function () {})
         .then(balanceBrainAfterTurn)
     );

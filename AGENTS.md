@@ -82,3 +82,11 @@ Production uses a different memory schema than the Worker's legacy bootstrap DDL
 The Worker writes those columns first and falls back to the legacy
 `turn/mood/insight/note`, `key/value`, and `narrative` columns. Reads accept
 both shapes. Do not drop either shape without checking production data.
+
+## Worker reflection persistence
+
+The Worker's `runReflectionPass` uses `DEFAULT_MODEL` with a JSON-only prompt,
+strips markdown fences, and falls back to writing a reflection plus an intent
+row if the model response cannot be parsed. Any change here must be followed by
+a real turn and a Supabase row check for `user_id = 'jacob'`; `/health` alone
+does not prove persistence.
