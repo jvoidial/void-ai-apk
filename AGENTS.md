@@ -70,3 +70,15 @@ VOIDAI has four runtime surfaces:
 - Forecasts must use horizons, scenarios, leading indicators, falsifiers, and
   confidence labels. Never compile invented citations or exact future dates.
 - `@future` uses `DEFAULT_PREDICTION_TOPIC`; `@predict TOPIC` replaces it.
+
+## Supabase memory schema compatibility
+
+Production uses a different memory schema than the Worker's legacy bootstrap DDL:
+
+- `voidai_reflections`: `kind`, `content`, `weight`
+- `voidai_working_memory`: `content`, `importance`, `last_used`
+- `voidai_self_narrative`: `summary`
+
+The Worker writes those columns first and falls back to the legacy
+`turn/mood/insight/note`, `key/value`, and `narrative` columns. Reads accept
+both shapes. Do not drop either shape without checking production data.

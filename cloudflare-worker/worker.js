@@ -353,9 +353,40 @@ async function loadSelfNarrative(env, userId) {
   } catch (e) { return null; }
 }
 
-async function saveReflection(env, userId, turn, mood, insight, note) {
+function reflectionFields(row) {
+  if (!row) return { mood: '', insight: '' };
+  if (row.mood || row.insight || row.note) {
+    return { mood: row.mood || '', insight: row.insight || row.note || '' };
+  }
+  var content = row.content || '';
+  if (row.kind === 'mood') return { mood: content, insight: '' };
   try {
-    var uid = userId || 'jacob';
+    var parsed = JSON.parse(content);
+    return {
+      mood: parsed.mood || '',
+      insight: parsed.insight || parsed.note || parsed.turn || ''
+    };
+  } catch (e) {
+    return { mood: '', insight: content };
+  }
+}
+
+async function saveReflection(env, userId, turn, mood, insight, note) {
+  var uid = userId || 'jacob';
+  try {
+    var res = await sbFetch(env, '/rest/v1/voidai_reflections', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        user_id: uid,
+        kind: 'reflection',
+        content: JSON.stringify({ turn: turn, mood: mood, insight: insight, note: note }),
+        weight: 1
+      })
+    });
+    if (res && res.ok) return;
+  } catch (e) {}
+  try {
     await sbFetch(env, '/rest/v1/voidai_reflections', {
       method: 'POST',
       headers: { 'Prefer': 'return=minimal' },
@@ -365,8 +396,22 @@ async function saveReflection(env, userId, turn, mood, insight, note) {
 }
 
 async function saveWorkingMemoryItem(env, userId, key, value) {
+  var uid = userId || 'jacob';
+  var text = (key ? key + ': ' : '') + (value || '');
   try {
-    var uid = userId || 'jacob';
+    var res = await sbFetch(env, '/rest/v1/voidai_working_memory', {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        user_id: uid,
+        content: text,
+        importance: 1,
+        last_used: new Date().toISOString()
+      })
+    });
+    if (res && res.ok) return;
+  } catch (e) {}
+  try {
     await sbFetch(env, '/rest/v1/voidai_working_memory', {
       method: 'POST',
       headers: { 'Prefer': 'return=minimal' },
@@ -390,10 +435,17 @@ async function updateSelfNarrative(userId, newNarrative, env) {
   } catch (e) { /* fall through */ }
   try {
     var uid = userId || 'jacob';
-    await upsertByUser(env, 'voidai_self_narrative', uid, {
-      narrative: newNarrative,
-      updated_at: new Date().toISOString()
+    var updatedAt = new Date().toISOString();
+    var saved = await upsertByUser(env, 'voidai_self_narrative', uid, {
+      summary: newNarrative,
+      updated_at: updatedAt
     });
+    if (!saved) {
+      await upsertByUser(env, 'voidai_self_narrative', uid, {
+        narrative: newNarrative,
+        updated_at: updatedAt
+      });
+    }
   } catch (e) {}
 }
 
@@ -2010,17 +2062,20 @@ export default {
     if (recent && recent.length) {
       memoryBlock = '\n\nRECENT THINGS YOU HAVE NOTICED:\n';
       recent.slice(0, 5).forEach(function (r) {
-        if (r.mood) memoryBlock += '- [mood] ' + r.mood + '\n';
-        if (r.insight) memoryBlock += '- [note] ' + r.insight + '\n';
+        var fields = reflectionFields(r);
+        if (fields.mood) memoryBlock += '- [mood] ' + fields.mood + '\n';
+        if (fields.insight) memoryBlock += '- [note] ' + fields.insight + '\n';
       });
     }
-    if (narrative && narrative.narrative) {
-      memoryBlock += '\nSELF NARRATIVE: ' + narrative.narrative.slice(0, 500) + '\n';
+    var narrativeText = narrative && (narrative.summary || narrative.narrative);
+    if (narrativeText) {
+      memoryBlock += '\nSELF NARRATIVE: ' + narrativeText.slice(0, 500) + '\n';
     }
     if (workingMem && workingMem.length) {
       memoryBlock += '\nWORKING MEMORY:\n';
       workingMem.forEach(function (w) {
-        if (w.key) memoryBlock += '- ' + w.key + ': ' + (w.value || '') + '\n';
+        var line = w.key ? (w.key + ': ' + (w.value || '')) : (w.content || '');
+        if (line) memoryBlock += '- ' + line + '\n';
       });
     }
 
