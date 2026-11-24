@@ -204,6 +204,8 @@ class PHBTests(BaseCase):
         self.assertIn("PREDICTION MODE", phb.system_prompt("predict"))
         self.assertIn("rigor + curiosity", phb.system_prompt("predict"))
         self.assertIn("PROTEIN MODE", phb.system_prompt("protein"))
+        self.assertIn("CPU design mode", phb.system_prompt("protein"))
+        self.assertIn("GPT-6.2", phb.system_prompt("protein"))
         self.assertIn("rigor + curiosity", phb.system_prompt("protein"))
 
     def test_gates_follow_state(self):

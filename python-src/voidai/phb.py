@@ -87,6 +87,9 @@ PROTEIN_RULES = """PROTEIN MODE:
 - Separate computational predictions from experimental facts.
 - Never claim binding, function, or lab validation without an assay.
 - ESMFold/AlphaFold can predict structure; RFdiffusion/ProteinMPNN can design.
+- CPU design mode uses sequence heuristics and cannot prove foldability.
+- ESMFold filtering is a confidence check, not a substitute for a design model.
+- Do not claim parity with GPT-6.2, Astra, or any wet-lab result.
 - Computational designs are unvalidated candidates and require wet-lab testing."""
 
 ADAPTATION = {

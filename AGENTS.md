@@ -91,14 +91,21 @@ row if the model response cannot be parsed. Any change here must be followed by
 a real turn and a Supabase row check for `user_id = 'jacob'`; `/health` alone
 does not prove persistence.
 
-## Protein / Bio Phase 1
+## Protein / Bio Phase 2
 
 - `protein` is an additive mode; existing modes are unchanged.
 - `POST /protein/fold` accepts a user-provided amino-acid sequence, enforces a
   benign-target attestation and biosecurity blocklist, then calls ESMFold via
   ESM Atlas. It returns PDB text and an explicit "not wet-lab validated" notice.
-- `POST /protein/design` proxies to `PROTEIN_DESIGN_URL` when configured; without
-  it the endpoint returns 501 rather than pretending to design proteins.
-- Phase 1 does not create or modify Supabase tables and does not claim binding
+- `POST /protein/design` uses a CPU-only heuristic search when no external
+  backend is configured. It accepts a seed/scaffold, a mutation budget, fixed
+  positions, and an optional ESMFold pLDDT filter. It returns ranked candidate
+  sequences with mutations and a "not validated" notice.
+- With `PROTEIN_DESIGN_URL`, the same route proxies to an external design
+  backend instead.
+- CPU design does not require a local GPU. ESMFold filtering is remote and
+  optional; it is a confidence check, not proof of function.
+- Phase 2 does not create or modify Supabase tables and does not claim binding
   or laboratory results.
-- Android exposes `/protein` for the chat mode and `/fold SEQUENCE` for ESMFold.
+- Android exposes `/protein` for the chat mode, `/fold SEQUENCE` for ESMFold,
+  and `/design SEQUENCE | TARGET` for CPU candidate generation.

@@ -41,7 +41,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.1.0';
+const WORKER_VERSION = '3.2.0';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -789,6 +789,369 @@ async function foldProteinSequence(sequence) {
   }
 }
 
+// ── CPU-only protein design ──
+// Sequence-level search: no local GPU. Optional ESMFold is used only as a
+// remote confidence filter for the top candidates, never for generation.
+const PROTEIN_CPU_AAS = 'ACDEFGHIKLMNPQRSTVWY';
+const PROTEIN_CPU_HYDRO = {
+  A: 1.8, C: 2.5, D: -3.5, E: -3.5, F: 2.8, G: -0.4, H: -3.2,
+  I: 4.5, K: -3.9, L: 3.8, M: 1.9, N: -3.5, P: -1.6, Q: -3.5,
+  R: -4.5, S: -0.8, T: -0.7, V: 4.2, W: -0.9, Y: -1.3
+};
+const PROTEIN_CPU_CHARGE = { D: -1, E: -1, K: 1, R: 1, H: 0.1 };
+const PROTEIN_CPU_CLASSES = {
+  hydrophobic: 'AVILMFWY',
+  polar: 'STNQC',
+  charged: 'DEKRH',
+  small: 'AGST',
+  aromatic: 'FWY'
+};
+const PROTEIN_BLOSUM_ORDER = 'ARNDCQEGHILKMFPSTWYV';
+const PROTEIN_BLOSUM62 = [
+  [4,-1,-2,-2,0,-1,-1,0,-2,-1,-1,-1,-1,-2,-1,1,0,-3,-2,0],
+  [-1,5,0,-2,-3,1,0,-2,0,-3,-2,2,-1,-3,-2,-1,-1,-3,-2,-3],
+  [-2,0,6,1,-3,0,0,0,1,-3,-3,0,-2,-3,-2,1,0,-4,-2,-3],
+  [-2,-2,1,6,-3,0,2,-1,-1,-3,-4,-1,-3,-3,-1,0,-1,-4,-3,-3],
+  [0,-3,-3,-3,9,-3,-4,-3,-3,-1,-1,-3,-1,-2,-3,-1,-1,-2,-2,-1],
+  [-1,1,0,0,-3,5,2,-2,0,-3,-2,1,0,-3,-1,0,-1,-2,-1,-2],
+  [-1,0,0,2,-4,2,5,-2,0,-3,-3,1,-2,-3,-1,0,-1,-3,-2,-2],
+  [0,-2,0,-1,-3,-2,-2,6,-2,-4,-4,-2,-3,-3,-2,0,-2,-2,-3,-3],
+  [-2,0,1,-1,-3,0,0,-2,8,-3,-3,-1,-2,-1,-2,-1,-2,-2,2,-3],
+  [-1,-3,-3,-3,-1,-3,-3,-4,-3,4,2,-3,1,0,-3,-2,-1,-3,-1,3],
+  [-1,-2,-3,-4,-1,-2,-3,-4,-3,2,4,-2,2,0,-3,-2,-1,-2,-1,1],
+  [-1,2,0,-1,-3,1,1,-2,-1,-3,-2,5,-1,-3,-1,0,-1,-3,-2,-2],
+  [-1,-1,-2,-3,-1,0,-2,-3,-2,1,2,-1,5,0,-2,-1,-1,-1,-1,1],
+  [-2,-3,-3,-3,-2,-3,-3,-3,-1,0,0,-3,0,6,-4,-2,-2,1,3,-1],
+  [-1,-2,-2,-1,-3,-1,-1,-2,-2,-3,-3,-1,-2,-4,7,-1,-1,-4,-3,-2],
+  [1,-1,1,0,-1,0,0,0,-1,-2,-2,0,-1,-2,-1,4,1,-3,-2,-2],
+  [0,-1,0,-1,-1,-1,-1,0,-2,-1,-1,-1,-1,-2,-1,1,5,-2,-2,0],
+  [-3,-3,-4,-4,-2,-2,-3,-2,-2,-3,-2,-3,-1,1,-4,-3,-2,11,2,-3],
+  [-2,-2,-2,-3,-2,-1,-2,-3,2,-1,-1,-2,-1,3,-3,-2,-2,2,7,-1],
+  [0,-3,-3,-3,-1,-2,-2,-3,-3,3,1,-2,1,-1,-2,-2,0,-3,-1,4]
+];
+
+function proteinBlosum62(a, b) {
+  const i = PROTEIN_BLOSUM_ORDER.indexOf(a);
+  const j = PROTEIN_BLOSUM_ORDER.indexOf(b);
+  return i < 0 || j < 0 ? 0 : PROTEIN_BLOSUM62[i][j];
+}
+
+function proteinHashSeed(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function proteinRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function proteinClamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+function proteinGauss(x, mu, sigma) {
+  const d = (x - mu) / sigma;
+  return Math.exp(-0.5 * d * d);
+}
+
+function proteinComposition(seq) {
+  const counts = {};
+  for (const aa of seq) counts[aa] = (counts[aa] || 0) + 1;
+  return counts;
+}
+
+function proteinHeuristicScore(seq, seed, fixed) {
+  const n = seq.length;
+  if (!n) return 0;
+  const counts = proteinComposition(seq);
+  let hydroCount = 0;
+  let netCharge = 0;
+  let aromaticCount = 0;
+  for (const [aa, count] of Object.entries(counts)) {
+    hydroCount += count * (PROTEIN_CPU_HYDRO[aa] > 0 ? 1 : 0);
+    netCharge += count * (PROTEIN_CPU_CHARGE[aa] || 0);
+    if (PROTEIN_CPU_CLASSES.aromatic.includes(aa)) aromaticCount += count;
+  }
+  const hydroFrac = hydroCount / n;
+  const aromaticFrac = aromaticCount / n;
+
+  let patch = 0;
+  for (let i = 0; i <= n - 5; i++) {
+    let sum = 0;
+    for (let j = 0; j < 5; j++) sum += PROTEIN_CPU_HYDRO[seq[i + j]] || 0;
+    patch = Math.max(patch, sum / 5);
+  }
+
+  let entropy = 0;
+  for (const count of Object.values(counts)) {
+    const p = count / n;
+    if (p > 0) entropy -= p * Math.log2(p);
+  }
+
+  let score = 20;
+  score += 18 * proteinGauss(hydroFrac, 0.42, 0.10);
+  score += 10 * proteinGauss(netCharge, -2, 5);
+  score += 15 * proteinClamp01((3.5 - patch) / 2.5);
+  score += 10 * proteinClamp01((entropy - 2.2) / 2.0);
+  score += 5 * proteinClamp01(aromaticFrac / 0.10);
+  if ((counts.C || 0) % 2) score -= 5;
+
+  if (seed && seed.length === n) {
+    let sum = 0;
+    let mutations = 0;
+    for (let i = 0; i < n; i++) {
+      if (seed[i] !== seq[i]) {
+        sum += proteinBlosum62(seed[i], seq[i]);
+        mutations++;
+      }
+    }
+    if (mutations) score += 15 * proteinGauss(sum / mutations, 1, 4);
+    score += Math.min(4, mutations * 1.0);
+  }
+
+  for (const [index, residue] of fixed || []) {
+    if (seq[index] !== residue) score -= 100;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+
+function proteinMutate(seq, count, allowed, fixed, rng) {
+  const arr = seq.split('');
+  const positions = [];
+  for (let i = 0; i < arr.length; i++) if (!fixed.has(i)) positions.push(i);
+  for (let i = positions.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [positions[i], positions[j]] = [positions[j], positions[i]];
+  }
+  const limit = Math.min(count, positions.length);
+  for (let k = 0; k < limit; k++) {
+    const index = positions[k];
+    const old = arr[index];
+    let pool = allowed;
+    if (rng() < 0.65) {
+      const cls = Object.values(PROTEIN_CPU_CLASSES).find((group) => group.includes(old));
+      if (cls) {
+        const filtered = cls.split('').filter((aa) => allowed.includes(aa)).join('');
+        if (filtered) pool = filtered;
+      }
+    }
+    const choices = pool.split('').filter((aa) => aa !== old);
+    if (choices.length) arr[index] = choices[Math.floor(rng() * choices.length)];
+  }
+  return arr.join('');
+}
+
+function proteinRepairMutations(seq, seed, maxMutations, fixed, rng) {
+  if (!seed || seed.length !== seq.length) return seq;
+  const arr = seq.split('');
+  const changed = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] !== seed[i] && !fixed.has(i)) changed.push(i);
+  }
+  while (changed.length > maxMutations) {
+    const pick = Math.floor(rng() * changed.length);
+    const index = changed.splice(pick, 1)[0];
+    arr[index] = seed[index];
+  }
+  return arr.join('');
+}
+
+function proteinDeNovo(length, allowed, rng) {
+  const hydro = 'AVILMFWY'.split('').filter((aa) => allowed.includes(aa));
+  const polar = 'STNQC'.split('').filter((aa) => allowed.includes(aa));
+  const charged = 'DEKRH'.split('').filter((aa) => allowed.includes(aa));
+  const fallback = allowed.split('');
+  const pick = (pool) => {
+    const source = pool.length ? pool : fallback;
+    return source[Math.floor(rng() * source.length)];
+  };
+  let seq = '';
+  for (let i = 0; i < length; i++) {
+    const phase = i % 7;
+    if (phase === 0 || phase === 1 || phase === 4) seq += pick(hydro);
+    else if (phase === 2 || phase === 5) seq += pick(polar);
+    else seq += pick(charged);
+  }
+  return seq;
+}
+
+function proteinMutations(seed, seq) {
+  const out = [];
+  if (!seed || seed.length !== seq.length) return out;
+  for (let i = 0; i < seq.length; i++) {
+    if (seed[i] !== seq[i]) out.push({ position: i + 1, from: seed[i], to: seq[i] });
+  }
+  return out;
+}
+
+function proteinPlddt(pdb) {
+  let sum = 0;
+  let count = 0;
+  for (const line of String(pdb || '').split('\n')) {
+    if (!line.startsWith('ATOM')) continue;
+    if (line.slice(12, 16).trim() !== 'CA') continue;
+    const value = Number(line.slice(60, 66));
+    if (Number.isFinite(value)) {
+      sum += value;
+      count++;
+    }
+  }
+  return count ? sum / count : null;
+}
+
+async function designProteinCPU(body, env) {
+  const seedRaw = body.seed_sequence || body.sequence || body.scaffold;
+  const seedCheck = seedRaw ? cleanProteinSequence(seedRaw) : null;
+  if (seedCheck && seedCheck.error) return { status: 400, body: { error: { message: seedCheck.error } } };
+
+  const target = String(body.target || '').slice(0, 2000);
+  const allowDeNovo = body.allow_de_novo === true;
+  let seed = seedCheck && seedCheck.sequence;
+  if (!seed) {
+    if (!allowDeNovo) {
+      return {
+        status: 400,
+        body: {
+          error: {
+            message: 'seed_sequence_required',
+            detail: 'CPU design needs a seed/scaffold. Set allow_de_novo=true only for exploratory de novo candidates.'
+          }
+        }
+      };
+    }
+    const length = Math.max(20, Math.min(Number(body.length) || 80, 300));
+    seed = proteinDeNovo(length, PROTEIN_CPU_AAS, proteinRng(proteinHashSeed(target + ':' + length)));
+  }
+
+  const allowed = String(body.allowed_aa || PROTEIN_CPU_AAS).toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '') || PROTEIN_CPU_AAS;
+  if (allowed.length < 4) {
+    return { status: 400, body: { error: { message: 'allowed_aa must contain at least 4 standard residues' } } };
+  }
+
+  const fixed = new Map();
+  if (body.fixed_positions && typeof body.fixed_positions === 'object') {
+    for (const [key, value] of Object.entries(body.fixed_positions)) {
+      const index = Number(key) - 1;
+      const residue = String(value || '').toUpperCase();
+      if (!Number.isInteger(index) || index < 0 || index >= seed.length || !PROTEIN_CPU_AAS.includes(residue)) {
+        return { status: 400, body: { error: { message: 'invalid fixed_positions entry: ' + key } } };
+      }
+      fixed.set(index, residue);
+      seed = seed.slice(0, index) + residue + seed.slice(index + 1);
+    }
+  }
+
+  const requestedDesigns = Number(body.num_designs);
+  const numDesigns = Number.isFinite(requestedDesigns)
+    ? Math.max(1, Math.min(Math.floor(requestedDesigns), 24))
+    : 8;
+  const requestedMutations = Number(body.max_mutations);
+  const maxMutations = Number.isFinite(requestedMutations)
+    ? Math.max(0, Math.min(Math.floor(requestedMutations), 10))
+    : 3;
+  const requestedGenerations = Number(body.generations);
+  const generations = Number.isFinite(requestedGenerations)
+    ? Math.max(1, Math.min(Math.floor(requestedGenerations), 6))
+    : 4;
+  const populationSize = Math.max(60, Math.min(240, numDesigns * 20));
+  const useEsmfold = body.use_esmfold === true;
+  const requestedFolds = Number(body.max_folds);
+  const maxFolds = Number.isFinite(requestedFolds)
+    ? Math.max(1, Math.min(Math.floor(requestedFolds), 4))
+    : 3;
+  const rng = proteinRng(proteinHashSeed(target + '|' + seed + '|' + allowed + '|' + maxMutations));
+
+  const score = (seq) => proteinHeuristicScore(seq, seed, fixed);
+  let population = [seed];
+  while (population.length < populationSize) {
+    const variant = proteinMutate(seed, 1 + Math.floor(rng() * (maxMutations + 1)), allowed, fixed, rng);
+    population.push(proteinRepairMutations(variant, seed, maxMutations, fixed, rng));
+  }
+
+  for (let generation = 0; generation < generations; generation++) {
+    const ranked = [...new Set(population)]
+      .map((seq) => ({ seq, score: score(seq) }))
+      .sort((a, b) => b.score - a.score);
+    const elite = ranked.slice(0, Math.max(4, Math.floor(populationSize / 5)));
+    const next = elite.map((item) => item.seq);
+    while (next.length < populationSize) {
+      const parent = elite[Math.floor(rng() * elite.length)].seq;
+      const child = proteinMutate(parent, 1 + Math.floor(rng() * 2), allowed, fixed, rng);
+      next.push(proteinRepairMutations(child, seed, maxMutations, fixed, rng));
+    }
+    population = next;
+  }
+
+  const ranked = [...new Set(population)]
+    .map((seq) => ({ seq, score: score(seq) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, numDesigns);
+
+  const designs = ranked.map((item, index) => ({
+    rank: index + 1,
+    sequence: item.seq,
+    mutations: proteinMutations(seed, item.seq),
+    score: Number(item.score.toFixed(2)),
+    components: {
+      hydrophobicity: Number(((item.seq.split('').filter((aa) => PROTEIN_CPU_HYDRO[aa] > 0).length / item.seq.length) * 100).toFixed(1)),
+      net_charge: Number(item.seq.split('').reduce((sum, aa) => sum + (PROTEIN_CPU_CHARGE[aa] || 0), 0).toFixed(1))
+    }
+  }));
+
+  if (useEsmfold) {
+    for (const design of designs.slice(0, maxFolds)) {
+      const folded = await foldProteinSequence(design.sequence);
+      if (!folded.ok) {
+        design.fold_error = folded.error || 'ESMFold failed';
+        continue;
+      }
+      const plddt = proteinPlddt(folded.pdb);
+      if (plddt != null) {
+        design.plddt = Number(plddt.toFixed(1));
+        design.score = Number((0.7 * plddt + 0.3 * design.score).toFixed(2));
+      }
+    }
+    designs.sort((a, b) => b.score - a.score).forEach((design, index) => { design.rank = index + 1; });
+  }
+
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      mode: 'protein_design_cpu',
+      engine: 'VOIDAI CPU design v1',
+      method: useEsmfold
+        ? 'constrained mutation + biophysical heuristic + optional ESMFold pLDDT filter'
+        : 'constrained mutation + biophysical heuristic',
+      gpu_required: false,
+      remote_fold_filter: useEsmfold,
+      target: target,
+      seed: seed,
+      de_novo: !seedCheck,
+      parameters: {
+        num_designs: numDesigns,
+        max_mutations: maxMutations,
+        generations: generations,
+        allowed_aa: allowed
+      },
+      designs: designs,
+      disclaimer: 'Candidate sequences are computational hypotheses. They are not validated for folding, binding, function, safety, or laboratory use. Independent biosafety and experimental review is required.',
+      safety: { benign_attestation: true, target_screened: true, sequence_screened: false }
+    }
+  };
+}
+
 async function proxyProteinDesign(body, env) {
   if (!env.PROTEIN_DESIGN_URL) {
     return {
@@ -1363,7 +1726,7 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     mini: 'MODE: Mini — Compress to the smallest correct answer. Prefer one sentence or a compact list.',
     github: 'MODE: GitHub — Work from repository context. Name files and paths; keep patches minimal and reviewable.',
     predict: 'MODE: Predict — Produce a falsifiable technology forecast. State horizons, separate known signals from inference, give base/accelerated/slow scenarios, leading indicators, falsifiers, and confidence. Do not invent dates or citations.',
-    protein: 'MODE: Protein / Bio — Help with benign, non-pathogenic protein engineering. Separate computational predictions from wet-lab facts. Never claim binding or lab validation without an assay. Refuse pathogen, toxin, virulence, or weaponization work. Phase 1 can fold user-provided sequences through /protein/fold; de novo design requires a configured backend.'
+    protein: 'MODE: Protein / Bio — Help with benign, non-pathogenic protein engineering. Separate computational predictions from wet-lab facts. Never claim binding or lab validation without an assay. Refuse pathogen, toxin, virulence, or weaponization work. /protein/fold predicts structures. /protein/design runs a CPU-only heuristic sequence search; it cannot prove foldability. ESMFold filtering is optional. Never claim parity with GPT-6.2, Astra, or a wet-lab result.'
   };
 
   const modeCircuits = {
@@ -1917,10 +2280,13 @@ export default {
       if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
       return json({
         ok: true,
-        phase: 1,
+        phase: 2,
         esmfold: true,
-        design_backend: !!env.PROTEIN_DESIGN_URL,
+        design_backend: env.PROTEIN_DESIGN_URL ? 'external' : 'cpu_heuristic',
+        design_modes: ['cpu_heuristic', 'external_gpu'],
+        gpu_required_for_cpu_design: false,
         max_sequence: PROTEIN_MAX_SEQUENCE,
+        max_designs: 24,
         safety: 'benign, non-pathogenic targets only',
         disclaimer: 'Computational predictions are not wet-lab validation.'
       });
@@ -1964,14 +2330,19 @@ export default {
       const safety = proteinSafetyError(pbody);
       if (safety) return json({ error: { message: safety, code: 'biosecurity_block' } }, 403);
 
-      const proxied = await proxyProteinDesign(pbody || {}, env);
-      return new Response(proxied.text, {
-        status: proxied.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+      if (env.PROTEIN_DESIGN_URL) {
+        const proxied = await proxyProteinDesign(pbody || {}, env);
+        return new Response(proxied.text, {
+          status: proxied.status,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+
+      const designed = await designProteinCPU(pbody || {}, env);
+      return json(designed.body, designed.status);
     }
 
     if (new URL(request.url).pathname === '/source') {
@@ -2047,7 +2418,7 @@ export default {
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
-        version: '3.1.0',
+        version: '3.2.0',
         source_route: true,
         consciousness: true,
         capabilities_route: true,
@@ -2063,7 +2434,7 @@ export default {
       if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
       return json({
         ok: true,
-        diagnose_version: '3.1.0',
+        diagnose_version: '3.2.0',
         brain_ok: (function(){try{var r=BRAIN.resonance();return !!(r&&r.phases&&Object.keys(r.phases).length===6)}catch(e){return false}})(),
         topology_ok: (typeof BRAINSTEM_TOPOLOGY === 'object' &&
                       Object.keys(BRAINSTEM_TOPOLOGY.layers).length === 6),
@@ -2115,7 +2486,7 @@ export default {
         return Response.json({ error: 'unauthorized' }, { status: 401 });
       }
       return Response.json({
-        version: '3.1.0',
+        version: '3.2.0',
         worker: 'void-ai-proxy',
         model: 'openai/gpt-oss-120b',
         provider: 'groq',
@@ -2125,7 +2496,7 @@ export default {
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
-        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design'],
+        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_external'],
         endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/protein/status', '/protein/fold', '/protein/design'],
         brain: {
           module: 'schumann-resonance',

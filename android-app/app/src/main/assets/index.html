@@ -210,7 +210,7 @@ window.voidaiToggleSidebar = function() {
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
-    <input id="input" type="text" placeholder="Ask anything... or @future or /fold" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input id="input" type="text" placeholder="Ask anything... or @future or /fold or /design" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <button id="send" aria-label="Send">↑</button>
   </div>
 </div>
@@ -481,6 +481,106 @@ window.voidaiToggleSidebar = function() {
       })
       .catch(function(e) {
         addMsg('assistant', '**Fold error:** ' + (e.message || 'unknown'));
+        status('error');
+      })
+      .then(function() {
+        busy = false;
+        els.input.disabled = false;
+        els.send.disabled = false;
+        try { els.input.focus(); } catch(e) {}
+      });
+      return;
+    }
+
+    var designMatch = text.match(/^[@\/]design\b\s*([\s\S]*)$/i);
+    if (designMatch) {
+      var designRaw = designMatch[1].trim();
+      if (!designRaw) {
+        addMsg('assistant', 'Usage: /design SEED_SEQUENCE | BENIGN_TARGET\nOr:    /design BENIGN_TARGET    (exploratory de novo)');
+        return;
+      }
+      var designParts = designRaw.split('|');
+      var designSeed = designParts.length > 1 ? designParts[0].replace(/\s+/g, '').toUpperCase() : '';
+      var designTarget = (designParts.length > 1 ? designParts.slice(1).join('|') : designRaw).trim();
+      if (!designSeed && /^[ACDEFGHIKLMNPQRSTVWY]{10,1024}$/.test(designTarget.replace(/\s+/g, '').toUpperCase())) {
+        designSeed = designTarget.replace(/\s+/g, '').toUpperCase();
+        designTarget = 'benign protein design';
+      }
+      if (designSeed && !/^[ACDEFGHIKLMNPQRSTVWY]{10,1024}$/.test(designSeed)) {
+        addMsg('assistant', 'Seed must be 10-1024 standard amino-acid letters.');
+        return;
+      }
+      if (!designTarget) designTarget = 'benign protein design';
+      busy = true;
+      els.input.disabled = true;
+      els.send.disabled = true;
+      addMsg('user', text);
+      status('designing…');
+      var designBody = {
+        target: designTarget,
+        benign: true,
+        num_designs: 8,
+        max_mutations: 3,
+        generations: 3,
+        use_esmfold: false
+      };
+      if (designSeed) designBody.seed_sequence = designSeed;
+      else { designBody.allow_de_novo = true; designBody.length = 60; }
+      fetch(PROXY_URL + '/protein/design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': VOIDAI_KEY },
+        body: JSON.stringify(designBody)
+      })
+      .then(function(r) {
+        return r.text().then(function(raw) {
+          var d = null;
+          try { d = raw ? JSON.parse(raw) : null; } catch(e) {}
+          if (!r.ok) throw new Error((d && d.error && (d.error.message || d.error)) || ('HTTP ' + r.status));
+          if (!d) throw new Error('empty response');
+          return d;
+        });
+      })
+      .then(function(d) {
+        var lines = ['**CPU protein design**',
+          '- engine: ' + (d.engine || 'VOIDAI CPU design'),
+          '- method: ' + (d.method || 'sequence heuristic'),
+          '- GPU required: no'];
+        if (d.de_novo) lines.push('- de novo: exploratory only, low confidence');
+        if (designSeed) lines.push('- seed: ' + designSeed);
+        lines.push('');
+        (d.designs || []).forEach(function(x) {
+          var tag = '#' + x.rank + ' — score ' + x.score;
+          if (typeof x.plddt === 'number') tag += ' · pLDDT ' + x.plddt;
+          lines.push(tag);
+          lines.push('`' + x.sequence + '`');
+          if (x.mutations && x.mutations.length) {
+            lines.push('mutations: ' + x.mutations.map(function(m) {
+              return m.from + m.position + m.to;
+            }).join(', '));
+          }
+          if (x.fold_error) lines.push('fold filter: ' + x.fold_error);
+          lines.push('');
+        });
+        lines.push(d.disclaimer || 'Computational candidates only. Not wet-lab validated.');
+        var div = addMsg('assistant', lines.join('\n'));
+        if (d.designs && d.designs[0]) {
+          var btn = document.createElement('button');
+          btn.textContent = 'COPY TOP SEQUENCE';
+          btn.style.cssText = 'margin-top:8px;background:#111;color:#ddd;border:1px solid #333;border-radius:6px;padding:6px 10px;font:11px ui-monospace,monospace;letter-spacing:.08em;';
+          btn.onclick = function() {
+            var seq = d.designs[0].sequence;
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(seq);
+          };
+          div.querySelector('.text').appendChild(btn);
+        }
+        history.push({ role: 'user', content: text });
+        history.push({ role: 'assistant', content: lines.join('\n') });
+        saveMemory();
+        if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+        status('ready');
+      })
+      .catch(function(e) {
+        addMsg('assistant', '**Design error:** ' + (e.message || 'unknown'));
         status('error');
       })
       .then(function() {
