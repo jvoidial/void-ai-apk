@@ -42,3 +42,12 @@ VOIDAI has four runtime surfaces:
   iOS needs `WKUIDelegate`/PHPicker, and the web layer downscales before `/vision`.
 - Both Python servers return CORS headers and support an optional bearer token
   (`VOIDAI_SERVER_TOKEN`, `VOIDAI_BACKEND_TOKEN`).
+
+## CI notes
+
+- Android CI (`build.yml`) runs `./gradlew assembleDebug` and uploads `void-ai-debug`.
+- iOS CI (`.github/workflows/ios-unsigned.yml`) needs an Intel macOS runner in this
+  repo. `macos-14` resolves to an unsupported arm64 configuration; use
+  `macos-15-intel` (or another Intel label that the account supports).
+- WKWebView's `runOpenPanelWith` delegate is iOS 18.4+. On older iOS, the built-in
+  file input handles images; do not remove the availability guard.
