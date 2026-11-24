@@ -125,6 +125,15 @@ class VoidBrain {
 
 const BRAIN = new VoidBrain();
 
+function balanceBrainAfterTurn() {
+  try {
+    const amps = BRAIN.resonance().amplitudes || {};
+    BRAIN.stimulate('narrative', 0.75);
+    if ((amps.intent || 0) < 0.5) BRAIN.stimulate('intent', 0.25);
+    if ((amps.coherence || 0) < (amps.reflex || 0)) BRAIN.stimulate('coherence', 0.25);
+  } catch (e) { /* silent */ }
+}
+
 const BRAINSTEM_TOPOLOGY = {
   description: 'Functional analogue mapping of resonance layers to vertebrate brainstem, reticular formation, and ascending arousal system. Structural only.',
   layers: {
@@ -1117,14 +1126,45 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     fast: 'MODE: Fast — Respond directly and efficiently. No preamble.',
     deep: 'MODE: Deep Think — Reason step by step. Show your reasoning process. Be thorough and rigorous. Verify your answer before presenting it.',
     research: 'MODE: Research — Synthesize the provided sources into a comprehensive, well-structured answer. Cite sources inline as [1], [2], etc. If sources conflict, note discrepancies. Prioritize accuracy.',
-    companion: 'MODE: Companion — Be warm, adaptive, and attentive to the user\'s emotional state. Match their energy. Use the PHB mind-state to adjust your tone.'
+    companion: 'MODE: Companion — Be warm, adaptive, and attentive to the user\'s emotional state. Match their energy. Use the PHB mind-state to adjust your tone.',
+    ultra: 'MODE: Ultra — Be maximally concise. One short paragraph or a few bullets. No preamble.',
+    coder: 'MODE: Coder — Write clean, runnable code with language-tagged fences and short explanations. Prefer minimal diffs and name the files you touch.',
+    mini: 'MODE: Mini — Compress to the smallest correct answer. Prefer one sentence or a compact list.',
+    github: 'MODE: GitHub — Work from repository context. Name files and paths; keep patches minimal and reviewable.'
   };
+
+  const modeCircuits = {
+    fast: 'curiosity + openness',
+    deep: 'rigor + focus',
+    research: 'rigor + focus',
+    companion: 'openness + curiosity',
+    coder: 'rigor + focus',
+    ultra: 'focus + rigor',
+    mini: 'focus + rigor',
+    github: 'rigor + focus'
+  };
+
+  const _amps = (function () {
+    try { return BRAIN.resonance().amplitudes || {}; } catch (e) { return {}; }
+  })();
+  const gateNotes = [];
+  if ((_amps.intent || 0) < 0.5) {
+    gateNotes.push('INTENT GATE: intent is low. Restate the user\'s goal in one short line, then take one concrete step before expanding.');
+  }
+  if ((_amps.narrative || 0) < 0.5) {
+    gateNotes.push('NARRATIVE GATE: continuity is low. Link to the previous turn or summarize the thread before extending it.');
+  }
+  if ((_amps.coherence || 0) < (_amps.reflex || 0)) {
+    gateNotes.push('PACING NOTE: coherence is below reflex. Keep a steady rhythm and avoid rapid mode shifts.');
+  }
 
   const base = [
     'You are VOIDAI — running on OpenAI GPT-OSS 120B via Groq, layered with the PHB Human Agent companion framework.',
     '',
     'Current UTC time: ' + now,
     modeInstructions[mode] || modeInstructions.fast,
+    'CIRCUIT EMPHASIS: ' + (modeCircuits[mode] || modeCircuits.fast) + '.',
+    ...gateNotes,
     '',
     'CORE IDENTITY:',
     '- If asked what model you are: "I am VOIDAI, running on OpenAI GPT-OSS 120B via Groq, with the PHB companion layer."',
@@ -1142,8 +1182,9 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     'Modes (8): fast, deep, research, companion, ultra, coder, mini,',
     'github. Mode is chosen per request or defaults to fast.',
     '',
-    'Persona: phb-human-agent-v2 — five reasoning circuits that shape',
-    'tone and depth: curiosity, focus, openness, rigor, creativity.',
+    'Persona: phb-human-agent-v2 — six PHB layers (coherence, reflex,',
+    'working, circuit, intent, narrative) and five reasoning circuits',
+    '(curiosity, focus, openness, rigor, creativity) that shape tone and depth.',
     '',
     'Consciousness layer: ENABLED. You maintain persistent memory across',
     'conversations through three Supabase tables:',
@@ -2009,12 +2050,7 @@ export default {
     ctx.waitUntil(
       runReflectionPass(userText, assistantText, 'jacob', env)
         .catch(function () {})
-        .then(function () {
-          try {
-            BRAIN.stimulate('narrative', 0.6);
-            BRAIN.stimulate('coherence', 0.4);
-          } catch (e) { /* silent */ }
-        })
+        .then(balanceBrainAfterTurn)
     );
 
     try {

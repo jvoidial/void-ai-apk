@@ -189,9 +189,40 @@ class PHBTests(BaseCase):
         state = phb.nudge(phb.DEFAULT_STATE, "debug this function and prove the algorithm")
         self.assertGreater(state["working"], phb.DEFAULT_STATE["working"])
         self.assertGreater(state["intent"], phb.DEFAULT_STATE["intent"])
+        self.assertGreater(state["narrative"], phb.DEFAULT_STATE["narrative"])
         extreme = {name: 1.0 for name in phb.LAYERS}
         again = phb.nudge(extreme, "why? what if? code")
         self.assertTrue(all(0.0 <= value <= 1.0 for value in again.values()))
+
+    def test_modes_include_compact_and_github(self):
+        from voidai import phb
+        for mode in ("ultra", "mini", "github"):
+            self.assertIn(mode, phb.MODES)
+            self.assertIn("CIRCUIT EMPHASIS", phb.system_prompt(mode))
+        self.assertIn("curiosity + openness", phb.system_prompt("fast"))
+        self.assertIn("rigor + focus", phb.system_prompt("coder"))
+
+    def test_gates_follow_state(self):
+        from voidai import phb
+        low = {name: 0.2 for name in phb.LAYERS}
+        low["reflex"] = 0.6
+        prompt = phb.system_prompt("fast", state=low)
+        for token in ("INTENT GATE", "NARRATIVE GATE", "PACING NOTE"):
+            self.assertIn(token, prompt)
+        high = {name: 0.9 for name in phb.LAYERS}
+        prompt = phb.system_prompt("fast", state=high)
+        for token in ("INTENT GATE", "NARRATIVE GATE", "PACING NOTE"):
+            self.assertNotIn(token, prompt)
+
+    def test_reflect_raises_narrative_and_rebalances(self):
+        from voidai import phb
+        base = {name: 0.3 for name in phb.LAYERS}
+        base["reflex"] = 0.6
+        state = phb.reflect(base, "hello", "A long answer. " * 100)
+        self.assertGreater(state["narrative"], 0.3)
+        self.assertGreater(state["intent"], 0.3)
+        self.assertGreater(state["coherence"], 0.3)
+        self.assertTrue(all(0.0 <= value <= 1.0 for value in state.values()))
 
     def test_sync_moves_toward_targets(self):
         from voidai import phb
@@ -226,6 +257,11 @@ class ChatCommandTests(BaseCase):
             self.assertIn(
                 "PHB layers",
                 chat.answer(user_id="recap-user", user_text="@sync", client=Stub()),
+            )
+            from voidai import phb
+            self.assertGreater(
+                phb.load_state("recap-user")["narrative"],
+                phb.DEFAULT_STATE["narrative"],
             )
 
 

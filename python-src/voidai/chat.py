@@ -203,6 +203,9 @@ def answer(session_id=None, user_text="", user_id=None, history=None, mode=None,
     reply = (client or LLMClient()).chat(messages, max_tokens=4096, temperature=0.6)
     _last_answer[uid] = reply
 
+    # Post-turn reflection: strengthen narrative continuity and rebalance layers.
+    phb.save_state(phb.reflect(state, text, reply), uid)
+
     if history is not None:
         history.append({"role": "user", "content": text})
         history.append({"role": "assistant", "content": reply})

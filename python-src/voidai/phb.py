@@ -52,6 +52,20 @@ MODES = {
     "research": "Synthesize the provided context, cite sources inline, and flag conflicts.",
     "companion": "Be warm and attentive. Match the user's energy and adapt tone.",
     "coder": "Write clean, runnable code with language-tagged fences and short explanations.",
+    "ultra": "Be maximally concise. One short paragraph or a few bullets. No preamble.",
+    "mini": "Compress to the smallest correct answer. Prefer one sentence or a compact list.",
+    "github": "Work from repository context. Name files and paths; keep patches minimal and reviewable.",
+}
+
+MODE_CIRCUITS = {
+    "fast": ("curiosity", "openness"),
+    "deep": ("rigor", "focus"),
+    "research": ("rigor", "focus"),
+    "companion": ("openness", "curiosity"),
+    "coder": ("rigor", "focus"),
+    "ultra": ("focus", "rigor"),
+    "mini": ("focus", "rigor"),
+    "github": ("rigor", "focus"),
 }
 
 ADAPTATION = {
@@ -64,6 +78,12 @@ ADAPTATION = {
 
 DEFAULT_STATE = {name: 0.7 for name in LAYERS}
 DEFAULT_TARGETS = {name: 0.8 for name in LAYERS}
+
+
+def _merge(state):
+    merged = dict(DEFAULT_STATE)
+    merged.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
+    return merged
 
 
 def _value(state, name):
@@ -135,7 +155,26 @@ def system_prompt(mode="fast", state=None, extra="") -> str:
         "- No emojis unless the user uses one first.",
         "",
         "MODE: " + mode_line,
+        "CIRCUIT EMPHASIS: " + " + ".join(MODE_CIRCUITS.get(mode, MODE_CIRCUITS["fast"])) + ".",
     ]
+    if _value(layers, "intent") < 0.5:
+        lines += [
+            "",
+            "INTENT GATE: intent is low. Restate the user's goal in one short line, "
+            "then take one concrete step before expanding.",
+        ]
+    if _value(layers, "narrative") < 0.5:
+        lines += [
+            "",
+            "NARRATIVE GATE: continuity is low. Link to the previous turn or summarize "
+            "the thread before extending it.",
+        ]
+    if _value(layers, "coherence") < _value(layers, "reflex"):
+        lines += [
+            "",
+            "PACING NOTE: coherence is below reflex. Keep a steady rhythm and avoid "
+            "rapid mode shifts.",
+        ]
     if extra:
         lines += ["", extra]
     return "\n".join(lines)
@@ -147,8 +186,7 @@ def _clamp(value):
 
 def nudge(state, text):
     """Apply small PHB layer nudges based on the user's message."""
-    s = dict(DEFAULT_STATE)
-    s.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
+    s = _merge(state)
     lowered = (text or "").lower()
     bump = 0.03
 
@@ -168,24 +206,49 @@ def nudge(state, text):
         s["narrative"] = _clamp(s["narrative"] + bump)
     if hits(("want", "need", "goal", "help me", "build", "fix", "plan")):
         s["intent"] = _clamp(s["intent"] + bump)
+    # Every turn feeds the narrative layer a little; explicit continuity words feed it more.
+    s["narrative"] = _clamp(s["narrative"] + 0.01)
+    # Coherence follows reflex upward so pacing does not lag the fast gate.
+    if s["coherence"] < s["reflex"]:
+        s["coherence"] = _clamp(s["coherence"] + 0.01)
     for name in LAYERS:
         target = DEFAULT_TARGETS[name]
         s[name] = _clamp(s[name] + 0.02 * (target - s[name]))
     return s
 
 
+def reflect(state, text="", reply=""):
+    """Post-turn reflection pass.
+
+    This is behavioral bookkeeping, not a physiological process. Longer replies
+    and explicit continuity language strengthen the narrative layer; low intent
+    gets a small goal nudge; coherence is pulled toward reflex when it lags.
+    """
+    s = _merge(state)
+    weight = 0.02 + min(0.03, len(reply or "") / 8000.0)
+    s["narrative"] = _clamp(
+        s["narrative"] + weight * max(0.0, DEFAULT_TARGETS["narrative"] - s["narrative"])
+    )
+    s["working"] = _clamp(
+        s["working"] + 0.01 * (DEFAULT_TARGETS["working"] - s["working"])
+    )
+    if s["intent"] < 0.5:
+        s["intent"] = _clamp(s["intent"] + 0.02)
+    if s["coherence"] < s["reflex"]:
+        s["coherence"] = _clamp(s["coherence"] + 0.02)
+    return s
+
+
 def sync(state):
     """Pull every layer halfway toward its target. Used by ``@sync``."""
-    s = dict(DEFAULT_STATE)
-    s.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
+    s = _merge(state)
     for name in LAYERS:
         s[name] = _clamp(s[name] + 0.5 * (DEFAULT_TARGETS[name] - s[name]))
     return s
 
 
 def describe(state) -> str:
-    s = dict(DEFAULT_STATE)
-    s.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
+    s = _merge(state)
 
     def level(value):
         return "low" if value < 0.4 else ("medium" if value < 0.7 else "high")
