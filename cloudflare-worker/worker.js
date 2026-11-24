@@ -7,6 +7,7 @@ const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const MAX_MESSAGES = 40;
 const MAX_CHARS = 32000;
 const MAX_TOTAL_CHARS = 120000;
+const MAX_IMAGE_CHARS = 12 * 1024 * 1024;
 const DEFAULT_MAX_TOKENS = 4096;
 const MAX_MAX_TOKENS = 8192;
 const RATE_WINDOW = 60000;
@@ -1791,35 +1792,83 @@ export default {
       let vbody;
       try { vbody = await request.json(); }
       catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+
       const image = vbody && vbody.image;
       if (!image || typeof image !== 'string') return json({ error: { message: 'no image' } }, 400);
-      const dataUrl = image.indexOf('data:') === 0 ? image : 'data:image/jpeg;base64,' + image;
-      const prompt = String((vbody && vbody.prompt) || 'Describe this image.').slice(0, 2000);
-      try {
-        const vr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-          body: JSON.stringify({
-            model: env.VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'text', text: prompt },
-                { type: 'image_url', image_url: { url: dataUrl } }
-              ]
-            }],
-            max_tokens: 1024,
-            temperature: 0.3
-          })
-        });
-        const vtext = await vr.text();
-        return new Response(vtext || JSON.stringify({ error: { message: 'empty vision response' } }), {
-          status: vr.ok ? 200 : vr.status,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-      } catch (e) {
-        return json({ error: { message: 'vision request failed: ' + (e.message || String(e)) } }, 502);
+      if (image.length > MAX_IMAGE_CHARS) {
+        return json({ error: { message: 'image too large (max ' + Math.floor(MAX_IMAGE_CHARS / 1024 / 1024) + ' MB encoded)' } }, 413);
       }
+
+      let dataUrl = image.trim();
+      if (dataUrl.indexOf('data:') !== 0) dataUrl = 'data:image/jpeg;base64,' + dataUrl;
+      if (!/^data:image\/[a-z0-9.+-]+;base64,/i.test(dataUrl)) {
+        return json({ error: { message: 'unsupported image data URL' } }, 400);
+      }
+
+      const prompt = String((vbody && vbody.prompt) || 'Describe this image.').slice(0, 2000);
+      const visionBody = {
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: dataUrl } }
+          ]
+        }],
+        max_tokens: 1024,
+        temperature: 0.3
+      };
+
+      let groqError = 'no groq key';
+      if (env.GROQ_API_KEY) {
+        try {
+          const vr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
+            body: JSON.stringify(Object.assign({}, visionBody, {
+              model: env.VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct'
+            }))
+          });
+          const vtext = await vr.text();
+          if (vr.ok && vtext) {
+            return new Response(vtext, {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            });
+          }
+          groqError = vtext ? vtext.slice(0, 400) : ('HTTP ' + vr.status);
+        } catch (e) {
+          groqError = e.message || String(e);
+        }
+      }
+
+      if (env.OPENROUTER_API_KEY) {
+        try {
+          const or = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY,
+              'HTTP-Referer': 'https://voidai.app',
+              'X-Title': 'VOIDAI'
+            },
+            body: JSON.stringify(Object.assign({}, visionBody, {
+              model: env.VISION_FALLBACK_MODEL || 'google/gemini-2.0-flash-001'
+            }))
+          });
+          const otext = await or.text();
+          if (or.ok && otext) {
+            return new Response(otext, {
+              status: 200,
+              headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            });
+          }
+          return json({ error: { message: 'vision failed (groq: ' + groqError.slice(0, 200) + '; openrouter: ' + (otext ? otext.slice(0, 200) : 'HTTP ' + or.status) + ')' } }, 502);
+        } catch (e) {
+          return json({ error: { message: 'vision failed (groq: ' + groqError.slice(0, 200) + '; openrouter: ' + (e.message || String(e)) + ')' } }, 502);
+        }
+      }
+
+      return json({ error: { message: 'vision failed: ' + groqError } }, 502);
     }
 
     if (request.method !== 'POST') return json({ error: { message: 'method not allowed' } }, 405);

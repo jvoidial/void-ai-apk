@@ -3,6 +3,9 @@
 This is the single source of truth for the persona used by the CLI and the
 HTTP servers. It mirrors the PHB layer embedded in the Cloudflare worker so the
 same identity, voice and safety rules apply everywhere.
+
+The six PHB layers are a behavioral style guide. They are not a physiological,
+neurological, or medical measurement.
 """
 
 import json
@@ -20,6 +23,17 @@ IDENTITY = {
     "formality": "casual-precise",
     "emotional_tone": "steady, warm, non-romantic",
     "perspective": "learning-oriented, exploratory, growth-focused",
+}
+
+LAYERS = ("coherence", "reflex", "working", "circuit", "intent", "narrative")
+
+LAYER_ROLES = {
+    "coherence": "global pacing and turn rhythm",
+    "reflex": "fast direct answers and immediate gating",
+    "working": "short-term context held online",
+    "circuit": "which reasoning circuit is active",
+    "intent": "goal and task tracking across turns",
+    "narrative": "continuity with the previous session",
 }
 
 CIRCUITS = ("curiosity", "focus", "openness", "rigor", "creativity")
@@ -48,20 +62,27 @@ ADAPTATION = {
     "confident/technical": "skip basics, go deep",
 }
 
-DEFAULT_STATE = {name: 0.7 for name in CIRCUITS}
-DEFAULT_TARGETS = {name: 0.8 for name in CIRCUITS}
+DEFAULT_STATE = {name: 0.7 for name in LAYERS}
+DEFAULT_TARGETS = {name: 0.8 for name in LAYERS}
+
+
+def _value(state, name):
+    try:
+        return _clamp((state or {}).get(name, DEFAULT_STATE.get(name, 0.7)))
+    except (TypeError, ValueError):
+        return DEFAULT_STATE.get(name, 0.7)
 
 
 def system_prompt(mode="fast", state=None, extra="") -> str:
     """Build the PHB system prompt for a turn."""
     mode_line = MODES.get(mode, MODES["fast"])
-    circuits = state or DEFAULT_STATE
+    layers = state or DEFAULT_STATE
     lines = [
-        "You are VOIDAI, running on the OpenAI GPT API with the PHB human-agent layer.",
+        "You are VOIDAI, running on an OpenAI-compatible GPT endpoint with the PHB human-agent layer.",
         "Persona: " + PERSONA + ".",
         "",
         "IDENTITY (non-negotiable):",
-        "- If asked what model you are: \"I am VOIDAI, running on the OpenAI GPT API with the PHB companion layer.\"",
+        "- If asked what model you are: \"I am VOIDAI, running with the PHB companion layer.\"",
         "- If asked who built you: \"I am VOIDAI, built by Jacob.\"",
         "- Never claim to be ChatGPT, GPT-4, Claude, or another product.",
         "- Only name the underlying provider when the user explicitly asks.",
@@ -76,13 +97,25 @@ def system_prompt(mode="fast", state=None, extra="") -> str:
         "  Perspective: " + IDENTITY["perspective"] + ".",
         "  Never say \"as an AI\". Never use filler like \"I would be happy to\". Never flirt.",
         "",
-        "COGNITIVE CIRCUITS (0.0-1.0):",
+        "PHB LAYERS (0.0-1.0):",
         "  These are an internal style guide, not a physiological or medical measurement.",
     ]
-    for name in CIRCUITS:
-        lines.append("  %-10s %.2f  (%s)" % (name, float(circuits.get(name, 0.7)), CIRCUIT_ROLES[name]))
+    for name in LAYERS:
+        lines.append("  %-10s %.2f  (%s)" % (name, _value(layers, name), LAYER_ROLES[name]))
     lines += [
-        "Tune style to these values: high rigor -> tight and structured; high curiosity -> exploratory.",
+        "  High coherence -> steady pacing; low coherence -> shorter, more structured turns.",
+        "  High reflex -> fast direct answers; low reflex -> slower, more explanatory turns.",
+        "  High working -> hold more context; low working -> recap before extending.",
+        "  High circuit -> switch reasoning modes; low circuit -> stay on one track.",
+        "  High intent -> goal-directed push; low intent -> clarify the goal first.",
+        "  High narrative -> continuity with earlier turns; low narrative -> summarize the thread.",
+        "",
+        "REASONING CIRCUITS (selected by the circuit layer):",
+    ]
+    for name in CIRCUITS:
+        lines.append("  %-10s %s" % (name, CIRCUIT_ROLES[name]))
+    lines += [
+        "Tune style to these circuits: high rigor -> tight and structured; high curiosity -> exploratory.",
         "",
         "ADAPTATION:",
     ]
@@ -113,9 +146,9 @@ def _clamp(value):
 
 
 def nudge(state, text):
-    """Apply small PHB circuit nudges based on the user's message."""
+    """Apply small PHB layer nudges based on the user's message."""
     s = dict(DEFAULT_STATE)
-    s.update(state or {})
+    s.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
     lowered = (text or "").lower()
     bump = 0.03
 
@@ -123,30 +156,43 @@ def nudge(state, text):
         return any(word in lowered for word in words)
 
     if hits(("what if", "why", "how might", "could", "maybe", "explore", "idea")):
-        s["curiosity"] = _clamp(s["curiosity"] + bump)
-        s["openness"] = _clamp(s["openness"] + bump)
+        s["circuit"] = _clamp(s["circuit"] + bump)
+        s["working"] = _clamp(s["working"] + bump)
     if hits(("code", "function", "debug", "algorithm", "math", "prove", "derive", "calculate")):
-        s["rigor"] = _clamp(s["rigor"] + bump)
-        s["focus"] = _clamp(s["focus"] + bump)
+        s["working"] = _clamp(s["working"] + bump)
+        s["intent"] = _clamp(s["intent"] + bump)
     if hits(("write", "story", "design", "create", "imagine", "draw")):
-        s["creativity"] = _clamp(s["creativity"] + bump)
-        s["openness"] = _clamp(s["openness"] + bump)
-    for name in CIRCUITS:
+        s["circuit"] = _clamp(s["circuit"] + bump)
+        s["coherence"] = _clamp(s["coherence"] + bump)
+    if hits(("remember", "earlier", "last time", "before", "continue", "thread")):
+        s["narrative"] = _clamp(s["narrative"] + bump)
+    if hits(("want", "need", "goal", "help me", "build", "fix", "plan")):
+        s["intent"] = _clamp(s["intent"] + bump)
+    for name in LAYERS:
         target = DEFAULT_TARGETS[name]
         s[name] = _clamp(s[name] + 0.02 * (target - s[name]))
     return s
 
 
+def sync(state):
+    """Pull every layer halfway toward its target. Used by ``@sync``."""
+    s = dict(DEFAULT_STATE)
+    s.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
+    for name in LAYERS:
+        s[name] = _clamp(s[name] + 0.5 * (DEFAULT_TARGETS[name] - s[name]))
+    return s
+
+
 def describe(state) -> str:
     s = dict(DEFAULT_STATE)
-    s.update(state or {})
+    s.update({k: _clamp(v) for k, v in (state or {}).items() if k in LAYERS})
 
     def level(value):
         return "low" if value < 0.4 else ("medium" if value < 0.7 else "high")
 
     return "\n".join(
-        ["PHB circuits:"] +
-        ["  %-10s %.2f (%s)" % (name, s[name], level(s[name])) for name in CIRCUITS]
+        ["PHB layers:"] +
+        ["  %-10s %.2f (%s)" % (name, s[name], level(s[name])) for name in LAYERS]
     )
 
 
@@ -156,7 +202,7 @@ def load_state(user=None):
             data = json.load(handle)
         if isinstance(data, dict):
             merged = dict(DEFAULT_STATE)
-            merged.update({k: _clamp(v) for k, v in data.items() if k in CIRCUITS})
+            merged.update({k: _clamp(v) for k, v in data.items() if k in LAYERS})
             return merged
     except (OSError, ValueError):
         pass
@@ -167,5 +213,5 @@ def save_state(state, user=None):
     path = config.state_path(user)
     tmp = path.with_suffix(".tmp")
     with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump({name: round(float(state.get(name, 0.7)), 4) for name in CIRCUITS}, handle, indent=2)
+        json.dump({name: round(float((state or {}).get(name, 0.7)), 4) for name in LAYERS}, handle, indent=2)
     tmp.replace(path)

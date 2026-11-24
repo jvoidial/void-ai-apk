@@ -55,3 +55,10 @@ res/**/*.bak*
 local.properties
 cloudflare-worker/worker.local.js
 .voidai-cf
+
+# iOS build artifacts
+*.ipa
+/ios-app/build/
+/ios-app/VOIDAI.xcodeproj/
+xcuserdata/
+DerivedData/

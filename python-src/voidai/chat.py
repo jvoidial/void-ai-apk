@@ -5,6 +5,8 @@ continuity engine, the code helpers and the LLM client. Both the CLI and the
 HTTP servers call :func:`answer`, so behaviour stays identical everywhere.
 """
 
+import re
+
 from . import config, phb
 from .code_brain import best_code_context
 from .code_reasoner import (
@@ -42,6 +44,8 @@ Knowledge / continuity:
 - @map                  : show the knowledge map
 - @thread TOPIC         : show a continuity thread
 - @coherence            : show the continuity overview
+- @sync                 : pull PHB layers back toward their targets
+- @recap                : one-line recap of the previous answer
 
 Thinking:
 - @reason TEXT          : show reasoning steps
@@ -82,6 +86,18 @@ def _command(uid, text):
         return True, engine_for(uid).continuity_view(text[len("@thread "):].strip())
     if text == "@coherence":
         return True, engine_for(uid).global_coherence()
+    if text in ("@sync", "@sync now"):
+        state = phb.sync(phb.load_state(uid))
+        phb.save_state(state, uid)
+        return True, "Synced.\n" + phb.describe(state)
+    if text in ("@recap", "@recap now"):
+        last = _last_answer.get(uid, "").strip()
+        if not last:
+            return True, "No previous answer to recap yet."
+        sentence = re.split(r"(?<=[.!?])\s+", last)[0]
+        if len(sentence) > 300:
+            sentence = sentence[:297].rstrip() + "..."
+        return True, "Recap: " + sentence
     if text.startswith("@reason "):
         return True, think_steps(text[len("@reason "):].strip())
     if text == "@reflect":

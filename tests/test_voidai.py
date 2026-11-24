@@ -177,25 +177,56 @@ class PHBTests(BaseCase):
     def test_prompt_contains_basis(self):
         from voidai import phb
         prompt = phb.system_prompt("deep")
-        for token in ("PHB BASIS", "phb-human-agent-v2", "COGNITIVE CIRCUITS",
+        for token in ("PHB BASIS", "phb-human-agent-v2", "PHB LAYERS",
+                      "REASONING CIRCUITS", "coherence", "reflex", "working",
+                      "circuit", "intent", "narrative",
                       "not a physiological or medical measurement", "built by Jacob"):
             self.assertIn(token, prompt)
         self.assertIn("step by step", prompt)
 
-    def test_nudge_moves_circuits_and_clamps(self):
+    def test_nudge_moves_layers_and_clamps(self):
         from voidai import phb
         state = phb.nudge(phb.DEFAULT_STATE, "debug this function and prove the algorithm")
-        self.assertGreater(state["rigor"], phb.DEFAULT_STATE["rigor"])
-        extreme = {name: 1.0 for name in phb.CIRCUITS}
+        self.assertGreater(state["working"], phb.DEFAULT_STATE["working"])
+        self.assertGreater(state["intent"], phb.DEFAULT_STATE["intent"])
+        extreme = {name: 1.0 for name in phb.LAYERS}
         again = phb.nudge(extreme, "why? what if? code")
         self.assertTrue(all(0.0 <= value <= 1.0 for value in again.values()))
+
+    def test_sync_moves_toward_targets(self):
+        from voidai import phb
+        state = phb.sync({name: 0.2 for name in phb.LAYERS})
+        self.assertTrue(all(state[name] > 0.2 for name in phb.LAYERS))
+        self.assertTrue(all(state[name] <= phb.DEFAULT_TARGETS[name] for name in phb.LAYERS))
 
     def test_state_roundtrip_per_user(self):
         from voidai import phb
         with patched_env(VOIDAI_HOME=self.home):
-            phb.save_state({"rigor": 0.9}, "state-user")
-            self.assertAlmostEqual(phb.load_state("state-user")["rigor"], 0.9)
-            self.assertAlmostEqual(phb.load_state("other-user")["rigor"], 0.7)
+            phb.save_state({"intent": 0.9}, "state-user")
+            self.assertAlmostEqual(phb.load_state("state-user")["intent"], 0.9)
+            self.assertAlmostEqual(phb.load_state("other-user")["intent"], 0.7)
+
+
+class ChatCommandTests(BaseCase):
+    def test_sync_and_recap(self):
+        from voidai import chat
+
+        class Stub:
+            model = "stub"
+            def chat(self, messages, **kwargs):
+                return "First sentence. Second sentence."
+
+        with patched_env(VOIDAI_HOME=self.home):
+            reply = chat.answer(user_id="recap-user", user_text="hello", client=Stub())
+            self.assertIn("First sentence", reply)
+            self.assertEqual(
+                chat.answer(user_id="recap-user", user_text="@recap", client=Stub()),
+                "Recap: First sentence.",
+            )
+            self.assertIn(
+                "PHB layers",
+                chat.answer(user_id="recap-user", user_text="@sync", client=Stub()),
+            )
 
 
 class ConfigTests(BaseCase):

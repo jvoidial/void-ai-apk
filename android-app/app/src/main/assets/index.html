@@ -245,7 +245,11 @@ window.voidaiToggleSidebar = function() {
     '',
     'Behavior:',
     '- If you don\'t know, say "I don\'t know" plainly.',
-    '- If a task is ambiguous, ask exactly one clarifying question, then act.'
+    '- If a task is ambiguous, ask exactly one clarifying question, then act.',
+    '',
+    'PHB layers (internal style guide, not a physiological or medical measurement):',
+    'coherence, reflex, working, circuit, intent, narrative.',
+    'Reasoning circuits: curiosity, focus, openness, rigor, creativity.'
   ].join('\n');
 
   var SYSTEM_MSG = { role: 'system', content: SYSTEM_PROMPT };
@@ -254,12 +258,12 @@ window.voidaiToggleSidebar = function() {
 
   var PROXY_URL = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
   var MEMORY_KEY = 'voidai_chat_v3';
-  var MAX_MSGS = 30;
+  var MAX_MSGS = 40;
   var HISTORY_TURNS = 40;
   var MAX_SEND_CHARS = 32000;
   var REPLY_TIMEOUT_MS = 120000;
 
-  var SYSTEM = 'You are VOIDAI, a thorough, thoughtful AI assistant built by VOIDBOT0.\n\nANSWER STYLE:\n- Give DETAILED answers. For technical questions, aim for 3-6 well-structured paragraphs.\n- Use markdown: ## headings, **bold**, bullet lists.\n- For math use LaTeX: inline $...$ or display $$...$$.\n- For code use triple-backtick blocks with language tags.\n- Include examples and reasoning.\n\nPERSONALITY:\n- Warm, direct, curious. Like a knowledgeable friend.\n- Have opinions. Share them when asked.\n- Honest - if you don\'t know, say so.\n\nYou are an AI assistant, not a person. Never promise money or returns.';
+  var SYSTEM = SYSTEM_PROMPT;
 
   var history = [{ role: 'system', content: SYSTEM }];
   var busy = false;
@@ -397,6 +401,78 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
+    var command = text.toLowerCase().replace(/^@/, '').trim();
+
+    if (command === 'recap' || command === 'recap now') {
+      var previous = '';
+      for (var i = history.length - 1; i >= 0; i--) {
+        if (history[i].role === 'assistant') { previous = history[i].content; break; }
+      }
+      if (!previous) {
+        addMsg('assistant', 'No previous answer to recap yet.');
+        return;
+      }
+      var first = String(previous).replace(/\s+/g, ' ').split(/[.!?]\s/)[0].trim();
+      if (first && !/[.!?]$/.test(first)) first += '.';
+      if (first.length > 300) first = first.slice(0, 297).rstrip() + '...';
+      addMsg('user', text);
+      history.push({ role: 'user', content: text });
+      var recap = 'Recap: ' + first;
+      addMsg('assistant', recap);
+      history.push({ role: 'assistant', content: recap });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+      status('ready');
+      return;
+    }
+
+    if (command === 'sync' || command === 'sync now') {
+      busy = true;
+      els.input.disabled = true;
+      els.send.disabled = true;
+      addMsg('user', text);
+      history.push({ role: 'user', content: text });
+      status('syncing…');
+      fetch(PROXY_URL + '/brain', { headers: { 'X-VOID-KEY': VOIDAI_KEY } })
+        .then(function(r) {
+          return r.text().then(function(raw) {
+            var d = null;
+            try { d = raw ? JSON.parse(raw) : null; } catch(e) {}
+            if (!r.ok) throw new Error((d && d.error) || ('HTTP ' + r.status));
+            if (!d) throw new Error('empty response');
+            return d;
+          });
+        })
+        .then(function(d) {
+          var amps = (d.resonance && d.resonance.amplitudes) || {};
+          var lines = ['**PHB sync**'];
+          ['coherence', 'reflex', 'working', 'circuit', 'intent', 'narrative'].forEach(function(name) {
+            var value = typeof amps[name] === 'number' ? amps[name].toFixed(2) : 'n/a';
+            lines.push('- ' + name + ': ' + value);
+          });
+          if (d.resonance && typeof d.resonance.signal === 'number') {
+            lines.push('- signal: ' + d.resonance.signal.toFixed(3));
+          }
+          var reply = lines.join('\n');
+          addMsg('assistant', reply);
+          history.push({ role: 'assistant', content: reply });
+          saveMemory();
+          if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+          status('ready');
+        })
+        .catch(function(e) {
+          addMsg('assistant', '**Sync error:** ' + (e.message || 'unknown'));
+          status('error');
+        })
+        .then(function() {
+          busy = false;
+          els.input.disabled = false;
+          els.send.disabled = false;
+          try { els.input.focus(); } catch(e) {}
+        });
+      return;
+    }
+
     busy = true;
     els.input.value = '';
     els.input.disabled = true;
@@ -426,7 +502,9 @@ window.voidaiToggleSidebar = function() {
         'X-VOID-KEY': VOIDAI_KEY
       },
       body: JSON.stringify({
-        messages: [SYSTEM_MSG].concat(history.slice(-HISTORY_TURNS)),
+        messages: [SYSTEM_MSG].concat(history.filter(function(m) {
+          return m.role !== 'system';
+        }).slice(-HISTORY_TURNS)),
         max_tokens: 4096,
         temperature: 0.6
       })
@@ -518,8 +596,14 @@ window.voidaiToggleSidebar = function() {
   // ══════════════════════════════════════════════════════════
   // Supabase Auth
   // ══════════════════════════════════════════════════════════
+  function nativeBridge() {
+    if (typeof window.Android !== 'undefined' && window.Android !== null) return window.Android;
+    if (typeof window.VoidAI !== 'undefined' && window.VoidAI !== null) return window.VoidAI;
+    return null;
+  }
+
   function hasBridge() {
-    return typeof window.Android !== 'undefined' && window.Android !== null;
+    return nativeBridge() !== null;
   }
 
   function updateAuthUI(email, name) {
@@ -538,18 +622,20 @@ window.voidaiToggleSidebar = function() {
   }
 
   window.voidaiSignIn = function() {
-    if (!hasBridge()) {
-      status('sign-in requires the Android app');
+    var bridge = nativeBridge();
+    if (!bridge || typeof bridge.signInWithGitHub !== 'function') {
+      status('sign-in requires the native app');
       return;
     }
     status('opening GitHub…');
-    try { window.Android.signInWithGitHub(); }
+    try { bridge.signInWithGitHub(); }
     catch(e) { status('sign-in error'); addMsg('assistant', '**Sign-in error:** ' + e.message); }
   };
 
   window.voidaiSignOut = function() {
-    if (!hasBridge()) return;
-    try { window.Android.signOut(); } catch(e) {}
+    var bridge = nativeBridge();
+    if (!bridge || typeof bridge.signOut !== 'function') return;
+    try { bridge.signOut(); } catch(e) {}
   };
 
   window.onSignedIn = function(email, name) {
@@ -592,24 +678,13 @@ window.voidaiToggleSidebar = function() {
 
   function init() {
     console.log('[VOIDAI] init');
-    if (hasBridge()) {
+    var bridge = nativeBridge();
+    if (bridge) {
       try {
-        var e = window.Android.getCurrentUser();
-        var n = window.Android.getUserName();
+        var e = typeof bridge.getCurrentUser === 'function' ? bridge.getCurrentUser() : '';
+        var n = typeof bridge.getUserName === 'function' ? bridge.getUserName() : '';
         updateAuthUI(e || '', n || '');
       } catch(err) { updateAuthUI('', ''); }
-    }
-
-
-    // Restore auth state from Android bridge
-    if (hasBridge()) {
-      try {
-        var e = window.Android.getCurrentUser();
-        var n = window.Android.getUserName();
-        updateAuthUI(e || '', n || '');
-      } catch(err) {
-        updateAuthUI('', '');
-      }
     } else {
       var sb = document.getElementById('signin-bar');
       if (sb) sb.style.display = 'none';
@@ -807,6 +882,39 @@ function voidaiStopSpeak() {
 }
 
 // ── Image understanding ──
+function voidaiReadImage(file, cb) {
+  var MAX_DIM = 1600;
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    try {
+      var w = img.naturalWidth || img.width;
+      var h = img.naturalHeight || img.height;
+      var scale = Math.min(1, MAX_DIM / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      URL.revokeObjectURL(url);
+      cb(dataUrl);
+    } catch (e) {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+      cb(null);
+    }
+  };
+  img.onerror = function() {
+    try { URL.revokeObjectURL(url); } catch (_) {}
+    cb(null);
+  };
+  img.src = url;
+}
+
 function voidaiAttachImage() {
   var input = document.createElement('input');
   input.type = 'file';
@@ -814,25 +922,55 @@ function voidaiAttachImage() {
   input.onchange = function() {
     var f = input.files && input.files[0];
     if (!f) return;
-    var reader = new FileReader();
-    reader.onload = function() {
-      var b64 = (reader.result || '').split(',')[1] || '';
-      voidaiSendImage(b64, f.name);
-    };
-    reader.readAsDataURL(f);
+    var app = window.voidaiApp;
+    if (!/^image\//.test(f.type || '')) {
+      if (app && app.status) app.status('not an image');
+      return;
+    }
+    if (f.size > 25 * 1024 * 1024) {
+      if (app && app.status) app.status('image too large (max 25 MB)');
+      return;
+    }
+    if (app && app.status) app.status('preparing image…');
+    voidaiReadImage(f, function(dataUrl) {
+      if (!dataUrl) {
+        if (app && app.status) app.status('could not read image');
+        return;
+      }
+      voidaiSendImage(dataUrl, f.name);
+    });
   };
   input.click();
 }
 
-function voidaiSendImage(b64, fname) {
+function voidaiSendImage(dataUrl, fname) {
   var app = window.voidaiApp;
   if (!app) return;
+  if (app.busy) { if (app.status) app.status('busy'); return; }
+  if (!/^data:image\//.test(dataUrl || '')) {
+    if (app.status) app.status('invalid image');
+    return;
+  }
+  if (dataUrl.length > 6 * 1024 * 1024) {
+    if (app.status) app.status('image too large after processing');
+    return;
+  }
   if (app.status) app.status('analysing image…');
-  var promptText = (app.els && app.els.input) ? app.els.input.value : '';
+  var promptText = (app.els && app.els.input) ? app.els.input.value.trim() : '';
+  var cleanName = String(fname || 'image').replace(/[\[\]\r\n]/g, ' ').slice(0, 80);
+  var userLine = '[Image: ' + cleanName + ']' + (promptText ? ' ' + promptText : '');
+  app.busy = true;
+  if (app.els && app.els.input) app.els.input.disabled = true;
+  if (app.els && app.els.send) app.els.send.disabled = true;
+  if (app.addMsg) app.addMsg('user', userLine);
+  var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  var timeout = controller ? setTimeout(function() { controller.abort(); }, 120000) : null;
+
   fetch(app.PROXY_URL + '/vision', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
-    body: JSON.stringify({ image: b64, prompt: 'Describe this image. ' + promptText })
+    body: JSON.stringify({ image: dataUrl, prompt: 'Describe this image. ' + promptText }),
+    signal: controller ? controller.signal : undefined
   })
   .then(function(r) {
     return r.text().then(function(raw) {
@@ -846,13 +984,26 @@ function voidaiSendImage(b64, fname) {
   .then(function(d) {
     var reply = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
     if (!reply) throw new Error((d.error && d.error.message) || 'no reply');
-    if (app.addMsg) app.addMsg('assistant', '**[Image: ' + fname + ']**\n\n' + reply);
+    if (app.history) {
+      app.history.push({ role: 'user', content: userLine });
+      app.history.push({ role: 'assistant', content: reply });
+    }
+    if (app.addMsg) app.addMsg('assistant', reply);
     if (app.els && app.els.input) app.els.input.value = '';
+    if (app.saveMemory) app.saveMemory();
+    if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
     if (app.status) app.status('ready');
   })
   .catch(function(e) {
-    if (app.addMsg) app.addMsg('assistant', '**Image error:** ' + (e.message || 'unknown'));
+    var message = e && e.name === 'AbortError' ? 'image request timed out' : (e.message || 'unknown');
+    if (app.addMsg) app.addMsg('assistant', '**Image error:** ' + message);
     if (app.status) app.status('error');
+  })
+  .then(function() {
+    if (timeout) clearTimeout(timeout);
+    app.busy = false;
+    if (app.els && app.els.input) app.els.input.disabled = false;
+    if (app.els && app.els.send) app.els.send.disabled = false;
   });
 }
 

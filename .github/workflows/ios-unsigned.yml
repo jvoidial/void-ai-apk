@@ -1,0 +1,30 @@
+name: Build unsigned iOS IPA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ios-app/**'
+      - 'android-app/app/src/main/assets/index.html'
+      - '.github/workflows/ios-unsigned.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build unsigned IPA
+        working-directory: ios-app
+        run: ./build-unsigned-ipa.sh
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: VOIDAI-unsigned-ipa
+          path: ios-app/build/VOIDAI-unsigned.ipa
+          if-no-files-found: error

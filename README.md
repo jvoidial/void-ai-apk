@@ -2,11 +2,12 @@
 
 <h1 align="center">VOIDAI</h1>
 
-Android app with GitHub sign-in, Supabase storage, and AI chat via Cloudflare Workers + Groq.
+Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI chat via Cloudflare Workers + Groq.
 
 ## Download
 
 - **APK** — open the [latest green build](https://github.com/jvoidial/void-ai-apk/actions/workflows/build.yml), scroll to Artifacts, download `void-ai-debug`
+- **iOS IPA (unsigned)** — open the [iOS workflow](https://github.com/jvoidial/void-ai-apk/actions/workflows/ios-unsigned.yml), download the `VOIDAI-unsigned-ipa` artifact
 - **Source** — [Download ZIP](https://github.com/jvoidial/void-ai-apk/archive/refs/heads/main.zip)
 
 ## Features
@@ -17,7 +18,9 @@ Android app with GitHub sign-in, Supabase storage, and AI chat via Cloudflare Wo
 - Worldwide location resolver — coords, UK postcodes, US zips, landmarks, cities
 - Consensus reasoning — two models in parallel, adjudication on disagreement
 - Time & units — timezone clock, C-F, km-mi, kg-lb, m-ft
-- Sign-in — GitHub OAuth via Supabase
+- Image vision — attach a photo, downscaled on-device, analyzed via Groq with OpenRouter fallback
+- Sign-in — GitHub OAuth via Supabase (Android + iOS)
+- PHB layers — coherence, reflex, working, circuit, intent, narrative
 - Storage — per-user files, RLS-isolated
 - Cost: **$0**
 
@@ -48,8 +51,8 @@ Environment:
 | `VOIDAI_HOST` / `VOIDAI_PORT` | server bind address (default `127.0.0.1:3000`) |
 
 Each user gets separate memory, history and PHB state under
-`$VOIDAI_HOME/users/<id>/`. Local commands (`@help`, `@state`, `@memory`, `@map`)
-work without a key.
+`$VOIDAI_HOME/users/<id>/`. Local commands (`@help`, `@state`, `@memory`, `@map`,
+`@sync`, `@recap`) work without a key.
 
 HTTP server (standard library, CORS enabled):
 
@@ -60,6 +63,19 @@ HTTP server (standard library, CORS enabled):
 Run the tests:
 
     python3 -m unittest discover -s tests -v
+
+## iOS unsigned IPA
+
+`ios-app/` is a WKWebView clone that reuses the same `index.html`. It supports
+image attachment and Supabase GitHub sign-in through `ASWebAuthenticationSession`.
+
+    brew install xcodegen
+    cd ios-app
+    ./build-unsigned-ipa.sh
+
+The IPA is intentionally unsigned, so it must be signed with AltStore, Sideloadly,
+or your own certificate before a stock iPhone will install it. The
+`ios-unsigned.yml` workflow builds the same artifact on a macOS runner.
 
 ## Architecture
 
