@@ -178,6 +178,78 @@ html, body {
   letter-spacing: 0.05em;
   min-height: 20px;
 }
+
+/* VOIDAI SIM — self-contained N-D projection workbench */
+#sim-modal {
+  position: fixed; inset: 0; z-index: 2147483000;
+  background: rgba(0,0,0,0.97); display: none; align-items: stretch; justify-content: center;
+}
+#sim-modal.open { display: flex; }
+#sim-panel {
+  width: 100%; max-width: 900px; height: 100%;
+  display: flex; flex-direction: column; background: #040404;
+  color: #d8d8d8; font-family: ui-monospace, "SF Mono", monospace;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#sim-head {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 14px 10px; border-bottom: 1px solid #171717;
+}
+#sim-kicker { font-size: 9px; letter-spacing: 0.22em; color: #555; }
+#sim-title { font-size: 14px; letter-spacing: 0.06em; color: #f0f0f0; margin-top: 3px; }
+#sim-close {
+  background: #111; border: 1px solid #333; color: #bbb; border-radius: 7px;
+  padding: 7px 10px; font: 10px ui-monospace, monospace; letter-spacing: 0.12em; cursor: pointer;
+}
+#sim-stage { position: relative; flex: 1; min-height: 220px; background: #020202; overflow: hidden; }
+#sim-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#sim-hud {
+  position: absolute; top: 10px; left: 12px; right: 12px; pointer-events: none;
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 9px; letter-spacing: 0.12em; color: #6a6a6a;
+}
+#sim-hud strong { color: #cfcfcf; font-weight: 500; }
+#sim-legend {
+  position: absolute; bottom: 10px; left: 12px; font-size: 9px; color: #555;
+  letter-spacing: 0.06em; pointer-events: none;
+}
+#sim-controls {
+  flex-shrink: 0; max-height: 46%; overflow-y: auto; padding: 12px 14px 14px;
+  border-top: 1px solid #171717; display: flex; flex-direction: column; gap: 10px;
+}
+.sim-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.sim-label { font-size: 9px; color: #5c5c5c; letter-spacing: 0.14em; width: 58px; flex-shrink: 0; }
+.sim-btn {
+  background: #101010; border: 1px solid #2c2c2c; color: #bdbdbd;
+  border-radius: 7px; padding: 7px 10px; font: 10px ui-monospace, monospace;
+  letter-spacing: 0.08em; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.sim-btn.active { background: #ededed; border-color: #ededed; color: #000; }
+.sim-btn:active { transform: translateY(1px); }
+#sim-prompt {
+  flex: 1; min-width: 150px; background: #0b0b0b; border: 1px solid #292929;
+  border-radius: 7px; color: #eee; padding: 9px 10px; font: 11px ui-monospace, monospace; outline: none;
+}
+#sim-prompt:focus { border-color: #555; }
+#sim-prompt::placeholder { color: #454545; }
+#sim-scene {
+  flex: 1; min-width: 150px; background: #0b0b0b; border: 1px solid #292929;
+  border-radius: 7px; color: #ddd; padding: 8px; font: 11px ui-monospace, monospace; outline: none;
+}
+.sim-slider { flex: 1; min-width: 110px; accent-color: #ddd; }
+.sim-value { font-size: 10px; color: #777; width: 44px; text-align: right; }
+#sim-foot {
+  flex-shrink: 0; padding: 7px 14px 9px; border-top: 1px solid #111;
+  font-size: 9px; line-height: 1.45; color: #4a4a4a;
+}
+#sim-foot b { color: #777; font-weight: 500; }
+@media (max-width: 520px) {
+  #sim-head { padding: 10px 12px 8px; }
+  #sim-title { font-size: 12px; }
+  #sim-controls { padding: 10px 12px 12px; gap: 8px; }
+  .sim-label { width: 100%; }
+  #sim-foot { font-size: 8px; }
+}
 </style>
 </head>
 <body>
@@ -210,8 +282,65 @@ window.voidaiToggleSidebar = function() {
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
-    <input id="input" type="text" placeholder="Ask anything, /fold, /design, or /image" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input id="input" type="text" placeholder="Ask anything · /sim /image /design" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <button id="send" aria-label="Send">↑</button>
+  </div>
+</div>
+
+<div id="sim-modal" aria-hidden="true">
+  <div id="sim-panel">
+    <div id="sim-head">
+      <div>
+        <div id="sim-kicker">VOIDAI SIM</div>
+        <div id="sim-title">N-D WORKBENCH</div>
+      </div>
+      <button id="sim-close" type="button">CLOSE</button>
+    </div>
+    <div id="sim-stage">
+      <canvas id="sim-canvas"></canvas>
+      <div id="sim-hud"><span id="sim-hud-left">3D · ORBIT</span><span id="sim-hud-right">PAUSED</span></div>
+      <div id="sim-legend">DRAG TO ORBIT · PINCH TO ZOOM</div>
+    </div>
+    <div id="sim-controls">
+      <div class="sim-row">
+        <span class="sim-label">DIMENSION</span>
+        <button class="sim-btn" type="button" data-sim-dim="3">3D</button>
+        <button class="sim-btn" type="button" data-sim-dim="4">4D</button>
+        <button class="sim-btn" type="button" data-sim-dim="5">5D</button>
+      </div>
+      <div class="sim-row">
+        <span class="sim-label">SCENE</span>
+        <select id="sim-scene">
+          <option value="orbit">Orbit / N-body</option>
+          <option value="lorenz">Lorenz attractor</option>
+          <option value="wave">Wave field</option>
+          <option value="particles">Particle cloud</option>
+          <option value="poly">N-D polytope</option>
+          <option value="lattice">N-D lattice</option>
+          <option value="state">N-D state curve</option>
+        </select>
+      </div>
+      <div class="sim-row">
+        <input id="sim-prompt" type="text" placeholder="try: 4d tesseract, 5d state, lorenz, 300 particles" autocomplete="off">
+        <button id="sim-build" class="sim-btn" type="button">BUILD</button>
+      </div>
+      <div class="sim-row">
+        <span class="sim-label">SPEED</span>
+        <input id="sim-speed" class="sim-slider" type="range" min="0.1" max="3" step="0.1" value="1">
+        <span id="sim-speed-val" class="sim-value">1.0×</span>
+      </div>
+      <div class="sim-row">
+        <span class="sim-label">COUNT</span>
+        <input id="sim-count" class="sim-slider" type="range" min="8" max="320" step="1" value="120">
+        <span id="sim-count-val" class="sim-value">120</span>
+      </div>
+      <div class="sim-row">
+        <button id="sim-play" class="sim-btn" type="button">PAUSE</button>
+        <button id="sim-reset" class="sim-btn" type="button">RESET</button>
+        <button id="sim-snap" class="sim-btn" type="button">SNAPSHOT</button>
+      </div>
+    </div>
+    <div id="sim-foot"><b>3D</b> is a spatial projection. <b>4D/5D</b> are mathematical N-dimensional projections and state-space views, not physical spacetime. Canvas 2D; no GPU or network required.</div>
   </div>
 </div>
 
@@ -653,6 +782,29 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
+    var simMatch = text.match(/^[@\/](?:sim|simulate|simulator|builder)\b\s*([\s\S]*)$/i);
+    if (simMatch) {
+      if (typeof window.voidaiOpenSim !== 'function') {
+        addMsg('assistant', '**Simulation error:** workbench failed to load.');
+        return;
+      }
+      var simResult = window.voidaiOpenSim(simMatch[1].trim());
+      addMsg('user', text);
+      var simReply = '**Simulation workbench**\n'
+        + '- dimension: ' + simResult.dim + 'D\n'
+        + '- scene: ' + simResult.sceneLabel + '\n'
+        + '- mode: ' + simResult.mode + '\n\n'
+        + simResult.note + '\n\n'
+        + 'Use BUILD, the dimension controls, SPEED, COUNT, PAUSE, RESET, and SNAPSHOT in the workbench.';
+      addMsg('assistant', simReply);
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: simReply });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+      status('simulation ready');
+      return;
+    }
+
     if (command === 'sync' || command === 'sync now') {
       busy = true;
       els.input.disabled = true;
@@ -977,6 +1129,711 @@ window.voidaiToggleSidebar = function() {
     init();
   }
 })();
+</script>
+
+<script>
+(function() {
+  'use strict';
+
+  var modal = document.getElementById('sim-modal');
+  var canvas = document.getElementById('sim-canvas');
+  if (!modal || !canvas) return;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  var TAU = Math.PI * 2;
+  var S = {
+    open: false, bound: false, dim: 3, scene: 'orbit', speed: 1, count: 120,
+    t: 0, paused: false, last: 0, raf: 0, w: 1, h: 1, dpr: 1,
+    rotY: 0.55, rotX: -0.2, zoom: 1, dragging: false,
+    pointers: {}, pinch: 0, stars: [], fps: 0, frames: 0, hudAt: 0,
+    lorenz: null, particles: null, geom: null, state: null
+  };
+
+  var LABELS = {
+    orbit: 'ORBIT / N-BODY',
+    lorenz: 'LORENZ ATTRACTOR',
+    wave: 'WAVE FIELD',
+    particles: 'PARTICLE CLOUD',
+    poly: 'N-D POLYTOPE',
+    lattice: 'N-D LATTICE',
+    state: 'N-D STATE CURVE'
+  };
+
+  function $(id) { return document.getElementById(id); }
+  function el(id) { return $(id); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function rng(seed) {
+    var a = seed >>> 0;
+    return function() {
+      a = (a + 0x6D2B79F5) >>> 0;
+      var t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function col(h, a) { return 'hsla(' + h + ',85%,66%,' + a + ')'; }
+
+  function sceneLabel() {
+    if (S.scene === 'poly') {
+      if (S.dim === 3) return '3-CUBE';
+      if (S.dim === 4) return 'TESSERACT / 4-CUBE';
+      return 'PENTERACT / 5-CUBE';
+    }
+    return LABELS[S.scene] || S.scene.toUpperCase();
+  }
+  function modeText() {
+    return S.dim === 3 ? 'spatial 3D projection' : (S.dim + 'D mathematical projection');
+  }
+
+  function makeStars() {
+    var r = rng(90421), out = [];
+    for (var i = 0; i < 85; i++) {
+      out.push({ x: r(), y: r(), s: 0.4 + r() * 1.5, p: r() * TAU });
+    }
+    return out;
+  }
+
+  function resize() {
+    var rect = canvas.getBoundingClientRect();
+    S.w = Math.max(1, rect.width);
+    S.h = Math.max(1, rect.height);
+    S.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(S.w * S.dpr);
+    canvas.height = Math.floor(S.h * S.dpr);
+    ctx.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+    S.stars = makeStars();
+  }
+
+  function project3(p) {
+    var cy = Math.cos(S.rotY), sy = Math.sin(S.rotY);
+    var x = p.x * cy - p.z * sy;
+    var z = p.x * sy + p.z * cy;
+    var cx = Math.cos(S.rotX), sx = Math.sin(S.rotX);
+    var y = p.y * cx - z * sx;
+    z = p.y * sx + z * cx;
+    var f = 4.2 / (4.2 + z * 0.7);
+    var scale = Math.min(S.w, S.h) * 0.36 * S.zoom;
+    return { x: S.w / 2 + x * f * scale, y: S.h / 2 + y * f * scale, z: z, f: f };
+  }
+
+  function projectND(p, dim) {
+    var v = p.slice(), i, j, a, ci, si, tmp;
+    function rot(i, j, angle) {
+      ci = Math.cos(angle); si = Math.sin(angle);
+      tmp = v[i] * ci - v[j] * si;
+      v[j] = v[i] * si + v[j] * ci;
+      v[i] = tmp;
+    }
+    if (dim >= 4) {
+      rot(0, 1, S.t * 0.23);
+      rot(2, 3, S.t * 0.31);
+      rot(0, 3, S.t * 0.17);
+    }
+    if (dim >= 5) {
+      rot(0, 4, S.t * 0.19);
+      rot(1, 4, S.t * 0.27);
+      rot(2, 4, S.t * 0.13);
+    }
+    for (var k = dim - 1; k >= 3; k--) {
+      var w = 2.6;
+      var f = w / (w - v[k] * 0.55);
+      for (i = 0; i < k; i++) v[i] *= f;
+    }
+    return project3({ x: v[0], y: v[1], z: v[2] });
+  }
+
+  function fitProjected(points) {
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < points.length; i++) {
+      minX = Math.min(minX, points[i].x); maxX = Math.max(maxX, points[i].x);
+      minY = Math.min(minY, points[i].y); maxY = Math.max(maxY, points[i].y);
+    }
+    var spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+    var fit = Math.min((S.w * 0.88) / spanX, (S.h * 0.88) / spanY);
+    if (fit >= 1) return points;
+    var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    for (var j = 0; j < points.length; j++) {
+      points[j].x = S.w / 2 + (points[j].x - cx) * fit;
+      points[j].y = S.h / 2 + (points[j].y - cy) * fit;
+    }
+    return points;
+  }
+
+  function popcount(n) {
+    var c = 0;
+    while (n) { n &= n - 1; c++; }
+    return c;
+  }
+
+  function hypercube(dim) {
+    var n = 1 << dim, vertices = [], edges = [], i, j;
+    for (i = 0; i < n; i++) {
+      var p = [];
+      for (j = 0; j < dim; j++) p.push((i >> j) & 1 ? 1 : -1);
+      vertices.push(p);
+    }
+    for (i = 0; i < n; i++) {
+      for (j = i + 1; j < n; j++) {
+        if (popcount(i ^ j) === 1) edges.push([i, j]);
+      }
+    }
+    return { vertices: vertices, edges: edges };
+  }
+
+  function lattice(dim) {
+    var n = dim === 3 ? 5 : (dim === 4 ? 4 : 3);
+    var points = [], edges = [], index = [];
+    var total = Math.pow(n, dim), i, d;
+    for (i = 0; i < total; i++) {
+      var idx = [], x = i;
+      for (d = 0; d < dim; d++) { idx.push(x % n); x = Math.floor(x / n); }
+      index.push(idx);
+      var p = [];
+      for (d = 0; d < dim; d++) p.push((idx[d] / (n - 1)) * 2 - 1);
+      points.push(p);
+    }
+    for (i = 0; i < total; i++) {
+      for (d = 0; d < dim; d++) {
+        if (index[i][d] < n - 1) {
+          var j = i + Math.pow(n, d);
+          edges.push([i, j]);
+        }
+      }
+    }
+    return { vertices: points, edges: edges, n: n };
+  }
+
+  function makeState() {
+    var steps = 620, maxT = 16, out = [], i, k;
+    for (k = 0; k < steps; k++) {
+      var tau = (k / steps) * maxT, p = [];
+      for (i = 0; i < S.dim; i++) {
+        p.push(Math.sin(tau * (0.72 + i * 0.19) + i * 1.37) / (1 + i * 0.27));
+      }
+      out.push(p);
+    }
+    return out;
+  }
+
+  function resetCaches() {
+    S.lorenz = null;
+    S.particles = null;
+    S.geom = null;
+    S.state = null;
+    S.t = 0;
+  }
+
+  function setDim(dim, scene) {
+    S.dim = clamp(dim, 3, 5);
+    if (scene) S.scene = scene;
+    else if (S.dim >= 4 && (S.scene === 'orbit' || S.scene === 'lorenz' || S.scene === 'wave' || S.scene === 'particles')) {
+      S.scene = 'poly';
+    }
+    resetCaches();
+    syncUI();
+  }
+
+  function applyConfig(cfg) {
+    S.dim = cfg.dim;
+    S.scene = cfg.scene;
+    S.speed = cfg.speed;
+    S.count = cfg.count;
+    resetCaches();
+    syncUI();
+  }
+
+  function parsePrompt(input) {
+    var low = String(input || '').toLowerCase();
+    var dim = 3, scene = '';
+    if (/\btesseract\b|\b4-cube\b|\bhypercube\b|\bfourth dimension\b/.test(low)) dim = 4;
+    if (/\bpenteract\b|\b5-cube\b|\bfifth dimension\b/.test(low)) dim = 5;
+    var dm = low.match(/\b([3-5])\s*d\b/);
+    if (dm) dim = parseInt(dm[1], 10);
+
+    if (/lattice/.test(low)) scene = 'lattice';
+    else if (/polytope|hypercube|tesseract|penteract|cube/.test(low)) scene = 'poly';
+    else if (/state|trajectory|oscillator|harmonic/.test(low)) scene = 'state';
+    else if (/lorenz|chaos|attractor/.test(low)) scene = 'lorenz';
+    else if (/wave|surface|field/.test(low)) scene = 'wave';
+    else if (/orbit|solar|planet|gravity|n-body/.test(low)) scene = 'orbit';
+    else if (/particle|swarm|dust|cloud/.test(low)) scene = 'particles';
+    if (!scene) scene = dim >= 4 ? 'poly' : 'orbit';
+    if (dim >= 4 && /^(orbit|lorenz|wave|particles)$/.test(scene)) scene = 'poly';
+
+    var count = S.count;
+    var cm = low.match(/\b(\d{1,4})\s*(?:particles?|points?|bodies|planets?|nodes?)\b/);
+    if (cm) count = clamp(parseInt(cm[1], 10), 8, 320);
+    var speed = S.speed;
+    var sm = low.match(/\b(?:speed|rate)\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)/) || low.match(/\b([0-9]+(?:\.[0-9]+)?)\s*x\b/);
+    if (sm) speed = clamp(parseFloat(sm[1]), 0.1, 3);
+
+    return {
+      dim: dim,
+      scene: scene,
+      count: count,
+      speed: speed,
+      note: dim === 3
+        ? 'Spatial 3D scene rendered with Canvas 2D. Drag to orbit; wheel or pinch to zoom.'
+        : 'This is an N-dimensional mathematical projection, not a physical 4D/5D spacetime simulation. Extra-dimensional rotations are projected to the screen.'
+    };
+  }
+
+  function syncUI() {
+    var i, btns = document.querySelectorAll('[data-sim-dim]');
+    for (i = 0; i < btns.length; i++) btns[i].classList.toggle('active', parseInt(btns[i].getAttribute('data-sim-dim'), 10) === S.dim);
+    var sel = el('sim-scene');
+    if (sel && sel.value !== S.scene) sel.value = S.scene;
+    var speed = el('sim-speed'), count = el('sim-count');
+    if (speed) speed.value = String(S.speed);
+    if (count) count.value = String(S.count);
+    var sv = el('sim-speed-val'), cv = el('sim-count-val');
+    if (sv) sv.textContent = S.speed.toFixed(1) + '×';
+    if (cv) cv.textContent = String(S.count);
+    var play = el('sim-play');
+    if (play) play.textContent = S.paused ? 'PLAY' : 'PAUSE';
+    var title = el('sim-title');
+    if (title) title.textContent = S.dim + 'D · ' + sceneLabel();
+  }
+
+  function drawBackground() {
+    var g = ctx.createRadialGradient(S.w * 0.5, S.h * 0.45, 4, S.w * 0.5, S.h * 0.5, Math.max(S.w, S.h) * 0.8);
+    g.addColorStop(0, '#081014');
+    g.addColorStop(0.55, '#030506');
+    g.addColorStop(1, '#010101');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S.w, S.h);
+
+    for (var i = 0; i < S.stars.length; i++) {
+      var s = S.stars[i];
+      var a = 0.16 + 0.18 * (0.5 + 0.5 * Math.sin(S.t * 1.4 + s.p));
+      ctx.fillStyle = 'rgba(190,220,235,' + a + ')';
+      ctx.fillRect(s.x * S.w, s.y * S.h, s.s, s.s);
+    }
+  }
+
+  function dot(p, radius, color, glow) {
+    if (glow) {
+      var g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, radius * 4);
+      g.addColorStop(0, color);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, radius * 4, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, TAU);
+    ctx.fill();
+  }
+
+  function drawOrbit() {
+    var n = Math.min(S.count, 80);
+    var i, k;
+    for (i = 0; i < Math.min(n, 14); i++) {
+      var r = 0.18 + 0.82 * (i + 1) / n;
+      var inc = 0.3 + 0.55 * ((i % 7) / 7);
+      ctx.beginPath();
+      for (k = 0; k <= 44; k++) {
+        var a = (k / 44) * TAU;
+        var pp = project3({
+          x: r * Math.cos(a),
+          y: r * Math.sin(a) * Math.sin(inc),
+          z: r * Math.sin(a) * Math.cos(inc)
+        });
+        if (k === 0) ctx.moveTo(pp.x, pp.y); else ctx.lineTo(pp.x, pp.y);
+      }
+      ctx.strokeStyle = 'rgba(120,170,190,0.10)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    for (i = 0; i < n; i++) {
+      var rr = 0.18 + 0.82 * (i + 1) / n;
+      var phase = i * 2.399;
+      var incline = 0.3 + 0.55 * ((i % 7) / 7);
+      var ang = S.t * (0.9 / (1 + i * 0.08)) + phase;
+      var p = project3({
+        x: rr * Math.cos(ang),
+        y: rr * Math.sin(ang) * Math.sin(incline),
+        z: rr * Math.sin(ang) * Math.cos(incline)
+      });
+      dot(p, 1.4 + (i % 3) * 0.55, col((i * 37) % 360, 0.88), i < 8);
+    }
+
+    var center = project3({ x: 0, y: 0, z: 0 });
+    dot(center, 4.2, 'rgba(255,245,210,0.98)', true);
+    ctx.strokeStyle = 'rgba(255,220,120,0.20)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, Math.min(S.w, S.h) * 0.05 * S.zoom, 0, TAU);
+    ctx.stroke();
+  }
+
+  function initLorenz() {
+    var out = [], x = 0.1, y = 0, z = 0, dt = 0.006;
+    var steps = Math.min(2200, 1000 + S.count * 3);
+    for (var i = 0; i < steps; i++) {
+      var dx = 10 * (y - x);
+      var dy = x * (28 - z) - y;
+      var dz = x * y - (8 / 3) * z;
+      x += dx * dt; y += dy * dt; z += dz * dt;
+      out.push({ x: x / 20, y: (y - 25) / 25, z: (z - 25) / 25 });
+    }
+    return out;
+  }
+
+  function drawLorenz() {
+    if (!S.lorenz) S.lorenz = initLorenz();
+    var n = S.lorenz.length;
+    var projected = fitProjected(S.lorenz.map(function(v) { return project3(v); }));
+    var head = Math.min(n, 2 + Math.floor(S.t * 120));
+    var i, p, q;
+    ctx.lineWidth = 1.15;
+    for (i = 1; i < head; i++) {
+      p = projected[i - 1];
+      q = projected[i];
+      ctx.strokeStyle = col((190 + (i / n) * 90) % 360, 0.22 + 0.45 * (i / n));
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    }
+    if (head < n) {
+      var h = projected[head - 1];
+      dot(h, 3.0, 'rgba(255,255,255,0.95)', true);
+    } else {
+      var last = projected[n - 1];
+      dot(last, 2.6, 'rgba(255,120,220,0.9)', true);
+    }
+  }
+
+  function drawWave() {
+    var N = 18, grid = [], i, j;
+    for (i = 0; i < N; i++) {
+      grid[i] = [];
+      for (j = 0; j < N; j++) {
+        var x = (i / (N - 1) - 0.5) * 2;
+        var y = (j / (N - 1) - 0.5) * 2;
+        var z = 0.20 * Math.sin(6 * x + S.t * 2.1) * Math.cos(5 * y - S.t * 1.35)
+              + 0.08 * Math.sin(9 * (x + y) + S.t * 1.7);
+        grid[i][j] = project3({ x: x, y: y, z: z });
+      }
+    }
+    ctx.lineWidth = 1;
+    for (i = 0; i < N; i++) {
+      for (j = 0; j < N; j++) {
+        if (i + 1 < N) {
+          ctx.strokeStyle = 'rgba(90,220,220,0.20)';
+          ctx.beginPath();
+          ctx.moveTo(grid[i][j].x, grid[i][j].y);
+          ctx.lineTo(grid[i + 1][j].x, grid[i + 1][j].y);
+          ctx.stroke();
+        }
+        if (j + 1 < N) {
+          ctx.strokeStyle = 'rgba(140,180,255,0.16)';
+          ctx.beginPath();
+          ctx.moveTo(grid[i][j].x, grid[i][j].y);
+          ctx.lineTo(grid[i][j + 1].x, grid[i][j + 1].y);
+          ctx.stroke();
+        }
+      }
+    }
+    for (i = 0; i < N; i += 2) {
+      for (j = 0; j < N; j += 2) {
+        dot(grid[i][j], 1.1, 'rgba(190,245,255,0.55)', false);
+      }
+    }
+  }
+
+  function initParticles() {
+    var out = [], r = rng(12345 + S.count * 17);
+    for (var i = 0; i < S.count; i++) {
+      var u = r() * 2 - 1;
+      var th = r() * TAU;
+      var rad = Math.cbrt(r());
+      var s = Math.sqrt(1 - u * u);
+      out.push({
+        x: rad * s * Math.cos(th),
+        y: rad * s * Math.sin(th),
+        z: rad * u,
+        h: (i * 47) % 360,
+        s: 0.8 + r() * 1.6
+      });
+    }
+    return out;
+  }
+
+  function drawParticles() {
+    if (!S.particles || S.particles.length !== S.count) S.particles = initParticles();
+    var i, p;
+    for (i = 0; i < S.particles.length; i++) {
+      var q = S.particles[i];
+      p = project3(q);
+      var a = clamp(0.2 + p.f * 0.8, 0.12, 0.95);
+      dot(p, q.s, col(q.h, a), q.s > 1.8);
+    }
+    ctx.strokeStyle = 'rgba(120,160,190,0.12)';
+    ctx.lineWidth = 1;
+    for (i = 0; i < Math.min(40, S.count - 1); i++) {
+      var a1 = project3(S.particles[i]);
+      var b1 = project3(S.particles[(i * 7 + 11) % S.count]);
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y);
+      ctx.lineTo(b1.x, b1.y);
+      ctx.stroke();
+    }
+  }
+
+  function getGeom() {
+    if (!S.geom) S.geom = S.scene === 'lattice' ? lattice(S.dim) : hypercube(S.dim);
+    return S.geom;
+  }
+
+  function drawPoly() {
+    var g = getGeom(), i;
+    var projected = fitProjected(g.vertices.map(function(v) { return projectND(v, S.dim); }));
+    var edges = g.edges.slice().sort(function(a, b) {
+      return (projected[b[0]].z + projected[b[1]].z) - (projected[a[0]].z + projected[a[1]].z);
+    });
+    ctx.lineWidth = 1;
+    for (i = 0; i < edges.length; i++) {
+      var e = edges[i], p = projected[e[0]], q = projected[e[1]];
+      var d = clamp((p.z + q.z + 2.2) / 4.4, 0.08, 1);
+      ctx.strokeStyle = col((200 + i * 7) % 360, 0.18 + d * 0.52);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    }
+    for (i = 0; i < projected.length; i++) {
+      dot(projected[i], 1.8, 'rgba(235,245,255,0.92)', false);
+    }
+  }
+
+  function drawLattice() {
+    var g = getGeom(), i;
+    var projected = fitProjected(g.vertices.map(function(v) { return projectND(v, S.dim); }));
+    ctx.lineWidth = 1;
+    for (i = 0; i < g.edges.length; i++) {
+      var e = g.edges[i], p = projected[e[0]], q = projected[e[1]];
+      ctx.strokeStyle = 'rgba(100,190,220,0.09)';
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    }
+    for (i = 0; i < projected.length; i++) {
+      var p = projected[i];
+      dot(p, 1.35, col((i * 13) % 360, 0.58), false);
+    }
+  }
+
+  function drawState() {
+    if (!S.state) S.state = makeState();
+    var projected = fitProjected(S.state.map(function(v) { return projectND(v, S.dim); }));
+    var i, p, q;
+    var head = Math.min(S.state.length, Math.floor(S.t * 45) + 2);
+    ctx.lineWidth = 1.3;
+    for (i = 1; i < S.state.length; i++) {
+      p = projected[i - 1];
+      q = projected[i];
+      var bright = i <= head ? 0.55 : 0.10;
+      ctx.strokeStyle = col((180 + (i / S.state.length) * 120) % 360, bright);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    }
+    if (head >= 2) {
+      var h = projected[Math.min(head - 1, projected.length - 1)];
+      dot(h, 3.2, 'rgba(255,255,255,0.95)', true);
+    }
+  }
+
+  function draw() {
+    drawBackground();
+    if (S.scene === 'orbit') drawOrbit();
+    else if (S.scene === 'lorenz') drawLorenz();
+    else if (S.scene === 'wave') drawWave();
+    else if (S.scene === 'particles') drawParticles();
+    else if (S.scene === 'poly') drawPoly();
+    else if (S.scene === 'lattice') drawLattice();
+    else if (S.scene === 'state') drawState();
+  }
+
+  function updateHud(now) {
+    S.frames++;
+    if (now - S.hudAt > 400) {
+      S.fps = Math.round(S.frames * 1000 / Math.max(1, now - S.hudAt));
+      S.frames = 0;
+      S.hudAt = now;
+      var left = el('sim-hud-left'), right = el('sim-hud-right');
+      if (left) left.textContent = S.dim + 'D · ' + sceneLabel();
+      if (right) right.textContent = S.paused ? 'PAUSED' : (S.fps + ' FPS');
+    }
+  }
+
+  function loop(now) {
+    if (!S.open) { S.raf = 0; return; }
+    S.raf = requestAnimationFrame(loop);
+    var dt = S.last ? Math.min(0.05, (now - S.last) / 1000) : 0;
+    S.last = now;
+    if (!S.paused) S.t += dt * S.speed;
+    draw();
+    updateHud(now);
+  }
+
+  function start() {
+    if (!S.open) return;
+    S.last = performance.now();
+    if (!S.raf) S.raf = requestAnimationFrame(loop);
+  }
+
+  function closeSim() {
+    S.open = false;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    if (S.raf) cancelAnimationFrame(S.raf);
+    S.raf = 0;
+    S.paused = true;
+  }
+
+  function openSim(input) {
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    S.open = true;
+    S.paused = false;
+    if (S.raf) cancelAnimationFrame(S.raf);
+    S.raf = 0;
+    resize();
+    var cfg = parsePrompt(input);
+    applyConfig(cfg);
+    S.last = performance.now();
+    start();
+    var note = input ? cfg.note : 'Default 3D orbit scene. Use BUILD or the controls to change dimension and scene. ' + cfg.note;
+    return { dim: S.dim, sceneLabel: sceneLabel(), mode: modeText(), note: note };
+  }
+
+  function snapshot() {
+    try {
+      var a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'voidai-sim-' + S.dim + 'd-' + S.scene + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {}
+  }
+
+  function bind() {
+    if (S.bound) return;
+    S.bound = true;
+    el('sim-close').addEventListener('click', closeSim);
+
+    var btns = document.querySelectorAll('[data-sim-dim]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function() {
+        setDim(parseInt(this.getAttribute('data-sim-dim'), 10));
+        start();
+      });
+    }
+
+    el('sim-scene').addEventListener('change', function() {
+      S.scene = this.value;
+      if (S.dim >= 4 && /^(orbit|lorenz|wave|particles)$/.test(S.scene)) {
+        S.scene = 'poly';
+        this.value = 'poly';
+      }
+      resetCaches();
+      syncUI();
+    });
+
+    el('sim-speed').addEventListener('input', function() {
+      S.speed = parseFloat(this.value) || 1;
+      el('sim-speed-val').textContent = S.speed.toFixed(1) + '×';
+    });
+
+    el('sim-count').addEventListener('input', function() {
+      S.count = parseInt(this.value, 10) || 120;
+      el('sim-count-val').textContent = String(S.count);
+      resetCaches();
+    });
+
+    el('sim-play').addEventListener('click', function() {
+      S.paused = !S.paused;
+      if (!S.paused) start();
+      syncUI();
+    });
+
+    el('sim-reset').addEventListener('click', function() {
+      resetCaches();
+      syncUI();
+    });
+
+    el('sim-snap').addEventListener('click', snapshot);
+
+    function buildFromInput() {
+      var prompt = el('sim-prompt').value.trim();
+      var cfg = parsePrompt(prompt);
+      applyConfig(cfg);
+      start();
+      el('sim-prompt').blur();
+    }
+    el('sim-build').addEventListener('click', buildFromInput);
+    el('sim-prompt').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); buildFromInput(); }
+    });
+
+    canvas.addEventListener('pointerdown', function(e) {
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+      S.pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      S.dragging = true;
+      if (Object.keys(S.pointers).length === 2) S.pinch = 0;
+    });
+    canvas.addEventListener('pointermove', function(e) {
+      var p = S.pointers[e.pointerId];
+      if (!p) return;
+      var dx = e.clientX - p.x, dy = e.clientY - p.y;
+      p.x = e.clientX; p.y = e.clientY;
+      var pts = Object.keys(S.pointers).map(function(k) { return S.pointers[k]; });
+      if (pts.length >= 2) {
+        var d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (S.pinch) S.zoom = clamp(S.zoom * (d / S.pinch), 0.35, 3.2);
+        S.pinch = d;
+      } else if (S.dragging) {
+        S.rotY += dx * 0.008;
+        S.rotX = clamp(S.rotX + dy * 0.008, -1.25, 1.25);
+      }
+    });
+    function release(e) {
+      delete S.pointers[e.pointerId];
+      S.dragging = Object.keys(S.pointers).length > 0;
+      if (Object.keys(S.pointers).length < 2) S.pinch = 0;
+    }
+    canvas.addEventListener('pointerup', release);
+    canvas.addEventListener('pointercancel', release);
+    canvas.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      S.zoom = clamp(S.zoom * (e.deltaY < 0 ? 1.08 : 0.92), 0.35, 3.2);
+    }, { passive: false });
+
+    window.addEventListener('resize', function() { if (S.open) resize(); });
+  }
+
+  window.voidaiOpenSim = function(input) {
+    bind();
+    return openSim(input || '');
+  };
+  window.voidaiCloseSim = closeSim;
+
+  bind();
+  S.stars = makeStars();
+  S.hudAt = performance.now();
+})();
+
 </script>
 
 <style>

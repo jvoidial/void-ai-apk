@@ -121,3 +121,22 @@ does not prove persistence.
 - The endpoint blocks a small set of explicit/abusive prompts and returns
   `image_safety_block` for those.
 - Android and iOS expose `/image PROMPT` (aliases `/img`, `/draw`).
+
+## N-D simulation workbench
+
+- `/sim`, `/simulate`, `/simulator`, and `/builder` open the full-screen Canvas 2D
+  workbench in the shared WebView UI.
+- 3D scenes: orbit/N-body, Lorenz attractor, wave field, and particle cloud.
+- 4D/5D scenes: tesseract, penteract, N-D lattice, and N-D harmonic state curve.
+  These are mathematical N-dimensional projections, not physical 4D/5D spacetime
+  simulations. Keep that distinction in UI and docs.
+- The workbench is self-contained: no GPU, no Worker call, no external library,
+  and no network request. It supports BUILD prompt-to-preset mapping, dimension
+  buttons, speed/count sliders, pause/reset, drag orbit, pinch/zoom, and PNG
+  snapshot.
+- Prompt examples: `/sim 4d tesseract`, `/sim 5d state`, `/sim lorenz`,
+  `/sim wave`, `/sim 300 particles`.
+- Do not claim that the 4D/5D views are physical dimensions or that the
+  workbench is a general-purpose scientific simulator. The 3D scenes are
+  real-time spatial projections; the 4D/5D scenes visualize N-D state and
+  polytope geometry.
