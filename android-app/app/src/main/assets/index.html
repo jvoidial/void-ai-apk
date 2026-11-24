@@ -250,6 +250,72 @@ html, body {
   .sim-label { width: 100%; }
   #sim-foot { font-size: 8px; }
 }
+
+/* VOIDAI WEBGL — sandboxed Three.js lab */
+#gl-modal {
+  position: fixed; inset: 0; z-index: 2147483001;
+  background: rgba(0,0,0,0.985); display: none; align-items: stretch; justify-content: center;
+}
+#gl-modal.open { display: flex; }
+#gl-panel {
+  width: 100%; max-width: 900px; height: 100%;
+  display: flex; flex-direction: column; background: #030608;
+  color: #d8d8d8; font-family: ui-monospace, "SF Mono", monospace;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+#gl-head {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 14px 10px; border-bottom: 1px solid #171717;
+}
+#gl-kicker { font-size: 9px; letter-spacing: 0.22em; color: #555; }
+#gl-title { font-size: 14px; letter-spacing: 0.06em; color: #f0f0f0; margin-top: 3px; }
+#gl-badge {
+  font-size: 8px; letter-spacing: 0.12em; color: #7cbfd8;
+  border: 1px solid #1c4752; background: #07171d; border-radius: 4px;
+  padding: 3px 5px; margin-left: 8px; vertical-align: middle;
+}
+#gl-close {
+  background: #111; border: 1px solid #333; color: #bbb; border-radius: 7px;
+  padding: 7px 10px; font: 10px ui-monospace, monospace; letter-spacing: 0.12em; cursor: pointer;
+}
+#gl-stage { position: relative; flex: 1; min-height: 240px; background: #020406; overflow: hidden; }
+#gl-frame { display: block; width: 100%; height: 100%; border: 0; background: #020406; }
+#gl-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: rgba(2,6,10,0.82); pointer-events: none;
+}
+#gl-overlay.hidden { display: none; }
+#gl-overlay-text { font-size: 10px; line-height: 1.6; letter-spacing: 0.08em; color: #89c8dc; text-align: center; max-width: 420px; }
+#gl-controls {
+  flex-shrink: 0; max-height: 46%; overflow-y: auto; padding: 12px 14px 12px;
+  border-top: 1px solid #171717; display: flex; flex-direction: column; gap: 9px;
+}
+#gl-prompt {
+  flex: 1; min-width: 150px; background: #0b0b0b; border: 1px solid #292929;
+  border-radius: 7px; color: #eee; padding: 9px 10px; font: 11px ui-monospace, monospace; outline: none;
+}
+#gl-prompt:focus { border-color: #555; }
+#gl-prompt::placeholder { color: #454545; }
+#gl-template {
+  flex: 1; min-width: 130px; background: #0b0b0b; border: 1px solid #292929;
+  border-radius: 7px; color: #ddd; padding: 8px; font: 11px ui-monospace, monospace; outline: none;
+}
+#gl-code {
+  width: 100%; height: 138px; resize: vertical; box-sizing: border-box;
+  background: #050708; border: 1px solid #202c30; border-radius: 7px;
+  color: #c8d8dc; padding: 9px; font: 10px/1.5 ui-monospace, monospace;
+  outline: none; white-space: pre; overflow: auto; -webkit-text-size-adjust: 100%;
+}
+#gl-code:focus { border-color: #3f6874; }
+#gl-note { font-size: 8px; line-height: 1.5; color: #547078; }
+#gl-note b { color: #9ac3cf; font-weight: 500; }
+@media (max-width: 520px) {
+  #gl-head { padding: 10px 12px 8px; }
+  #gl-title { font-size: 12px; }
+  #gl-controls { padding: 10px 12px 12px; gap: 7px; }
+  #gl-code { height: 116px; font-size: 9px; }
+  #gl-note { font-size: 8px; }
+}
 </style>
 </head>
 <body>
@@ -282,7 +348,7 @@ window.voidaiToggleSidebar = function() {
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
-    <input id="input" type="text" placeholder="Ask anything · /sim /image /design" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input id="input" type="text" placeholder="Ask anything · /sim /webgl /image" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <button id="send" aria-label="Send">↑</button>
   </div>
 </div>
@@ -338,9 +404,47 @@ window.voidaiToggleSidebar = function() {
         <button id="sim-play" class="sim-btn" type="button">PAUSE</button>
         <button id="sim-reset" class="sim-btn" type="button">RESET</button>
         <button id="sim-snap" class="sim-btn" type="button">SNAPSHOT</button>
+        <button id="sim-gl" class="sim-btn" type="button">WEBGL LAB</button>
       </div>
     </div>
     <div id="sim-foot"><b>3D</b> is a spatial projection. <b>4D/5D</b> are mathematical N-dimensional projections and state-space views, not physical spacetime. Canvas 2D; no GPU or network required.</div>
+  </div>
+</div>
+
+<div id="gl-modal" aria-hidden="true">
+  <div id="gl-panel">
+    <div id="gl-head">
+      <div>
+        <div id="gl-kicker">VOIDAI WEBGL</div>
+        <div id="gl-title">THREE.JS LAB <span id="gl-badge">SANDBOXED</span></div>
+      </div>
+      <button id="gl-close" type="button">CLOSE</button>
+    </div>
+    <div id="gl-stage">
+      <iframe id="gl-frame" sandbox="allow-scripts" referrerpolicy="no-referrer" title="Sandboxed Three.js scene"></iframe>
+      <div id="gl-overlay"><div id="gl-overlay-text">Initializing sandboxed WebGL renderer…</div></div>
+    </div>
+    <div id="gl-controls">
+      <div class="sim-row">
+        <input id="gl-prompt" type="text" placeholder="try: 4d tesseract, 5d penteract, wave, lorenz, 6000 particles" autocomplete="off">
+        <button id="gl-build" class="sim-btn" type="button">BUILD</button>
+      </div>
+      <div class="sim-row">
+        <span class="sim-label">TEMPLATE</span>
+        <select id="gl-template">
+          <option value="orbit">Orbit / N-body</option>
+          <option value="wave">Wave surface</option>
+          <option value="particles">Particle field</option>
+          <option value="lorenz">Lorenz attractor</option>
+          <option value="tesseract">4D tesseract</option>
+          <option value="penteract">5D penteract</option>
+        </select>
+        <button id="gl-run" class="sim-btn" type="button">RUN</button>
+        <button id="gl-reset" class="sim-btn" type="button">RESET</button>
+      </div>
+      <textarea id="gl-code" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+      <div id="gl-note"><b>Sandbox:</b> no app data, cookies, storage, or network except the Three.js CDN. Code can still consume CPU; run only trusted code. 4D/5D templates are mathematical projections.</div>
+    </div>
   </div>
 </div>
 
@@ -779,6 +883,29 @@ window.voidaiToggleSidebar = function() {
         els.send.disabled = false;
         try { els.input.focus(); } catch(e) {}
       });
+      return;
+    }
+
+    var webglMatch = text.match(/^[@\/](?:webgl|three|threejs|gl)\b\s*([\s\S]*)$/i);
+    if (webglMatch) {
+      if (typeof window.voidaiOpenWebGL !== 'function') {
+        addMsg('assistant', '**WebGL error:** sandboxed Three.js lab failed to load.');
+        return;
+      }
+      var glResult = window.voidaiOpenWebGL(webglMatch[1].trim());
+      addMsg('user', text);
+      var glReply = '**WebGL lab**\n'
+        + '- template: ' + glResult.templateLabel + '\n'
+        + '- renderer: Three.js / WebGL\n'
+        + '- sandbox: isolated iframe, no app storage or cookies\n\n'
+        + glResult.note + '\n\n'
+        + 'Edit the code directly, then RUN. RESET restores the selected template.';
+      addMsg('assistant', glReply);
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: glReply });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+      status('webgl ready');
       return;
     }
 
@@ -1774,6 +1901,10 @@ window.voidaiToggleSidebar = function() {
     });
 
     el('sim-snap').addEventListener('click', snapshot);
+    el('sim-gl').addEventListener('click', function() {
+      closeSim();
+      if (typeof window.voidaiOpenWebGL === 'function') window.voidaiOpenWebGL('');
+    });
 
     function buildFromInput() {
       var prompt = el('sim-prompt').value.trim();
@@ -1832,6 +1963,409 @@ window.voidaiToggleSidebar = function() {
   bind();
   S.stars = makeStars();
   S.hudAt = performance.now();
+})();
+
+</script>
+
+<script>
+(function() {
+  'use strict';
+
+  var modal = document.getElementById('gl-modal');
+  var frame = document.getElementById('gl-frame');
+  if (!modal || !frame) return;
+
+  var THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js';
+  var GL = { open: false, runId: 0, timer: 0, template: 'orbit', bound: false };
+
+  var LABELS = {
+    orbit: 'ORBIT / N-BODY',
+    wave: 'WAVE SURFACE',
+    particles: 'PARTICLE FIELD',
+    lorenz: 'LORENZ ATTRACTOR',
+    tesseract: '4D TESSERACT',
+    penteract: '5D PENTERACT'
+  };
+
+  var TEMPLATES = {
+    orbit: [
+      'camera.position.set(0, 2.4, 5.8);',
+      'camera.lookAt(0, 0, 0);',
+      'var star = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 24), new THREE.MeshBasicMaterial({ color: 0xfff0b0 }));',
+      'scene.add(star);',
+      'var planets = [];',
+      'for (var i = 0; i < 32; i++) {',
+      '  var r = 0.45 + i * 0.16;',
+      '  var m = new THREE.Mesh(',
+      '    new THREE.SphereGeometry(0.025 + 0.018 * (i % 4), 10, 10),',
+      '    new THREE.MeshBasicMaterial({ color: new THREE.Color().setHSL(i / 32, 0.8, 0.62) })',
+      '  );',
+      '  scene.add(m);',
+      '  planets.push({ m: m, r: r, inc: 0.25 + 0.6 * ((i % 7) / 7), phase: i * 2.399 });',
+      '}',
+      'for (var j = 0; j < 12; j++) {',
+      '  var rr = 0.45 + j * 0.42;',
+      '  var inc = 0.25 + 0.6 * ((j % 7) / 7);',
+      '  var pts = [];',
+      '  for (var k = 0; k <= 64; k++) {',
+      '    var a = (k / 64) * Math.PI * 2;',
+      '    pts.push(new THREE.Vector3(Math.cos(a) * rr, Math.sin(a) * rr * Math.sin(inc), Math.sin(a) * rr * Math.cos(inc)));',
+      '  }',
+      '  var g = new THREE.BufferGeometry().setFromPoints(pts);',
+      '  scene.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x24525c, transparent: true, opacity: 0.35 })));',
+      '}',
+      'window.update = function(t) {',
+      '  star.rotation.y = t * 0.2;',
+      '  for (var i = 0; i < planets.length; i++) {',
+      '    var p = planets[i];',
+      '    var a = t * (0.55 / (1 + p.r * 0.5)) + p.phase;',
+      '    p.m.position.set(Math.cos(a) * p.r, Math.sin(a) * p.r * Math.sin(p.inc), Math.sin(a) * p.r * Math.cos(p.inc));',
+      '  }',
+      '};'
+    ].join('\n'),
+
+    wave: [
+      'camera.position.set(0, 2.8, 4.4);',
+      'camera.lookAt(0, 0, 0);',
+      'var geo = new THREE.PlaneGeometry(4.6, 3.2, 72, 52);',
+      'var mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x67e8e8, wireframe: true, transparent: true, opacity: 0.55 }));',
+      'mesh.rotation.x = -Math.PI / 2;',
+      'scene.add(mesh);',
+      'var pos = geo.attributes.position;',
+      'var base = pos.array.slice();',
+      'window.update = function(t) {',
+      '  for (var i = 0; i < pos.count; i++) {',
+      '    var x = base[i * 3], y = base[i * 3 + 1];',
+      '    pos.array[i * 3 + 2] = 0.22 * Math.sin(x * 3 + t * 2) * Math.cos(y * 3 - t * 1.4) + 0.08 * Math.sin((x + y) * 5 + t);',
+      '  }',
+      '  pos.needsUpdate = true;',
+      '  mesh.rotation.z = Math.sin(t * 0.15) * 0.1;',
+      '};'
+    ].join('\n'),
+
+    particles: [
+      'var N = 6000;',
+      'var positions = new Float32Array(N * 3);',
+      'var colors = new Float32Array(N * 3);',
+      'var c = new THREE.Color();',
+      'for (var i = 0; i < N; i++) {',
+      '  var u = Math.random() * 2 - 1;',
+      '  var th = Math.random() * Math.PI * 2;',
+      '  var rr = Math.cbrt(Math.random());',
+      '  var ss = Math.sqrt(1 - u * u);',
+      '  positions[i * 3] = rr * ss * Math.cos(th);',
+      '  positions[i * 3 + 1] = rr * u;',
+      '  positions[i * 3 + 2] = rr * ss * Math.sin(th);',
+      '  c.setHSL((i / N + 0.55) % 1, 0.8, 0.6);',
+      '  colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;',
+      '}',
+      'var geo = new THREE.BufferGeometry();',
+      'geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));',
+      'geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));',
+      'var pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.025, vertexColors: true, transparent: true, opacity: 0.9, sizeAttenuation: true }));',
+      'scene.add(pts);',
+      'camera.position.set(0, 0, 4.8);',
+      'camera.lookAt(0, 0, 0);',
+      'window.update = function(t) {',
+      '  pts.rotation.y = t * 0.08;',
+      '  pts.rotation.x = Math.sin(t * 0.15) * 0.15;',
+      '};'
+    ].join('\n'),
+
+    lorenz: [
+      'var pts = [];',
+      'var x = 0.1, y = 0, z = 0, dt = 0.006;',
+      'for (var i = 0; i < 7000; i++) {',
+      '  var dx = 10 * (y - x);',
+      '  var dy = x * (28 - z) - y;',
+      '  var dz = x * y - (8 / 3) * z;',
+      '  x += dx * dt; y += dy * dt; z += dz * dt;',
+      '  pts.push(new THREE.Vector3(x / 20, (y - 25) / 25, (z - 25) / 25));',
+      '}',
+      'var geo = new THREE.BufferGeometry().setFromPoints(pts);',
+      'var line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x66d9ff, transparent: true, opacity: 0.55 }));',
+      'scene.add(line);',
+      'camera.position.set(4.2, 2.8, 4.2);',
+      'camera.lookAt(0, 0, 0);',
+      'window.update = function(t) {',
+      '  line.rotation.y = t * 0.12;',
+      '  line.rotation.x = Math.sin(t * 0.1) * 0.2;',
+      '};'
+    ].join('\n'),
+
+    tesseract: [
+      'var dim = 4;',
+      'var n = 1 << dim;',
+      'var verts = [];',
+      'var i, j;',
+      'for (i = 0; i < n; i++) {',
+      '  var v = [];',
+      '  for (j = 0; j < dim; j++) v.push((i >> j) & 1 ? 1 : -1);',
+      '  verts.push(v);',
+      '}',
+      'var edges = [];',
+      'for (i = 0; i < n; i++) {',
+      '  for (j = i + 1; j < n; j++) {',
+      '    var z = i ^ j, bits = 0;',
+      '    while (z) { z &= z - 1; bits++; }',
+      '    if (bits === 1) edges.push([i, j]);',
+      '  }',
+      '}',
+      'var pos = new Float32Array(edges.length * 6);',
+      'var geo = new THREE.BufferGeometry();',
+      'geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));',
+      'var lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x8fd6ff, transparent: true, opacity: 0.9 }));',
+      'scene.add(lines);',
+      'camera.position.set(3, 2, 5.4);',
+      'camera.lookAt(0, 0, 0);',
+      'function rot(v, a, b, angle) {',
+      '  var c = Math.cos(angle), s = Math.sin(angle);',
+      '  var t = v[a] * c - v[b] * s;',
+      '  v[b] = v[a] * s + v[b] * c;',
+      '  v[a] = t;',
+      '}',
+      'window.update = function(t) {',
+      '  for (var e = 0; e < edges.length; e++) {',
+      '    for (var k = 0; k < 2; k++) {',
+      '      var v = verts[edges[e][k]].slice();',
+      '      rot(v, 0, 1, t * 0.23);',
+      '      rot(v, 2, 3, t * 0.31);',
+      '      rot(v, 0, 3, t * 0.17);',
+      '      var w = 2.6, f = w / (w - v[3] * 0.55);',
+      '      pos[e * 6 + k * 3] = v[0] * f * 1.25;',
+      '      pos[e * 6 + k * 3 + 1] = v[1] * f * 1.25;',
+      '      pos[e * 6 + k * 3 + 2] = v[2] * f * 1.25;',
+      '    }',
+      '  }',
+      '  geo.attributes.position.needsUpdate = true;',
+      '  lines.rotation.y = t * 0.08;',
+      '};'
+    ].join('\n'),
+
+    penteract: [
+      'var dim = 5;',
+      'var n = 1 << dim;',
+      'var verts = [];',
+      'var i, j, d;',
+      'for (i = 0; i < n; i++) {',
+      '  var v = [];',
+      '  for (j = 0; j < dim; j++) v.push((i >> j) & 1 ? 1 : -1);',
+      '  verts.push(v);',
+      '}',
+      'var edges = [];',
+      'for (i = 0; i < n; i++) {',
+      '  for (j = i + 1; j < n; j++) {',
+      '    var z = i ^ j, bits = 0;',
+      '    while (z) { z &= z - 1; bits++; }',
+      '    if (bits === 1) edges.push([i, j]);',
+      '  }',
+      '}',
+      'var pos = new Float32Array(edges.length * 6);',
+      'var geo = new THREE.BufferGeometry();',
+      'geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));',
+      'var lines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xc49bff, transparent: true, opacity: 0.9 }));',
+      'scene.add(lines);',
+      'camera.position.set(3, 2.2, 6.2);',
+      'camera.lookAt(0, 0, 0);',
+      'function rot(v, a, b, angle) {',
+      '  var c = Math.cos(angle), s = Math.sin(angle);',
+      '  var t = v[a] * c - v[b] * s;',
+      '  v[b] = v[a] * s + v[b] * c;',
+      '  v[a] = t;',
+      '}',
+      'window.update = function(t) {',
+      '  for (var e = 0; e < edges.length; e++) {',
+      '    for (var k = 0; k < 2; k++) {',
+      '      var v = verts[edges[e][k]].slice();',
+      '      rot(v, 0, 1, t * 0.23);',
+      '      rot(v, 2, 3, t * 0.31);',
+      '      rot(v, 0, 4, t * 0.19);',
+      '      rot(v, 1, 4, t * 0.27);',
+      '      rot(v, 2, 4, t * 0.13);',
+      '      for (d = 4; d >= 3; d--) {',
+      '        var w = 2.6, f = w / (w - v[d] * 0.55);',
+      '        for (var q = 0; q < d; q++) v[q] *= f;',
+      '      }',
+      '      pos[e * 6 + k * 3] = v[0] * 1.15;',
+      '      pos[e * 6 + k * 3 + 1] = v[1] * 1.15;',
+      '      pos[e * 6 + k * 3 + 2] = v[2] * 1.15;',
+      '    }',
+      '  }',
+      '  geo.attributes.position.needsUpdate = true;',
+      '  lines.rotation.y = t * 0.08;',
+      '};'
+    ].join('\n')
+  };
+
+  function el(id) { return document.getElementById(id); }
+
+  function setStatus(text, show) {
+    var ov = el('gl-overlay'), tx = el('gl-overlay-text');
+    if (tx) tx.textContent = text || '';
+    if (ov) ov.classList.toggle('hidden', !show);
+  }
+
+  function templateLabel(key) { return LABELS[key] || key.toUpperCase(); }
+
+  function buildDoc(code, runId) {
+    var safe = String(code).replace(/<\/script/gi, '<\\/script');
+    var csp = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'";
+    return '<!doctype html><html><head>'
+      + '<meta charset="utf-8">'
+      + '<meta http-equiv="Content-Security-Policy" content="' + csp + '">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">'
+      + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030608}canvas{display:block;width:100%;height:100%}</style>'
+      + '</head><body>'
+      + '<script src="' + THREE_URL + '"><\/script>'
+      + '<script>\n'
+      + '(function(){\n'
+      + 'var RUN_ID=' + runId + ';\n'
+      + 'window.__voidaiGlError=false;\n'
+      + 'window.__voidaiGlPost=function(type,message){parent.postMessage({source:"voidai-webgl",type:type,runId:RUN_ID,message:message||""},"*");};\n'
+      + 'window.onerror=function(msg,src,line,col){window.__voidaiGlError=true;window.__voidaiGlPost("error",(msg||"script error")+" @ "+(line||0)+":"+(col||0));};\n'
+      + 'var renderer, scene, camera;\n'
+      + 'window.update=function(){};\n'
+      + 'if(!window.THREE){window.__voidaiGlError=true;window.__voidaiGlPost("error","Three.js failed to load. The CDN may be blocked.");}\n'
+      + 'else{try{\n'
+      + 'renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:"high-performance"});\n'
+      + 'renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));\n'
+      + 'renderer.setSize(window.innerWidth,window.innerHeight);\n'
+      + 'renderer.setClearColor(0x030608,1);\n'
+      + 'if(THREE.SRGBColorSpace)renderer.outputColorSpace=THREE.SRGBColorSpace;\n'
+      + 'document.body.appendChild(renderer.domElement);\n'
+      + 'scene=new THREE.Scene();\n'
+      + 'camera=new THREE.PerspectiveCamera(55,window.innerWidth/window.innerHeight,0.01,500);\n'
+      + 'camera.position.set(3,2,5);camera.lookAt(0,0,0);\n'
+      + 'scene.add(new THREE.AmbientLight(0xffffff,1));\n'
+      + 'var dl=new THREE.DirectionalLight(0xffffff,1);dl.position.set(3,5,4);scene.add(dl);\n'
+      + 'window.addEventListener("resize",function(){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight);});\n'
+      + 'window.renderer=renderer;window.scene=scene;window.camera=camera;\n'
+      + 'window.__voidaiGlPost("boot");\n'
+      + '}catch(e){window.__voidaiGlError=true;window.__voidaiGlPost("error",String(e&&e.message||e));}}\n'
+      + '})();\n'
+      + '<\/script>'
+      + '<script>\n' + safe + '\n<\/script>'
+      + '<script>\n'
+      + '(function(){\n'
+      + 'if(window.__voidaiGlError)return;\n'
+      + 'var renderer=window.renderer,scene=window.scene,camera=window.camera;\n'
+      + 'if(!renderer||!scene||!camera)return;\n'
+      + 'var update=window.update||function(){};\n'
+      + 'var clock=new THREE.Clock();\n'
+      + 'function tick(){requestAnimationFrame(tick);var t=clock.getElapsedTime();try{update(t);}catch(e){window.__voidaiGlError=true;window.__voidaiGlPost("error",String(e&&e.message||e));return;}renderer.render(scene,camera);}\n'
+      + 'window.__voidaiGlPost("ready");\n'
+      + 'tick();\n'
+      + '})();\n'
+      + '<\/script>'
+      + '</body></html>';
+  }
+
+  function parseTemplate(input) {
+    var low = String(input || '').toLowerCase();
+    var key = 'orbit', count = 0;
+    if (/penteract|5d|5-d|five[- ]?dimension/.test(low)) key = 'penteract';
+    else if (/tesseract|hypercube|4d|4-d|fourth[- ]?dimension/.test(low)) key = 'tesseract';
+    else if (/lorenz|chaos|attractor/.test(low)) key = 'lorenz';
+    else if (/wave|surface|field/.test(low)) key = 'wave';
+    else if (/particle|swarm|cloud|points/.test(low)) key = 'particles';
+    else if (/orbit|solar|planet|gravity|n-body/.test(low)) key = 'orbit';
+    var cm = low.match(/\b(\d{2,5})\s*(?:particles?|points?|bodies|planets?)\b/);
+    if (cm) count = Math.max(100, Math.min(20000, parseInt(cm[1], 10)));
+    return { key: key, count: count };
+  }
+
+  function codeFor(key, count) {
+    var code = TEMPLATES[key] || TEMPLATES.orbit;
+    if (key === 'particles' && count) code = code.replace('var N = 6000;', 'var N = ' + count + ';');
+    if (key === 'orbit' && count) code = code.replace('i < 32', 'i < ' + Math.max(8, Math.min(160, Math.round(count / 50))) );
+    return code;
+  }
+
+  function run() {
+    var code = el('gl-code').value;
+    if (!code || !code.trim()) { setStatus('Code is empty. Select a template or write a scene.', true); return; }
+    if (code.length > 30000) { setStatus('Code is too large. Keep it under 30,000 characters.', true); return; }
+    GL.runId++;
+    var runId = GL.runId;
+    if (GL.timer) clearTimeout(GL.timer);
+    setStatus('Loading Three.js and starting the sandboxed scene…', true);
+    frame.srcdoc = buildDoc(code, runId);
+    GL.timer = setTimeout(function() {
+      if (GL.runId === runId && GL.open) setStatus('Still waiting for Three.js. The CDN may be blocked, or the scene code may be stuck.', true);
+    }, 12000);
+  }
+
+  function openGL(input) {
+    bind();
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    GL.open = true;
+    var cfg = parseTemplate(input);
+    GL.template = cfg.key;
+    el('gl-template').value = cfg.key;
+    el('gl-code').value = codeFor(cfg.key, cfg.count);
+    setStatus('Starting sandboxed Three.js scene…', true);
+    run();
+    return {
+      templateLabel: templateLabel(cfg.key),
+      note: 'Three.js runs inside a sandboxed iframe without same-origin access. The code is editable; the page can load only the Three.js CDN and cannot read app data, cookies, or storage.'
+    };
+  }
+
+  function closeGL() {
+    GL.open = false;
+    GL.runId++;
+    if (GL.timer) clearTimeout(GL.timer);
+    GL.timer = 0;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    frame.srcdoc = '';
+    setStatus('Sandbox closed.', false);
+  }
+
+  function buildFromPrompt() {
+    var cfg = parseTemplate(el('gl-prompt').value);
+    GL.template = cfg.key;
+    el('gl-template').value = cfg.key;
+    el('gl-code').value = codeFor(cfg.key, cfg.count);
+    run();
+  }
+
+  function bind() {
+    if (GL.bound) return;
+    GL.bound = true;
+    el('gl-close').addEventListener('click', closeGL);
+    el('gl-run').addEventListener('click', run);
+    el('gl-build').addEventListener('click', buildFromPrompt);
+    el('gl-reset').addEventListener('click', function() {
+      el('gl-code').value = TEMPLATES[el('gl-template').value] || TEMPLATES.orbit;
+      run();
+    });
+    el('gl-template').addEventListener('change', function() {
+      el('gl-code').value = TEMPLATES[this.value] || TEMPLATES.orbit;
+    });
+    el('gl-prompt').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); buildFromPrompt(); }
+    });
+    window.addEventListener('message', function(e) {
+      if (e.source !== frame.contentWindow) return;
+      var d = e.data || {};
+      if (d.source !== 'voidai-webgl' || d.runId !== GL.runId) return;
+      if (d.type === 'boot') {
+        setStatus('Renderer ready. Running scene code…', true);
+      } else if (d.type === 'ready') {
+        if (GL.timer) clearTimeout(GL.timer);
+        setStatus('', false);
+      } else if (d.type === 'error') {
+        if (GL.timer) clearTimeout(GL.timer);
+        setStatus('WebGL error: ' + (d.message || 'unknown error'), true);
+      }
+    });
+  }
+
+  window.voidaiOpenWebGL = openGL;
+  window.voidaiCloseWebGL = closeGL;
+  bind();
 })();
 
 </script>

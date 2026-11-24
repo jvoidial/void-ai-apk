@@ -140,3 +140,23 @@ does not prove persistence.
   workbench is a general-purpose scientific simulator. The 3D scenes are
   real-time spatial projections; the 4D/5D scenes visualize N-D state and
   polytope geometry.
+
+## WebGL lab and sandboxed code runner
+
+- `/webgl`, `/gl`, `/three`, and `/threejs` open the Three.js lab. The
+  simulation workbench also has a `WEBGL LAB` button.
+- The lab is a real WebGL renderer (Three.js r160) inside an iframe with
+  `sandbox="allow-scripts"`. It has no same-origin access, no app cookies, no
+  app storage, and no network access except the Three.js CDN.
+- CSP blocks `connect-src`, forms, objects, and base-URI changes. The sandbox
+  is intended for editable scene code, not for untrusted third-party programs.
+- Templates: orbit/N-body, wave surface, particle field, Lorenz attractor,
+  4D tesseract, and 5D penteract. The 4D/5D templates are mathematical
+  projections, not physical spacetime.
+- The code editor runs edited JavaScript in a fresh sandboxed iframe on RUN.
+  RESET restores the selected template. Code is capped at 30,000 characters.
+- The sandbox does not isolate CPU or GPU usage. A runaway loop can still hang
+  the WebView. Keep "run only trusted code" in the UI and do not describe this
+  as a hardened arbitrary-code sandbox.
+- Three.js is loaded from jsDelivr. If the CDN is blocked, the WebGL lab shows
+  an error and the offline Canvas 2D workbench remains available.
