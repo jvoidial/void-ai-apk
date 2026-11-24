@@ -210,7 +210,7 @@ window.voidaiToggleSidebar = function() {
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
-    <input id="input" type="text" placeholder="Ask anything..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input id="input" type="text" placeholder="Ask anything... or @future" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <button id="send" aria-label="Send">↑</button>
   </div>
 </div>
@@ -260,6 +260,7 @@ window.voidaiToggleSidebar = function() {
   var MEMORY_KEY = 'voidai_chat_v3';
   var MAX_MSGS = 40;
   var HISTORY_TURNS = 40;
+  var FUTURE_TOPIC = 'the future of AI, AGI, agentic software, robotics, brain-computer interfaces, synthetic biology, energy, and quantum computing over the next one to ten years';
   var MAX_SEND_CHARS = 32000;
   var REPLY_TIMEOUT_MS = 120000;
 
@@ -473,13 +474,21 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
+    var requestedMode = null;
+    var outboundText = text;
+    var prediction = text.match(/^[@\/](predict|future)\b\s*([\s\S]*)$/i);
+    if (prediction) {
+      requestedMode = 'predict';
+      outboundText = prediction[2].trim() || FUTURE_TOPIC;
+    }
+
     busy = true;
     els.input.value = '';
     els.input.disabled = true;
     els.send.disabled = true;
 
     addMsg('user', text);
-    history.push({ role: 'user', content: text });
+    history.push({ role: 'user', content: outboundText });
     updateHero();
     showThinking();
     status('thinking…');
@@ -506,7 +515,8 @@ window.voidaiToggleSidebar = function() {
           return m.role !== 'system';
         }).slice(-HISTORY_TURNS)),
         max_tokens: 4096,
-        temperature: 0.6
+        temperature: requestedMode === 'predict' ? 0.4 : 0.6,
+        mode: requestedMode || undefined
       })
     })
     .then(function(res) {

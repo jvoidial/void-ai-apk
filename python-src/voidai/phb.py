@@ -55,6 +55,7 @@ MODES = {
     "ultra": "Be maximally concise. One short paragraph or a few bullets. No preamble.",
     "mini": "Compress to the smallest correct answer. Prefer one sentence or a compact list.",
     "github": "Work from repository context. Name files and paths; keep patches minimal and reviewable.",
+    "predict": "Produce a falsifiable technology forecast. Separate known signals, inference, and speculation.",
 }
 
 MODE_CIRCUITS = {
@@ -66,7 +67,17 @@ MODE_CIRCUITS = {
     "ultra": ("focus", "rigor"),
     "mini": ("focus", "rigor"),
     "github": ("rigor", "focus"),
+    "predict": ("rigor", "curiosity"),
 }
+
+PREDICTION_RULES = """PREDICTION MODE:
+- State the horizon explicitly (1-3 years, 3-10 years, 10+ years).
+- Separate known signals from inference and speculation.
+- Give base, accelerated, and slow scenarios with drivers and blockers.
+- Name leading indicators and falsifiers.
+- Label confidence low, medium, or high.
+- Do not invent citations, exact dates, prices, or regulatory decisions.
+- End with the single most useful thing to watch next."""
 
 ADAPTATION = {
     "tired/overwhelmed/sad": "soft, warm, low density, short sentences",
@@ -157,6 +168,8 @@ def system_prompt(mode="fast", state=None, extra="") -> str:
         "MODE: " + mode_line,
         "CIRCUIT EMPHASIS: " + " + ".join(MODE_CIRCUITS.get(mode, MODE_CIRCUITS["fast"])) + ".",
     ]
+    if mode == "predict":
+        lines += ["", PREDICTION_RULES]
     if _value(layers, "intent") < 0.5:
         lines += [
             "",

@@ -196,11 +196,13 @@ class PHBTests(BaseCase):
 
     def test_modes_include_compact_and_github(self):
         from voidai import phb
-        for mode in ("ultra", "mini", "github"):
+        for mode in ("ultra", "mini", "github", "predict"):
             self.assertIn(mode, phb.MODES)
             self.assertIn("CIRCUIT EMPHASIS", phb.system_prompt(mode))
         self.assertIn("curiosity + openness", phb.system_prompt("fast"))
         self.assertIn("rigor + focus", phb.system_prompt("coder"))
+        self.assertIn("PREDICTION MODE", phb.system_prompt("predict"))
+        self.assertIn("rigor + curiosity", phb.system_prompt("predict"))
 
     def test_gates_follow_state(self):
         from voidai import phb
@@ -264,6 +266,30 @@ class ChatCommandTests(BaseCase):
                 phb.DEFAULT_STATE["narrative"],
             )
 
+    def test_predict_command_uses_prediction_mode(self):
+        from voidai import chat
+
+        class RecordingStub:
+            model = "stub"
+            def __init__(self):
+                self.calls = []
+            def chat(self, messages, **kwargs):
+                self.calls.append(messages)
+                return "Forecast."
+
+        with patched_env(VOIDAI_HOME=self.home):
+            stub = RecordingStub()
+            self.assertEqual(
+                chat.answer(user_id="future-user", user_text="@future", client=stub),
+                "Forecast.",
+            )
+            self.assertIn("PREDICTION MODE", stub.calls[0][0]["content"])
+            self.assertIn("Forecast: the future of AI", stub.calls[0][-1]["content"])
+
+            stub2 = RecordingStub()
+            chat.answer(user_id="future-user", user_text="@predict quantum computing", client=stub2)
+            self.assertIn("Forecast: quantum computing", stub2.calls[0][-1]["content"])
+
 
 class ConfigTests(BaseCase):
     def test_sanitize_user(self):
@@ -318,6 +344,13 @@ class CLITests(BaseCase):
         result = self.cli("--print-system", env={"OPENAI_API_KEY": None})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("PHB BASIS", result.stdout)
+
+    def test_predict_system_prompt(self):
+        result = self.cli("--mode", "predict", "--print-system",
+                          env={"OPENAI_API_KEY": None})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PREDICTION MODE", result.stdout)
+        self.assertIn("rigor + curiosity", result.stdout)
 
     def test_message_too_long(self):
         result = self.cli("--user", "longuser", "x" * 33000)

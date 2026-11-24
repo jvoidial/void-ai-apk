@@ -34,8 +34,17 @@ API, keeps per-user memory, and applies the same PHB persona as the worker.
     PYTHONPATH=python-src python3 -m voidai --print-system
 
 Modes: `fast`, `deep`, `research`, `companion`, `coder`, `ultra`, `mini`,
-`github`. Each mode sets a circuit emphasis, and the PHB layers update after
-each turn through a short behavioral reflection pass.
+`github`, `predict`. Each mode sets a circuit emphasis, and the PHB layers
+update after each turn through a short behavioral reflection pass.
+
+Prediction commands:
+- `@future` forecasts the default AI/AGI/robotics/biotech/energy/quantum outlook.
+- `@predict TOPIC` focuses the forecast on one technology or market.
+- `--mode predict "..."` uses the same forecast rules in one-shot or REPL mode.
+
+Forecasts are explicitly speculative: they use horizons, scenarios, leading
+indicators, falsifiers, and confidence labels, and the prompt forbids invented
+citations or exact dates.
 
 Or install the `voidai` command:
 

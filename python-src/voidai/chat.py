@@ -27,6 +27,11 @@ MAX_HISTORY = 40
 MAX_MESSAGE_CHARS = 32000
 MAX_CONTEXT_CHARS = 6000
 
+DEFAULT_PREDICTION_TOPIC = (
+    "the future of AI, AGI, agentic software, robotics, brain-computer interfaces, "
+    "synthetic biology, energy, and quantum computing over the next one to ten years"
+)
+
 _last_answer = {}
 
 HELP_TEXT = """VOIDAI help
@@ -35,7 +40,8 @@ General:
 - @help                 : show this help menu
 - @state                : show PHB circuit levels
 - @memory               : show what VOIDAI remembers about you
-- @mode fast|deep|companion|research|coder : set the answer mode
+- @mode fast|deep|companion|research|coder|ultra|mini|github|predict
+                         : set the answer mode
 - @clear                : clear this session's history
 - @quit                 : exit the CLI
 
@@ -46,6 +52,8 @@ Knowledge / continuity:
 - @coherence            : show the continuity overview
 - @sync                 : pull PHB layers back toward their targets
 - @recap                : one-line recap of the previous answer
+- @predict [TOPIC]      : structured technology forecast
+- @future               : forecast the default AI/AGI/tech outlook
 
 Thinking:
 - @reason TEXT          : show reasoning steps
@@ -176,6 +184,13 @@ def answer(session_id=None, user_text="", user_id=None, history=None, mode=None,
         raise ValueError(
             "message too long (max %d chars)" % MAX_MESSAGE_CHARS
         )
+
+    for prefix in ("@predict", "@future"):
+        if text == prefix or text.startswith(prefix + " "):
+            topic = text[len(prefix):].strip() or DEFAULT_PREDICTION_TOPIC
+            text = "Forecast: " + topic
+            mode = "predict"
+            break
 
     handled, result = _command(uid, text)
     if handled:

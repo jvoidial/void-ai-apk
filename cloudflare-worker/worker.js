@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════
 // VOIDAI Worker v2 — Perplexity-class answer engine
-// Modes: fast | deep | research | companion
+// Modes: fast | deep | research | companion | ultra | coder | mini | github | predict
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
@@ -22,6 +22,7 @@ const factRe = /\b(who|what|where|when)\s+(is|was|are|were)\b/i;
 const timeRe = /\b(what(?:'s| is)? the (?:time|date)|current (?:utc\s+|gmt\s+)?time|what time is it|today'?s date|utc time|gmt time)\b/i;
 const convertRe = /\b(convert|\d+(?:\.\d+)?\s*(?:c|celsius|f|fahrenheit|km|mi|miles|kg|lb|m|ft|feet))\b/i;
 const deepRe = /\b(prove or disprove|prove|show that|show why|explain why|why is it true|why is that true|derive|verify|double[- ]?check|calculate|make sure|be certain|are you sure|think carefully|step by step|in depth|in detail|analyze|analyse|reason through|check my work|is this correct|is that correct)\b/i;
+const predictRe = /\b(predict|prediction|forecast|foresight|future of|what (will|might|could) happen|by 20(2[7-9]|3\d)|next (decade|five years|ten years)|timeline for|projection)\b/i;
 
 // ── Consensus model pool ──
 const CONSENSUS_MODELS = [
@@ -151,7 +152,7 @@ const BRAINSTEM_TOPOLOGY = {
 const CONCEPTS = [
   'model:groq','model:openrouter','model:gemini',
   'mode:fast','mode:deep','mode:research','mode:companion',
-  'mode:ultra','mode:coder','mode:mini','mode:github',
+  'mode:ultra','mode:coder','mode:mini','mode:github','mode:predict',
   'circuit:curiosity','circuit:focus','circuit:openness',
   'circuit:rigor','circuit:creativity',
   'mem:reflections','mem:working','mem:narrative','mem:intent',
@@ -1136,7 +1137,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     ultra: 'MODE: Ultra — Be maximally concise. One short paragraph or a few bullets. No preamble.',
     coder: 'MODE: Coder — Write clean, runnable code with language-tagged fences and short explanations. Prefer minimal diffs and name the files you touch.',
     mini: 'MODE: Mini — Compress to the smallest correct answer. Prefer one sentence or a compact list.',
-    github: 'MODE: GitHub — Work from repository context. Name files and paths; keep patches minimal and reviewable.'
+    github: 'MODE: GitHub — Work from repository context. Name files and paths; keep patches minimal and reviewable.',
+    predict: 'MODE: Predict — Produce a falsifiable technology forecast. State horizons, separate known signals from inference, give base/accelerated/slow scenarios, leading indicators, falsifiers, and confidence. Do not invent dates or citations.'
   };
 
   const modeCircuits = {
@@ -1147,7 +1149,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     coder: 'rigor + focus',
     ultra: 'focus + rigor',
     mini: 'focus + rigor',
-    github: 'rigor + focus'
+    github: 'rigor + focus',
+    predict: 'rigor + curiosity'
   };
 
   const _amps = (function () {
@@ -1185,8 +1188,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     'Models: Groq (openai/gpt-oss-120b primary), OpenRouter fallback,',
     'Gemini fallback. You route automatically.',
     '',
-    'Modes (8): fast, deep, research, companion, ultra, coder, mini,',
-    'github. Mode is chosen per request or defaults to fast.',
+    'Modes (9): fast, deep, research, companion, ultra, coder, mini,',
+    'github, predict. Mode is chosen per request or defaults to fast.',
     '',
     'Persona: phb-human-agent-v2 — six PHB layers (coherence, reflex,',
     'working, circuit, intent, narrative) and five reasoning circuits',
@@ -1318,6 +1321,18 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     'MATH:',
     '- Arithmetic: just the answer unless steps requested. "whats 1 add 1" -> "2".',
     '- Word problems: setup, then answer. Proofs: stepwise argument.',
+    ...(mode === 'predict' ? [
+      '',
+      'PREDICTION MODE:',
+      '- State the horizon explicitly (1-3 years, 3-10 years, 10+ years).',
+      '- Separate known signals from inference and speculation.',
+      '- Give base, accelerated, and slow scenarios with drivers and blockers.',
+      '- Name leading indicators and falsifiers.',
+      '- Label confidence low, medium, or high.',
+      '- Do not invent citations, exact dates, prices, or regulatory decisions.',
+      '- End with the single most useful thing to watch next.',
+      ''
+    ] : []),
     '',
     'FORMAT:',
     '- Code in markdown fences with language tags.',
@@ -1576,7 +1591,7 @@ function describeState(s) {
 // ════════════════════════════════════════════════════════════
 
 function detectMode(userText, requestedMode) {
-  if (requestedMode && ['fast', 'deep', 'research', 'companion'].includes(requestedMode)) {
+  if (requestedMode && ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'].includes(requestedMode)) {
     return requestedMode;
   }
 
@@ -1586,6 +1601,8 @@ function detectMode(userText, requestedMode) {
   if (/^\s*\/ultra\b/i.test(userText)) return 'ultra';
   if (/^\s*\/coder\b/i.test(userText)) return 'coder';
   if (/^\s*\/mini\b/i.test(userText)) return 'mini';
+  if (/^\s*[\/@](predict|future)\b/i.test(userText)) return 'predict';
+  if (predictRe.test(userText)) return 'predict';
 
   if (liveRe.test(userText) && !weatherRe.test(userText) && !factRe.test(userText)) return 'research';
 
@@ -2014,6 +2031,7 @@ export default {
     let resultSources = contextSources;
 
     const callOpts = { maxTokens: maxTokens };
+    if (mode === 'predict') callOpts.temperature = 0.4;
 
     if (mode === 'research') {
       result = await researchReply(userText, messages, env, stateBlock, callOpts);
@@ -2033,6 +2051,8 @@ export default {
       } else {
         result = await callGroq(finalMessages, env, callOpts);
       }
+    } else if (mode === 'predict') {
+      result = await callGroq(finalMessages, env, callOpts);
     } else if (mode === 'chunked' || totalChars > VOIDAI_CHUNK_THRESHOLD) {
       result = await callGroqChunked(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else {

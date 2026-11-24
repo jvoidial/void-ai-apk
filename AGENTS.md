@@ -61,3 +61,12 @@ VOIDAI has four runtime surfaces:
   `modeCircuits` table.
 - Low intent, low narrative, or coherence below reflex adds a short prompt gate;
   do not hardcode the sample snapshot values from chat reports.
+
+## Prediction mode
+
+- Keep `predict` aligned across `phb.MODES`, `MODE_CIRCUITS`, the CLI
+  `@future`/`@predict` commands, the Worker `modeInstructions`/`modeCircuits`,
+  and the frontend `requestedMode` override.
+- Forecasts must use horizons, scenarios, leading indicators, falsifiers, and
+  confidence labels. Never compile invented citations or exact future dates.
+- `@future` uses `DEFAULT_PREDICTION_TOPIC`; `@predict TOPIC` replaces it.
