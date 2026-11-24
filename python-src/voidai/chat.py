@@ -1,148 +1,200 @@
-from .memory_mesh import classify, store_fragment, recall, summary
-from .knowledge_layer import ingest, summarize_focus, summarize_map
-from .jules_continuity import JULES
+"""VOIDAI chat pipeline.
+
+Ties together the PHB persona, per-user memory, the knowledge graph, the
+continuity engine, the code helpers and the LLM client. Both the CLI and the
+HTTP servers call :func:`answer`, so behaviour stays identical everywhere.
+"""
+
+from . import config, phb
 from .code_brain import best_code_context
-from .metacognition import think_steps, self_reflect
-from .gpt_client import call_gpt
 from .code_reasoner import (
-    generate_code,
-    fix_code,
-    improve_code,
-    explain_code,
-    plan_code,
     convert_code,
+    explain_code,
+    fix_code,
+    generate_code,
+    improve_code,
+    plan_code,
 )
+from .jules_continuity import engine_for
+from .knowledge_layer import ingest, summarize_focus, summarize_map
+from .llm import LLMClient
+from .memory_mesh import classify, recall, store_fragment, summary
+from .metacognition import self_reflect, think_steps
+
+MAX_HISTORY = 40
+MAX_MESSAGE_CHARS = 32000
+MAX_CONTEXT_CHARS = 6000
 
 _last_answer = {}
 
-HELP_TEXT = \"\"\"VOIDAI Help Menu
+HELP_TEXT = """VOIDAI help
 
 General:
 - @help                 : show this help menu
+- @state                : show PHB circuit levels
+- @memory               : show what VOIDAI remembers about you
+- @mode fast|deep|companion|research|coder : set the answer mode
+- @clear                : clear this session's history
+- @quit                 : exit the CLI
 
 Knowledge / continuity:
 - @focus TERM           : zoom in on a concept
-- @map                  : show global knowledge map
-- @thread TOPIC         : show continuity thread
-- @coherence            : show global continuity overview
+- @map                  : show the knowledge map
+- @thread TOPIC         : show a continuity thread
+- @coherence            : show the continuity overview
 
 Thinking:
 - @reason TEXT          : show reasoning steps
-- @reflect              : reflect on last answer
+- @reflect              : reflect on the last answer
 
-Code (all languages):
+Code:
 - @code SPEC            : generate code from a spec
 - @fix CODE             : fix / debug code
 - @improve CODE         : refactor / improve code
 - @explain CODE         : explain code
 - @plan SPEC            : plan architecture / modules
-- @convert LANG CODE    : convert code to target language
-\"\"\"
+- @convert LANG CODE    : convert code to a target language"""
 
-def answer(session_id: str, user_text: str) -> str:
-    global _last_answer
 
-    txt = user_text.strip()
+def user_key(user_id=None, session_id=None):
+    return config.sanitize_user(user_id or session_id or None)
 
-    if txt == "@help":
-        return HELP_TEXT
 
-    if txt.startswith("@focus "):
-        return summarize_focus(txt.replace("@focus ", "", 1).strip())
+def _command(uid, text):
+    """Run a @command. Returns (handled, result)."""
+    if text == "@help":
+        return True, HELP_TEXT
+    if text == "@state":
+        return True, phb.describe(phb.load_state(uid))
+    if text == "@memory":
+        counts = summary(uid)
+        if not counts:
+            return True, "No memory stored yet."
+        lines = ["Memory for %s:" % uid]
+        for kind in sorted(counts):
+            lines.append("  %-10s %d" % (kind, counts[kind]))
+        return True, "\n".join(lines)
+    if text.startswith("@focus "):
+        return True, summarize_focus(text[len("@focus "):].strip(), user=uid)
+    if text == "@map":
+        return True, summarize_map(user=uid)
+    if text.startswith("@thread "):
+        return True, engine_for(uid).continuity_view(text[len("@thread "):].strip())
+    if text == "@coherence":
+        return True, engine_for(uid).global_coherence()
+    if text.startswith("@reason "):
+        return True, think_steps(text[len("@reason "):].strip())
+    if text == "@reflect":
+        return True, self_reflect(_last_answer.get(uid, "No previous answer stored."))
 
-    if txt == "@map":
-        return summarize_map()
+    code_commands = (
+        ("@code ", lambda arg: generate_code(arg, user=uid)),
+        ("@fix ", lambda arg: fix_code(arg, user=uid)),
+        ("@improve ", lambda arg: improve_code(arg, user=uid)),
+        ("@explain ", lambda arg: explain_code(arg, user=uid)),
+        ("@plan ", lambda arg: plan_code(arg, user=uid)),
+    )
+    for prefix, handler in code_commands:
+        if text.startswith(prefix):
+            reply = handler(text[len(prefix):].strip())
+            _last_answer[uid] = reply
+            return True, reply
 
-    if txt.startswith("@thread "):
-        return JULES.continuity_view(txt.replace("@thread ", "", 1).strip())
-
-    if txt == "@coherence":
-        return JULES.global_coherence()
-
-    if txt.startswith("@reason "):
-        return think_steps(txt.replace("@reason ", "", 1).strip())
-
-    if txt == "@reflect":
-        last = _last_answer.get(session_id, "No previous answer stored.")
-        return self_reflect(last)
-
-    # Code commands
-    if txt.startswith("@code "):
-        spec = txt.replace("@code ", "", 1).strip()
-        reply = generate_code(spec)
-        _last_answer[session_id] = reply
-        return reply
-
-    if txt.startswith("@fix "):
-        code = txt.replace("@fix ", "", 1).strip()
-        reply = fix_code(code)
-        _last_answer[session_id] = reply
-        return reply
-
-    if txt.startswith("@improve "):
-        code = txt.replace("@improve ", "", 1).strip()
-        reply = improve_code(code)
-        _last_answer[session_id] = reply
-        return reply
-
-    if txt.startswith("@explain "):
-        code = txt.replace("@explain ", "", 1).strip()
-        reply = explain_code(code)
-        _last_answer[session_id] = reply
-        return reply
-
-    if txt.startswith("@plan "):
-        spec = txt.replace("@plan ", "", 1).strip()
-        reply = plan_code(spec)
-        _last_answer[session_id] = reply
-        return reply
-
-    if txt.startswith("@convert "):
-        parts = txt.split(" ", 2)
+    if text.startswith("@convert "):
+        parts = text.split(" ", 2)
         if len(parts) < 3:
-            return "Usage: @convert TARGET_LANG CODE"
-        target_lang = parts[1]
-        code = parts[2]
-        reply = convert_code(code, target_lang)
-        _last_answer[session_id] = reply
-        return reply
+            return True, "Usage: @convert TARGET_LANG CODE"
+        reply = convert_code(parts[2], parts[1], user=uid)
+        _last_answer[uid] = reply
+        return True, reply
 
-    # Normal chat path with full brain context, but UI sees only GPT reply
-    kind = classify(user_text)
-    store_fragment(kind, user_text)
-    kg_info = ingest(user_text)
-    topic, _ = JULES.add_voxel(kg_info["concepts"], kind, user_text)
+    return False, None
 
-    recent_code = recall("code", limit=3)
-    recent_ideas = recall("ideas", limit=3)
-    recent_issues = recall("issues", limit=3)
-    mem_summary = summary()
-    code_ctx = best_code_context(limit=5)
 
-    memory_context = ""
+def _memory_context(uid, user_text, kind):
+    lines = []
+    recent_code = recall("code", limit=3, user=uid)
+    recent_ideas = recall("ideas", limit=3, user=uid)
+    recent_issues = recall("issues", limit=3, user=uid)
     if recent_code:
-        memory_context += "Recent code:\\n" + "\\n".join(f"- {f['text']}" for f in recent_code) + "\\n\\n"
+        lines.append("Recent code:")
+        lines.extend("- " + f["text"] for f in recent_code)
     if recent_ideas:
-        memory_context += "Recent ideas:\\n" + "\\n".join(f"- {f['text']}" for f in recent_ideas) + "\\n\\n"
+        lines.append("Recent ideas:")
+        lines.extend("- " + f["text"] for f in recent_ideas)
     if recent_issues:
-        memory_context += "Recent issues:\\n" + "\\n".join(f"- {f['text']}" for f in recent_issues) + "\\n\\n"
+        lines.append("Recent issues:")
+        lines.extend("- " + f["text"] for f in recent_issues)
+
+    code_ctx = best_code_context(limit=5, user=uid)
     if code_ctx:
-        memory_context += "Code/Math/Science context:\\n" + code_ctx + "\\n\\n"
+        lines.append("Code/math/science context:")
+        lines.append(code_ctx)
 
-    memory_context += f"Memory mesh summary: {mem_summary}\\n"
-    memory_context += f"Continuity topic: {topic}, voxels: {len(JULES.threads[topic])}\\n"
-    memory_context += f"Knowledge ingest: {kg_info}\\n"
+    counts = summary(uid)
+    if counts:
+        lines.append("Memory counts: " + ", ".join("%s=%d" % item for item in sorted(counts.items())))
 
-    prompt = f\"\"\"
-You are VOIDAI, a Copilot-style assistant.
+    graph_info = ingest(user_text, user=uid)
+    topic, _ = engine_for(uid).add_voxel(graph_info["concepts"], kind, user_text)
+    lines.append("Continuity topic: %s (%d items)" % (topic, len(engine_for(uid).threads[topic])))
+    lines.append("Extracted concepts: " + ", ".join(graph_info["concepts"][:10]))
 
-User message:
-{user_text}
+    context = "\n".join(lines)
+    if len(context) > MAX_CONTEXT_CHARS:
+        context = context[:MAX_CONTEXT_CHARS] + "\n...[context trimmed]"
+    return context
 
-Internal context:
-{memory_context}
-\"\"\".strip()
 
-    reply = call_gpt(prompt)
-    _last_answer[session_id] = reply
+def answer(session_id=None, user_text="", user_id=None, history=None, mode=None, client=None):
+    """Answer one turn.
+
+    ``history`` (optional) is a mutable list of ``{"role", "content"}`` dicts.
+    When provided, the user turn and the reply are appended to it.
+    """
+    uid = user_key(user_id=user_id, session_id=session_id)
+    text = (user_text or "").strip()
+    if not text:
+        return ""
+    if len(text) > MAX_MESSAGE_CHARS:
+        raise ValueError(
+            "message too long (max %d chars)" % MAX_MESSAGE_CHARS
+        )
+
+    handled, result = _command(uid, text)
+    if handled:
+        return result
+
+    kind = classify(text)
+    store_fragment(kind, text, user=uid)
+
+    state = phb.load_state(uid)
+    state = phb.nudge(state, text)
+    phb.save_state(state, uid)
+
+    context = _memory_context(uid, text, kind)
+    messages = [{"role": "system", "content": phb.system_prompt(mode or "fast", state=state)}]
+    if context:
+        messages.append({"role": "system", "content": "INTERNAL CONTEXT (do not quote verbatim):\n" + context})
+    if history:
+        for item in history[-MAX_HISTORY:]:
+            if not isinstance(item, dict):
+                continue
+            if item.get("role") in ("user", "assistant") and item.get("content"):
+                messages.append({"role": item["role"], "content": str(item["content"])})
+    messages.append({"role": "user", "content": text})
+
+    reply = (client or LLMClient()).chat(messages, max_tokens=4096, temperature=0.6)
+    _last_answer[uid] = reply
+
+    if history is not None:
+        history.append({"role": "user", "content": text})
+        history.append({"role": "assistant", "content": reply})
+        del history[:-2 * MAX_HISTORY]
+
     return reply
+
+
+def system_prompt_for(user_id=None, mode="fast"):
+    uid = user_key(user_id=user_id)
+    return phb.system_prompt(mode=mode, state=phb.load_state(uid))

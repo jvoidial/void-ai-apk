@@ -21,6 +21,46 @@ Android app with GitHub sign-in, Supabase storage, and AI chat via Cloudflare Wo
 - Storage — per-user files, RLS-isolated
 - Cost: **$0**
 
+## CLI (GPT, PHB basis)
+
+The Python CLI runs on a bare Python 3.9+ install. It uses the OpenAI-compatible
+API, keeps per-user memory, and applies the same PHB persona as the worker.
+
+    PYTHONPATH=python-src python3 -m voidai "explain quicksort"
+    PYTHONPATH=python-src python3 -m voidai --user alice --mode deep
+    PYTHONPATH=python-src python3 -m voidai --print-system
+
+Or install the `voidai` command:
+
+    pip install -e .
+    voidai --help
+
+Environment:
+
+| Variable | Purpose |
+|---|---|
+| `OPENAI_API_KEY` (or `VOIDAI_GPT_KEY`) | model key |
+| `OPENAI_BASE_URL` | any OpenAI-compatible endpoint (default `https://api.openai.com/v1`; localhost endpoints work without a key) |
+| `OPENAI_MODEL` | model name (default `gpt-4o-mini`) |
+| `VOIDAI_USER` | default user id (default: OS user) |
+| `VOIDAI_HOME` | data directory (default `~/.local/share/voidai`) |
+| `VOIDAI_SERVER_TOKEN` | optional bearer token required by the HTTP server |
+| `VOIDAI_HOST` / `VOIDAI_PORT` | server bind address (default `127.0.0.1:3000`) |
+
+Each user gets separate memory, history and PHB state under
+`$VOIDAI_HOME/users/<id>/`. Local commands (`@help`, `@state`, `@memory`, `@map`)
+work without a key.
+
+HTTP server (standard library, CORS enabled):
+
+    PYTHONPATH=python-src python3 -m voidai.server
+    # GET /health, GET /api/agents, GET /api/memory?user=ID
+    # POST /api/chat {"message": "...", "user_id": "alice"}
+
+Run the tests:
+
+    python3 -m unittest discover -s tests -v
+
 ## Architecture
 
     APK WebView -> Cloudflare Worker -> Groq (LLM)

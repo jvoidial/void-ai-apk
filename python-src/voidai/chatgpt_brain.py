@@ -1,41 +1,58 @@
-#!/data/data/com.termux/files/usr/bin/python
-"""
-ChatGPT Brain for VOID AI APK
-"""
-import os
-import json
-import openai
-from typing import Optional, Dict, Any
+"""ChatGPT-backed brain helper.
 
-CONFIG_PATH = os.path.expanduser("~/void-ai-apk/config/chatgpt_config.json")
+Configuration is optional. Resolution order:
+1. explicit ``config_path``
+2. ``$VOIDAI_CHATGPT_CONFIG``
+3. ``~/.config/voidai/chatgpt.json``
+4. environment variables (OPENAI_API_KEY / OPENAI_MODEL / OPENAI_BASE_URL)
+"""
+
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from . import config, phb
+from .llm import LLMClient, LLMError
+
+DEFAULT_CONFIG = Path.home() / ".config" / "voidai" / "chatgpt.json"
+
 
 class ChatGPTBrain:
     def __init__(self, config_path: Optional[str] = None):
-        path = config_path or CONFIG_PATH
-        with open(path, 'r') as f:
-            self.config = json.load(f)
-        openai.api_key = self.config.get('api_key')
-        self.model = self.config.get('model', 'gpt-3.5-turbo')
-        self.max_tokens = self.config.get('max_tokens', 1000)
-        self.temperature = self.config.get('temperature', 0.7)
+        data = {}
+        path = Path(config_path or os.environ.get("VOIDAI_CHATGPT_CONFIG") or DEFAULT_CONFIG).expanduser()
+        if path.is_file():
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    loaded = json.load(handle)
+                if isinstance(loaded, dict):
+                    data = loaded
+            except (OSError, ValueError):
+                data = {}
+        self.model = data.get("model") or config.model()
+        self.max_tokens = int(data.get("max_tokens") or 2048)
+        self.temperature = float(data.get("temperature") if data.get("temperature") is not None else 0.7)
+        self.client = LLMClient(
+            api_key=data.get("api_key") or None,
+            base_url=data.get("base_url") or None,
+            model=self.model,
+        )
+
+    def available(self) -> bool:
+        return self.client.configured()
 
     def ask(self, prompt: str, system_prompt: Optional[str] = None) -> str:
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        system = system_prompt or phb.system_prompt()
         try:
-            response = openai.ChatCompletion.create(
-                model=self.model,
-                messages=messages,
+            return self.client.chat(
+                [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
                 max_tokens=self.max_tokens,
-                temperature=self.temperature
-            )
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            return f"Error: {e}"
+                temperature=self.temperature,
+            ).strip()
+        except (LLMError, ValueError) as exc:
+            return "Error: %s" % exc
 
     def ask_with_context(self, prompt: str, context: Dict[str, Any]) -> str:
-        context_str = json.dumps(context, indent=2)
-        full_prompt = f"Context:\n{context_str}\n\nQuestion: {prompt}"
-        return self.ask(full_prompt)
+        context_str = json.dumps(context, indent=2, default=str)
+        return self.ask("Context:\n%s\n\nQuestion: %s" % (context_str, prompt))

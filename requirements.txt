@@ -1,9 +1,10 @@
-requests
-openai
-networkx
-pandas
-numpy
-scipy
-matplotlib
-flask
-flask-cors
+# Core CLI and HTTP servers use only the Python standard library.
+# Nothing here is required for `python -m voidai`.
+
+# Optional: connectome analysis (voidai.brain_analyzer)
+networkx>=3.0
+pandas>=2.0
+
+# Optional: Flask brain API (voidai.brain_api)
+flask>=3.0
+flask-cors>=4.0

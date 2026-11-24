@@ -4,8 +4,11 @@
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
-const MAX_MESSAGES = 20;
-const MAX_CHARS = 12000;
+const MAX_MESSAGES = 40;
+const MAX_CHARS = 32000;
+const MAX_TOTAL_CHARS = 120000;
+const DEFAULT_MAX_TOKENS = 4096;
+const MAX_MAX_TOKENS = 8192;
 const RATE_WINDOW = 60000;
 const RATE_MAX = 40;
 
@@ -248,6 +251,49 @@ async function sbFetch(env, path, opts) {
   return await fetch(url, fetchOpts);
 }
 
+// Supabase/PostgREST answers 201/204 with an empty body for writes, so
+// res.json() throws "Unexpected end of JSON input". Always parse defensively.
+async function readJsonSafe(res, fallback) {
+  if (!res) return fallback;
+  if (res.status === 204 || res.status === 205) return fallback;
+  try {
+    var text = await res.text();
+    if (!text || !text.trim()) return fallback;
+    return JSON.parse(text);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+// PostgREST upserts need a unique constraint on the conflict target. These
+// tables are created without one, so update-then-insert instead of
+// ?on_conflict=user_id, which fails with 42P10 when the index is absent.
+async function upsertByUser(env, table, userId, row) {
+  try {
+    var uid = userId || 'jacob';
+    var payload = Object.assign({}, row);
+    delete payload.id;
+    delete payload.user_id;
+    var query = '/rest/v1/' + table + '?user_id=eq.' + encodeURIComponent(uid);
+    var patched = await sbFetch(env, query, {
+      method: 'PATCH',
+      headers: { 'Prefer': 'return=representation' },
+      body: JSON.stringify(payload)
+    });
+    var updated = await readJsonSafe(patched, null);
+    if (Array.isArray(updated) && updated.length) return true;
+    if (!patched.ok) return false;
+    var inserted = await sbFetch(env, '/rest/v1/' + table, {
+      method: 'POST',
+      headers: { 'Prefer': 'return=minimal' },
+      body: JSON.stringify(Object.assign({ user_id: uid }, payload))
+    });
+    return inserted.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
 async function initConsciousnessTables(env) {
   try {
     var sql = [
@@ -272,7 +318,7 @@ async function loadRecentReflections(env, userId) {
   try {
     var uid = userId || 'jacob';
     var res = await sbFetch(env, '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=5', { method: 'GET' });
-    var rows = await res.json();
+    var rows = await readJsonSafe(res, []);
     return Array.isArray(rows) ? rows : [];
   } catch (e) { return []; }
 }
@@ -281,7 +327,7 @@ async function loadWorkingMemory(env, userId) {
   try {
     var uid = userId || 'jacob';
     var res = await sbFetch(env, '/rest/v1/voidai_working_memory?user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=10', { method: 'GET' });
-    var rows = await res.json();
+    var rows = await readJsonSafe(res, []);
     return Array.isArray(rows) ? rows : [];
   } catch (e) { return []; }
 }
@@ -289,8 +335,8 @@ async function loadWorkingMemory(env, userId) {
 async function loadSelfNarrative(env, userId) {
   try {
     var uid = userId || 'jacob';
-    var res = await sbFetch(env, '/rest/v1/voidai_self_narrative?user_id=eq.' + encodeURIComponent(uid) + '&limit=1', { method: 'GET' });
-    var rows = await res.json();
+    var res = await sbFetch(env, '/rest/v1/voidai_self_narrative?user_id=eq.' + encodeURIComponent(uid) + '&order=updated_at.desc&limit=1', { method: 'GET' });
+    var rows = await readJsonSafe(res, []);
     if (Array.isArray(rows) && rows.length) return rows[0];
     return null;
   } catch (e) { return null; }
@@ -322,9 +368,9 @@ async function updateSelfNarrative(userId, newNarrative, env) {
   try {
     const _existing = await sbFetch(env,
       '/rest/v1/voidai_self_narrative?user_id=eq.' +
-      encodeURIComponent(userId) + '&limit=1',
+      encodeURIComponent(userId) + '&order=updated_at.desc&limit=1',
       { method: 'GET' });
-    const _rows = await _existing.json();
+    const _rows = await readJsonSafe(_existing, []);
     const _last = Array.isArray(_rows) && _rows[0];
     if (_last && _last.updated_at &&
         Date.now() - new Date(_last.updated_at).getTime() < 300000) {
@@ -333,10 +379,9 @@ async function updateSelfNarrative(userId, newNarrative, env) {
   } catch (e) { /* fall through */ }
   try {
     var uid = userId || 'jacob';
-    await sbFetch(env, '/rest/v1/voidai_self_narrative', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ user_id: uid, narrative: newNarrative, updated_at: new Date().toISOString() })
+    await upsertByUser(env, 'voidai_self_narrative', uid, {
+      narrative: newNarrative,
+      updated_at: new Date().toISOString()
     });
   } catch (e) {}
 }
@@ -345,9 +390,9 @@ async function loadIntentState(userId, env) {
   try {
     var uid = userId || 'jacob';
     var res = await sbFetch(env,
-      '/rest/v1/voidai_intent_state?user_id=eq.' + encodeURIComponent(uid) + '&limit=1',
+      '/rest/v1/voidai_intent_state?user_id=eq.' + encodeURIComponent(uid) + '&order=updated_at.desc&limit=1',
       { method: 'GET' });
-    var rows = await res.json();
+    var rows = await readJsonSafe(res, []);
     if (Array.isArray(rows) && rows.length) return rows[0];
     return null;
   } catch (e) { return null; }
@@ -357,8 +402,10 @@ async function updateIntentState(userId, newIntent, env) {
   try {
     var uid = userId || 'jacob';
     var existing = await loadIntentState(uid, env);
+    // The table column is primary_intent; older rows may carry `primary`.
+    var existingPrimary = existing ? (existing.primary_intent || existing.primary) : null;
     var turns, confidence, history;
-    if (existing && existing.primary === newIntent.primary) {
+    if (existing && existingPrimary === newIntent.primary) {
       turns = (existing.turns_in_intent || 0) + 1;
       confidence = Math.min(1, (existing.confidence || 0.5) * 0.9 + newIntent.confidence * 0.1);
       history = Array.isArray(existing.history) ? existing.history.slice() : [];
@@ -370,18 +417,13 @@ async function updateIntentState(userId, newIntent, env) {
     history.push({ intent: newIntent.primary, ts: new Date().toISOString() });
     history = history.slice(-10);
     var row = {
-      user_id: uid,
-      primary: newIntent.primary,
+      primary_intent: newIntent.primary,
       confidence: confidence,
       turns_in_intent: turns,
       history: history,
       updated_at: new Date().toISOString()
     };
-    await sbFetch(env, '/rest/v1/voidai_intent_state', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(row)
-    });
+    await upsertByUser(env, 'voidai_intent_state', uid, row);
     if (turns > 5 && newIntent.primary === 'meta') return { meta_fatigue: true };
     return { meta_fatigue: false };
   } catch (e) { return { meta_fatigue: false }; }
@@ -396,7 +438,7 @@ async function runReflectionPass(userText, assistantText, userId, env) {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
       body: JSON.stringify({ model: 'openai/gpt-oss-20b', messages: [{ role: 'user', content: prompt }], max_tokens: 200, temperature: 0.3 })
     });
-    var data = await res.json();
+    var data = await readJsonSafe(res, {});
     var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '{}';
     var parsed = JSON.parse(content);
     if (parsed && parsed.intent) {
@@ -406,10 +448,7 @@ async function runReflectionPass(userText, assistantText, userId, env) {
         else BRAIN.stimulate('intent', parsed.intent.confidence || 0.5);
       } catch (e) { /* silent */ }
     }
-    if (parsed.learned) {
-      try { await saveReflection(env, uid, userText.slice(0, 200), parsed.mood || '', parsed.insight || '', ''); } catch (e) {}
-    }
-    if (parsed.mood || parsed.insight) {
+    if (parsed.learned || parsed.mood || parsed.insight) {
       try { await saveReflection(env, uid, userText.slice(0, 200), parsed.mood || '', parsed.insight || '', ''); } catch (e) {}
     }
   } catch (e) {}
@@ -449,7 +488,7 @@ async function callGroqChunked(env, messages, model, options) {
     var chunkMessages = systemMsg.concat(chunks[c]);
     if (c > 0) {
       var summary = 'Previous chunk summary: ' + (allResults[allResults.length - 1] || '').slice(0, 500);
-      chunkMessages = [{ role: 'system', content: summary }].concat(chunks[c]);
+      chunkMessages = systemMsg.concat([{ role: 'system', content: summary }]).concat(chunks[c]);
     }
     var result = await callGroqAuto(env, chunkMessages, model, opts);
     if (result.ok) {
@@ -480,7 +519,7 @@ async function callGroqAuto(env, messages, model, opts) {
   if (result.ok) return result;
   if (env.OPENROUTER_API_KEY) {
     try {
-      var orResult = await callOpenRouter(messages, env, 'openai/gpt-oss-120b');
+      var orResult = await callOpenRouter(messages, env, 'openai/gpt-oss-120b', opts);
       if (orResult.ok) return orResult;
     } catch (e) {}
   }
@@ -539,6 +578,32 @@ function repliesAgree(a, b) {
   let hits = 0;
   for (const w of words) { if (longer.indexOf(w) !== -1) hits++; }
   return (hits / words.length) > 0.7;
+}
+
+// Long pastes are trimmed from the middle instead of being dropped whole,
+// which used to leave the request with zero messages and a 400.
+function clampText(text, max) {
+  var s = (text == null) ? '' : String(text);
+  if (s.length <= max) return s;
+  var head = Math.floor(max * 0.6);
+  var tail = Math.floor(max * 0.35);
+  var cut = s.length - head - tail;
+  var marker = '\n\n…[' + cut + ' chars trimmed]…\n\n';
+  var over = (head + tail + marker.length) - max;
+  if (over > 0) head = Math.max(0, head - over);
+  return s.slice(0, head) + marker + s.slice(s.length - tail);
+}
+
+function fitBudget(messages, budget) {
+  var out = [];
+  var total = 0;
+  for (var i = messages.length - 1; i >= 0; i--) {
+    var len = messages[i].content.length;
+    if (out.length && total + len > budget) break;
+    out.unshift(messages[i]);
+    total += len;
+  }
+  return out.length ? out : messages.slice(-1);
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1237,8 +1302,15 @@ async function callGemini(messages, env) {
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + env.GEMINI_API_KEY,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   );
-  const data = await res.json();
-  if (!res.ok) return { ok: false, status: res.status, text: JSON.stringify(data) };
+  const rawGemini = await res.text();
+  let data = null;
+  try { data = rawGemini ? JSON.parse(rawGemini) : null; } catch (e) {}
+  if (!res.ok) {
+    return { ok: false, status: res.status, text: rawGemini || JSON.stringify({ error: { message: 'gemini error' } }) };
+  }
+  if (!data) {
+    return { ok: false, status: 502, text: JSON.stringify({ error: { message: 'empty gemini response' } }) };
+  }
   const text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
     data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
     data.candidates[0].content.parts[0].text) || '';
@@ -1249,20 +1321,23 @@ async function callGemini(messages, env) {
   return { ok: true, status: 200, text: JSON.stringify(wrapped) };
 }
 
-async function callGroq(messages, env) {
-  const doFetch = function (m, maxTok) {
+async function callGroq(messages, env, opts) {
+  opts = opts || {};
+  const maxTok = opts.maxTokens || DEFAULT_MAX_TOKENS;
+  const temp = opts.temperature != null ? opts.temperature : 0.5;
+  const doFetch = function (m, maxTokOverride) {
     return fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-      body: JSON.stringify({ model: m, messages: messages, max_tokens: maxTok || 4000, temperature: 0.5 })
+      body: JSON.stringify({ model: m, messages: messages, max_tokens: maxTokOverride || maxTok, temperature: temp })
     });
   };
-  let res = await doFetch(DEFAULT_MODEL, 4000);
+  let res = await doFetch(DEFAULT_MODEL, maxTok);
   if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
   await new Promise(function (r) { setTimeout(r, 2000); });
-  res = await doFetch(DEFAULT_MODEL, 4000);
+  res = await doFetch(DEFAULT_MODEL, maxTok);
   if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
-  res = await doFetch('openai/gpt-oss-20b', 3000);
+  res = await doFetch('openai/gpt-oss-20b', Math.min(maxTok, 3000));
   if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
   return await callGemini(messages, env);
 }
@@ -1307,12 +1382,13 @@ async function callFirstWorkingModel(messages, env, opts, skip) {
 // CONSENSUS REASONING — multi-model adjudication
 // ════════════════════════════════════════════════════════════
 
-async function consensusReply(question, messages, env) {
-  const first = await callFirstWorkingModel(messages, env, { temperature: 0.3 });
+async function consensusReply(question, messages, env, opts) {
+  const baseOpts = Object.assign({ temperature: 0.3 }, opts || {});
+  const first = await callFirstWorkingModel(messages, env, baseOpts);
   if (!first) {
     return { ok: false, status: 502, text: JSON.stringify({ error: { message: 'consensus unavailable: no models responded' } }) };
   }
-  const second = await callFirstWorkingModel(messages, env, { temperature: 0.3 }, first.model);
+  const second = await callFirstWorkingModel(messages, env, baseOpts, first.model);
   if (!second) {
     return appendNote(first.res, '\n\n_(single-model fallback; consensus unavailable)_');
   }
@@ -1334,7 +1410,7 @@ async function consensusReply(question, messages, env) {
     { role: 'system', content: 'You are an adjudicator. Two AI models answered the same question. Compare them and produce ONE correct, comprehensive final answer. If one is clearly wrong, use the other. If both have partial truth, synthesize the best of both. If they disagree on facts, note which claim comes from which answer and flag uncertainty. Do not mention "Model A" or "Model B" in your final answer — just give the best answer.' },
     { role: 'user', content: 'Question: ' + question + '\n\n--- Answer 1 ---\n' + ca + '\n\n--- Answer 2 ---\n' + cb }
   ];
-  const judged = await callModelGeneric(DEFAULT_MODEL, judgeMessages, env, { temperature: 0.3 });
+  const judged = await callModelGeneric(DEFAULT_MODEL, judgeMessages, env, baseOpts);
   try {
     const parsed = JSON.parse(judged.text);
     parsed.choices[0].message.content += '\n\n_(cross-checked: models disagreed, adjudicated)_';
@@ -1348,7 +1424,7 @@ async function consensusReply(question, messages, env) {
 // RESEARCH MODE — Perplexity-style search + synthesize
 // ════════════════════════════════════════════════════════════
 
-async function researchReply(question, messages, env, stateBlock) {
+async function researchReply(question, messages, env, stateBlock, opts) {
   const searchResult = await searchWeb(question, env);
 
   if (!searchResult.text) {
@@ -1357,17 +1433,17 @@ async function researchReply(question, messages, env, stateBlock) {
       if (wikiResult.text) {
         const sp = buildSystemPrompt(wikiResult.text, stateBlock, 'research');
         const fm = [{ role: 'system', content: sp }].concat(messages);
-        return attachSources(await callGroq(fm, env), wikiResult.sources);
+        return attachSources(await callGroq(fm, env, opts), wikiResult.sources);
       }
     }
     const sp = buildSystemPrompt('NOTE: No live web results found. Answer from knowledge and state this may not be current.', stateBlock, 'research');
     const fm = [{ role: 'system', content: sp }].concat(messages);
-    return await callGroq(fm, env);
+    return await callGroq(fm, env, opts);
   }
 
   const sp = buildSystemPrompt(searchResult.text, stateBlock, 'research');
   const fm = [{ role: 'system', content: sp }].concat(messages);
-  const result = await consensusReply(question, fm, env);
+  const result = await consensusReply(question, fm, env, opts);
   return attachSources(result, searchResult.sources);
 }
 
@@ -1390,10 +1466,8 @@ function attachSources(result, sources) {
 async function loadMindState(env, userId) {
   const uid = userId || 'jacob';
   try {
-    const res = await fetch(env.SUPABASE_URL + '/rest/v1/voidai_mind_state?user_id=eq.' + encodeURIComponent(uid) + '&limit=1', {
-      headers: { 'apikey': env.SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_ANON_KEY }
-    });
-    const rows = await res.json();
+    const res = await sbFetch(env, '/rest/v1/voidai_mind_state?user_id=eq.' + encodeURIComponent(uid) + '&order=last_updated.desc&limit=1', { method: 'GET' });
+    const rows = await readJsonSafe(res, []);
     if (Array.isArray(rows) && rows.length) return rows[0];
   } catch (e) {}
   return {
@@ -1406,16 +1480,8 @@ async function loadMindState(env, userId) {
 async function saveMindState(state, env, userId) {
   const uid = userId || 'jacob';
   try {
-    await fetch(env.SUPABASE_URL + '/rest/v1/voidai_mind_state', {
-      method: 'POST',
-      headers: {
-        'apikey': env.SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + env.SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
-      },
-      body: JSON.stringify(Object.assign({ user_id: uid, last_updated: new Date().toISOString() }, state))
-    });
+    await upsertByUser(env, 'voidai_mind_state', uid,
+      Object.assign({}, state, { last_updated: new Date().toISOString() }));
   } catch (e) {}
 }
 
@@ -1482,7 +1548,8 @@ function detectMode(userText, requestedMode) {
 // OPENROUTER CALLER — free models (Nemotron Ultra, Qwen3 Coder, etc.)
 // ════════════════════════════════════════════════════════════
 
-async function callOpenRouter(messages, env, model) {
+async function callOpenRouter(messages, env, model, opts) {
+  opts = opts || {};
   if (!env.OPENROUTER_API_KEY) {
     return { ok: false, status: 500, text: '{"error":{"message":"no openrouter key"}}' };
   }
@@ -1498,8 +1565,8 @@ async function callOpenRouter(messages, env, model) {
       body: JSON.stringify({
         model: model,
         messages: messages,
-        max_tokens: 4000,
-        temperature: 0.5
+        max_tokens: opts.maxTokens || DEFAULT_MAX_TOKENS,
+        temperature: opts.temperature != null ? opts.temperature : 0.5
       })
     });
     const text = await res.text();
@@ -1719,6 +1786,42 @@ export default {
       }, { headers: { 'Access-Control-Allow-Origin': '*' } });
     }
 
+    if (new URL(request.url).pathname === '/vision' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let vbody;
+      try { vbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+      const image = vbody && vbody.image;
+      if (!image || typeof image !== 'string') return json({ error: { message: 'no image' } }, 400);
+      const dataUrl = image.indexOf('data:') === 0 ? image : 'data:image/jpeg;base64,' + image;
+      const prompt = String((vbody && vbody.prompt) || 'Describe this image.').slice(0, 2000);
+      try {
+        const vr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
+          body: JSON.stringify({
+            model: env.VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: dataUrl } }
+              ]
+            }],
+            max_tokens: 1024,
+            temperature: 0.3
+          })
+        });
+        const vtext = await vr.text();
+        return new Response(vtext || JSON.stringify({ error: { message: 'empty vision response' } }), {
+          status: vr.ok ? 200 : vr.status,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      } catch (e) {
+        return json({ error: { message: 'vision request failed: ' + (e.message || String(e)) } }, 502);
+      }
+    }
+
     if (request.method !== 'POST') return json({ error: { message: 'method not allowed' } }, 405);
     if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
 
@@ -1726,16 +1829,22 @@ export default {
     try { body = await request.json(); }
     catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
 
-    let messages = Array.isArray(body.messages) ? body.messages : [];
-    messages = messages
-      .filter(function (m) { return m && m.role !== 'system'; })
+    let messages = (Array.isArray(body.messages) ? body.messages : [])
+      .filter(function (m) { return m && m.role !== 'system' && m.content != null; })
       .slice(-MAX_MESSAGES)
-      .filter(function (m) { return (m.content || '').length <= MAX_CHARS; })
       .map(function (m) {
-        return { role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, MAX_CHARS) };
-      });
+        return { role: m.role === 'assistant' ? 'assistant' : 'user', content: clampText(m.content, MAX_CHARS) };
+      })
+      .filter(function (m) { return m.content.length > 0; });
+    messages = fitBudget(messages, MAX_TOTAL_CHARS);
 
     if (!messages.length) return json({ error: { message: 'no messages' } }, 400);
+
+    const requestedMaxTokens = Number(body.max_tokens);
+    const maxTokens = (Number.isFinite(requestedMaxTokens) && requestedMaxTokens > 0)
+      ? Math.max(256, Math.min(Math.floor(requestedMaxTokens), MAX_MAX_TOKENS))
+      : DEFAULT_MAX_TOKENS;
+    const totalChars = messages.reduce(function (s, m) { return s + m.content.length; }, 0);
 
     const lastUser = messages.slice().reverse().find(function (m) { return m.role === 'user'; });
     const userText = lastUser ? lastUser.content : '';
@@ -1772,18 +1881,17 @@ export default {
       }
     }
 
-    const mindState = await loadMindState(env, 'jacob');
-    const recent = await loadRecentReflections(env, 'jacob');
-    try { BRAIN.stimulate('working', Math.min(1, (recent?.length || 0) / 5)); } catch(e) {}
+    const [mindState, recent, intentState, narrative, workingMem] = await Promise.all([
+      loadMindState(env, 'jacob'),
+      loadRecentReflections(env, 'jacob'),
+      loadIntentState('jacob', env),
+      loadSelfNarrative(env, 'jacob'),
+      loadWorkingMemory(env, 'jacob')
+    ]);
+    try { BRAIN.stimulate('working', Math.min(1, ((recent && recent.length) || 0) / 5)); } catch(e) {}
     const stateBlock = describeState(mindState);
-    try {
-      const _is = await loadIntentState('jacob', env);
-      if (_is && _is.primary === 'meta' && _is.turns_in_intent > 5) {
-        BRAIN.metaFatigue = true;
-      } else {
-        BRAIN.metaFatigue = false;
-      }
-    } catch (e) { BRAIN.metaFatigue = false; }
+    const intentPrimary = intentState ? (intentState.primary_intent || intentState.primary) : null;
+    BRAIN.metaFatigue = !!(intentPrimary === 'meta' && (intentState.turns_in_intent || 0) > 5);
 
     var memoryBlock = '';
     if (recent && recent.length) {
@@ -1793,11 +1901,9 @@ export default {
         if (r.insight) memoryBlock += '- [note] ' + r.insight + '\n';
       });
     }
-    var narrative = await loadSelfNarrative(env, 'jacob');
     if (narrative && narrative.narrative) {
       memoryBlock += '\nSELF NARRATIVE: ' + narrative.narrative.slice(0, 500) + '\n';
     }
-    var workingMem = await loadWorkingMemory(env, 'jacob');
     if (workingMem && workingMem.length) {
       memoryBlock += '\nWORKING MEMORY:\n';
       workingMem.forEach(function (w) {
@@ -1811,28 +1917,34 @@ export default {
     let result;
     let resultSources = contextSources;
 
+    const callOpts = { maxTokens: maxTokens };
+
     if (mode === 'research') {
-      result = await researchReply(userText, messages, env, stateBlock);
+      result = await researchReply(userText, messages, env, stateBlock, callOpts);
     } else if (mode === 'deep') {
-      result = await consensusReply(userText, finalMessages, env);
+      result = await consensusReply(userText, finalMessages, env, callOpts);
     } else if (mode === 'companion') {
-      result = await callGroq(finalMessages, env);
+      result = await callGroq(finalMessages, env, callOpts);
     } else if (mode === 'ultra') {
-      result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3-ultra-550b-a55b:free');
+      result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3-ultra-550b-a55b:free', callOpts);
     } else if (mode === 'coder') {
-      result = await callOpenRouter(finalMessages, env, 'cohere/north-mini-code:free');
+      result = await callOpenRouter(finalMessages, env, 'cohere/north-mini-code:free', callOpts);
     } else if (mode === 'mini') {
-      result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3.5-lightning:free');
+      result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3.5-lightning:free', callOpts);
     } else if (mode === 'github') {
       if (env.GITHUB_TOKEN) {
-        result = await callOpenRouter(finalMessages, env, 'openai/gpt-oss-120b');
+        result = await callOpenRouter(finalMessages, env, 'openai/gpt-oss-120b', callOpts);
       } else {
-        result = await callGroq(finalMessages, env);
+        result = await callGroq(finalMessages, env, callOpts);
       }
-    } else if (mode === 'chunked') {
-      result = await callGroqChunked(env, finalMessages, DEFAULT_MODEL, {});
+    } else if (mode === 'chunked' || totalChars > VOIDAI_CHUNK_THRESHOLD) {
+      result = await callGroqChunked(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else {
-      result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, {});
+      result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
+    }
+
+    if (!result || typeof result.text !== 'string' || !result.text) {
+      return json({ error: { message: 'upstream returned an empty response' } }, 502);
     }
 
     if (resultSources.length > 0) {
@@ -1858,7 +1970,7 @@ export default {
 
     try {
       const updated = nudgeAxes(mindState, userText);
-      await saveMindState(updated, env, 'jacob');
+      ctx.waitUntil(saveMindState(updated, env, 'jacob').catch(function () {}));
     } catch (e) {}
 
     try {

@@ -1,3 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
+set -eu
 cd "$(dirname "$0")"
-python server.py
+exec python3 server.py

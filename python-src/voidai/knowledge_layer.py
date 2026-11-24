@@ -1,5 +1,7 @@
 import re
 from collections import defaultdict
+
+from . import config
 from .memory_mesh import classify
 
 class KnowledgeGraph:
@@ -61,24 +63,39 @@ class KnowledgeGraph:
         }
 
 KG = KnowledgeGraph()
+_GRAPHS = {}
+
+
+def graph_for(user=None):
+    if not user:
+        return KG
+    key = config.sanitize_user(user)
+    if key not in _GRAPHS:
+        _GRAPHS[key] = KnowledgeGraph()
+    return _GRAPHS[key]
+
 
 def extract_concepts(text: str):
-    words = re.findall(r"[A-Za-z_]{3,}", text)
+    words = re.findall(r"[A-Za-z_]{3,}", text or "")
     return list(dict.fromkeys(words))[:10]
 
-def ingest(text: str):
+
+def ingest(text: str, user=None):
+    graph = graph_for(user)
     kind = classify(text)
     concepts = extract_concepts(text)
     last = None
-    for c in concepts:
-        KG.add_concept(c)
+    for concept in concepts:
+        graph.add_concept(concept)
         if last:
-            KG.add_relation(last, "related_to", c)
-        last = c
+            graph.add_relation(last, "related_to", concept)
+        last = concept
     return {"kind": kind, "concepts": concepts}
 
-def summarize_focus(term: str):
-    neigh = KG.neighbors(term)
+
+def summarize_focus(term: str, user=None):
+    graph = graph_for(user)
+    neigh = graph.neighbors(term)
     if not neigh:
         return f"No knowledge links yet around '{term}'."
     lines = [f"Knowledge links around '{term}':"]
@@ -89,10 +106,11 @@ def summarize_focus(term: str):
             lines.append(f"- {n['from']} --{n['rel']}--> {term}")
     return "\n".join(lines)
 
-def summarize_map():
-    mv = KG.map_view()
+
+def summarize_map(user=None):
+    mv = graph_for(user).map_view()
     out = []
-    out.append(f"Knowledge Graph Overview:")
+    out.append("Knowledge Graph Overview:")
     out.append(f"- Nodes: {mv['node_count']}")
     out.append(f"- Edges: {mv['edge_count']}")
     out.append("\nClusters:")

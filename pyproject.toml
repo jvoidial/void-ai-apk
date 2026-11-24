@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voidai"
+version = "0.2.0"
+description = "VOIDAI CLI - GPT chat with the PHB human-agent basis"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+brain = ["networkx>=3.0", "pandas>=2.0"]
+flask = ["flask>=3.0", "flask-cors>=4.0"]
+
+[project.scripts]
+voidai = "voidai.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "python-src" }
+
+[tool.setuptools.packages.find]
+where = ["python-src"]
+
+[tool.setuptools.package-data]
+voidai = ["agents/*.json"]

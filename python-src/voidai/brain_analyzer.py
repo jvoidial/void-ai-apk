@@ -1,13 +1,12 @@
-#!/data/data/com.termux/files/usr/bin/python
+#!/usr/bin/env python3
 """
 Connectome Brain Analyzer for VOID AI APK
 """
 import os
 import csv
-import json
-import requests
-import networkx as nx
+import urllib.request
 from io import StringIO
+from pathlib import Path
 
 DATASETS = [
     "ds000212", "ds000224", "ds000117", "ds000102",
@@ -18,18 +17,36 @@ DATASETS = [
     "ds000238", "ds000240", "ds000243", "ds000254",
 ]
 
+
+def _data_dir():
+    try:
+        from . import config
+        base = config.home()
+    except Exception:
+        base = Path(os.environ.get("VOIDAI_HOME", "~/.local/share/voidai")).expanduser()
+    path = Path(base) / "brains"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _get_text(url, timeout=15):
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "VOIDAI/0.2"})
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return response.read().decode("utf-8", "replace")
+    except Exception:
+        return None
+
+
 class BrainAnalyzer:
     def __init__(self, dataset_id: str = None):
         self.dataset_id = dataset_id or "ds000243"
 
     def download_tsv(self, ds_id: str) -> str:
         url = f"https://openneuro.org/crn/datasets/{ds_id}/files/participants.tsv"
-        try:
-            r = requests.get(url, timeout=15)
-            if r.status_code == 200 and 'participant_id' in r.text[:100]:
-                return r.text
-        except:
-            pass
+        text = _get_text(url)
+        if text and 'participant_id' in text[:100]:
+            return text
         return None
 
     def parse_tsv(self, content: str) -> list:
@@ -60,18 +77,17 @@ class BrainAnalyzer:
         ]
         for fname in filenames:
             url = f"https://openneuro.org/crn/datasets/{ds_id}/files/{fname}"
-            try:
-                r = requests.get(url, timeout=10)
-                if r.status_code == 200 and not r.text.startswith('<!DOCTYPE'):
-                    with open(fname, 'w') as f:
-                        f.write(r.text)
-                    return fname
-            except:
-                continue
+            text = _get_text(url, timeout=10)
+            if text and not text.startswith('<!DOCTYPE'):
+                target = _data_dir() / fname
+                with open(target, 'w') as f:
+                    f.write(text)
+                return str(target)
         return None
 
     def analyze_graph(self, filename: str) -> dict:
         try:
+            import networkx as nx
             if filename.endswith(".graphml"):
                 G = nx.read_graphml(filename)
             elif filename.endswith(".csv"):

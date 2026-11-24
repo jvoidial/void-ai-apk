@@ -1,50 +1,108 @@
-#!/data/data/com.termux/files/usr/bin/python
+"""Optional Flask API exposing chat and brain helpers.
+
+Requires flask and flask-cors (see requirements.txt). The standard-library
+server in ``voidai.server`` has no dependencies and is the recommended path.
 """
-Flask API server to expose brain features to the APK.
-"""
+
 import os
-import json
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from chatgpt_brain import ChatGPTBrain
-from brain_analyzer import BrainAnalyzer
+import tempfile
 
-app = Flask(__name__)
-CORS(app)
+try:
+    from flask import Flask, jsonify, request
+    from flask_cors import CORS
+except ImportError:  # pragma: no cover - optional dependency
+    Flask = None
+    CORS = None
+    jsonify = None
+    request = None
 
-chat_brain = ChatGPTBrain()
-brain_analyzer = BrainAnalyzer()
+try:
+    from .brain_analyzer import BrainAnalyzer
+    from .chatgpt_brain import ChatGPTBrain
+except ImportError:  # direct execution: python brain_api.py
+    from brain_analyzer import BrainAnalyzer
+    from chatgpt_brain import ChatGPTBrain
 
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    data = request.json
-    prompt = data.get('prompt', '')
-    system = data.get('system', 'You are VOID AI, a helpful assistant.')
-    if not prompt:
-        return jsonify({"error": "No prompt provided"}), 400
-    response = chat_brain.ask(prompt, system)
-    return jsonify({"response": response})
 
-@app.route('/api/brain/scan', methods=['GET'])
-def scan():
-    results = brain_analyzer.scan()
-    return jsonify(results)
+def create_app():
+    if Flask is None:
+        raise RuntimeError("Flask is not installed. Run: pip install flask flask-cors")
 
-@app.route('/api/brain/summary/<dataset_id>', methods=['GET'])
-def summary(dataset_id):
-    summary = brain_analyzer.get_brain_summary(dataset_id)
-    return jsonify(summary)
+    app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+    CORS(app)
 
-@app.route('/api/brain/analyze', methods=['POST'])
-def analyze():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file provided"}), 400
-    file = request.files['file']
-    filename = file.filename
-    file.save(filename)
-    analysis = brain_analyzer.analyze_graph(filename)
-    os.remove(filename)
-    return jsonify(analysis)
+    state = {}
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    def brain():
+        if "brain" not in state:
+            state["brain"] = ChatGPTBrain()
+        return state["brain"]
+
+    def analyzer():
+        if "analyzer" not in state:
+            state["analyzer"] = BrainAnalyzer()
+        return state["analyzer"]
+
+    @app.get("/health")
+    def health():
+        return jsonify({
+            "status": "ok",
+            "brain_ready": brain().available(),
+            "model": brain().model,
+        })
+
+    @app.post("/api/chat")
+    def chat_endpoint():
+        data = request.get_json(silent=True) or {}
+        prompt = data.get("prompt") or data.get("message") or ""
+        if not prompt.strip():
+            return jsonify({"error": "No prompt provided"}), 400
+        system = data.get("system")
+        response = brain().ask(prompt, system)
+        return jsonify({"response": response})
+
+    @app.get("/api/brain/scan")
+    def scan():
+        return jsonify(analyzer().scan())
+
+    @app.get("/api/brain/summary/<dataset_id>")
+    def summary(dataset_id):
+        return jsonify(analyzer().get_brain_summary(dataset_id))
+
+    @app.post("/api/brain/analyze")
+    def analyze():
+        upload = request.files.get("file")
+        if upload is None or not upload.filename:
+            return jsonify({"error": "No file provided"}), 400
+        suffix = os.path.splitext(upload.filename)[1].lower()
+        if suffix not in (".graphml", ".csv"):
+            return jsonify({"error": "Unsupported format"}), 400
+        fd, target = tempfile.mkstemp(prefix="voidai-upload", suffix=suffix)
+        os.close(fd)
+        upload.save(target)
+        try:
+            return jsonify(analyzer().analyze_graph(target))
+        finally:
+            try:
+                os.remove(target)
+            except OSError:
+                pass
+
+    return app
+
+
+app = create_app() if Flask is not None else None
+
+
+def main():
+    application = create_app()
+    application.run(
+        host=os.environ.get("VOIDAI_HOST", "127.0.0.1"),
+        port=int(os.environ.get("VOIDAI_BRAIN_PORT", "5000")),
+        debug=os.environ.get("VOIDAI_DEBUG") == "1",
+    )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,9 @@
 import time
 from collections import defaultdict
 
+from . import config
+
+
 class ContinuityEngine:
     def __init__(self):
         self.threads = defaultdict(list)  # topic -> list of voxels
@@ -39,3 +42,13 @@ class ContinuityEngine:
         return "\n".join(out)
 
 JULES = ContinuityEngine()
+_ENGINES = {}
+
+
+def engine_for(user=None):
+    if not user:
+        return JULES
+    key = config.sanitize_user(user)
+    if key not in _ENGINES:
+        _ENGINES[key] = ContinuityEngine()
+    return _ENGINES[key]

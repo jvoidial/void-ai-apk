@@ -1,54 +1,75 @@
-#!/data/data/com.termux/files/usr/bin/python
-"""
-VOIDAI Google Cloud AI Integration
-Project: gen-lang-client-0653277985
-"""
-import os
-import json
-import requests
-from typing import Optional, Dict, Any
+"""Optional Google Cloud Vision / Translation helpers.
 
-CONFIG_PATH = os.path.expanduser("~/void-ai-apk/config/google-cloud/credentials.json")
+Credentials path resolution:
+    $VOIDAI_GOOGLE_CREDENTIALS
+    ~/void-ai-apk/config/google-cloud/credentials.json
+"""
+
+import base64
+import json
+import os
+from pathlib import Path
+
+import urllib.error
+import urllib.request
+
+DEFAULT_CONFIG = Path.home() / "void-ai-apk" / "config" / "google-cloud" / "credentials.json"
+
 
 class GoogleAIIntegration:
-    def __init__(self):
-        with open(CONFIG_PATH, 'r') as f:
-            self.config = json.load(f)
-        self.project_id = self.config['project_id']
-        self.project_number = self.config['project_number']
-    
-    def analyze_image(self, image_data: bytes) -> Dict:
-        """Analyze image using Google Cloud Vision API"""
-        url = f"https://vision.googleapis.com/v1/images:annotate?key={self.config['api_keys']['vision']}"
+    def __init__(self, config_path=None):
+        path = Path(config_path or os.environ.get("VOIDAI_GOOGLE_CREDENTIALS") or DEFAULT_CONFIG).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(
+                "Google credentials not found at %s. Set VOIDAI_GOOGLE_CREDENTIALS." % path
+            )
+        with open(path, "r", encoding="utf-8") as handle:
+            self.config = json.load(handle)
+        self.project_id = self.config.get("project_id", "")
+        self.project_number = self.config.get("project_number", "")
+
+    def _post(self, url, payload):
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.loads(response.read().decode("utf-8", "replace") or "{}")
+        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+            return {"error": str(exc)}
+
+    def _api_key(self, name):
+        keys = self.config.get("api_keys") or {}
+        key = keys.get(name)
+        if not key:
+            raise KeyError("missing api_keys.%s in Google credentials" % name)
+        return key
+
+    def analyze_image(self, image_data: bytes) -> dict:
         payload = {
             "requests": [{
-                "image": {"content": image_data.decode('utf-8')},
-                "features": [{"type": "LABEL_DETECTION", "maxResults": 10}]
+                "image": {"content": base64.b64encode(image_data).decode("ascii")},
+                "features": [{"type": "LABEL_DETECTION", "maxResults": 10}],
             }]
         }
-        try:
-            response = requests.post(url, json=payload)
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def translate_text(self, text: str, target_lang: str = 'en') -> Dict:
-        """Translate text using Google Cloud Translation API"""
-        url = f"https://translation.googleapis.com/language/translate/v2?key={self.config['api_keys']['translate']}"
-        payload = {
-            "q": text,
-            "target": target_lang
-        }
-        try:
-            response = requests.post(url, json=payload)
-            return response.json()
-        except Exception as e:
-            return {"error": str(e)}
-    
-    def get_project_info(self) -> Dict:
-        """Get Google Cloud project information"""
+        return self._post(
+            "https://vision.googleapis.com/v1/images:annotate?key=" + self._api_key("vision"),
+            payload,
+        )
+
+    def translate_text(self, text: str, target_lang: str = "en") -> dict:
+        payload = {"q": text, "target": target_lang}
+        return self._post(
+            "https://translation.googleapis.com/language/translate/v2?key=" + self._api_key("translate"),
+            payload,
+        )
+
+    def get_project_info(self) -> dict:
         return {
             "project_id": self.project_id,
             "project_number": self.project_number,
-            "services": self.config['services']
+            "services": self.config.get("services", []),
         }
