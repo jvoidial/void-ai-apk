@@ -40,7 +40,7 @@ General:
 - @help                 : show this help menu
 - @state                : show PHB circuit levels
 - @memory               : show what VOIDAI remembers about you
-- @mode fast|deep|companion|research|coder|ultra|mini|github|predict
+- @mode fast|deep|companion|research|coder|ultra|mini|github|predict|protein
                          : set the answer mode
 - @clear                : clear this session's history
 - @quit                 : exit the CLI
@@ -53,6 +53,7 @@ Knowledge / continuity:
 - @sync                 : pull PHB layers back toward their targets
 - @recap                : one-line recap of the previous answer
 - @predict [TOPIC]      : structured technology forecast
+- @protein [TOPIC]      : benign protein engineering help
 - @future               : forecast the default AI/AGI/tech outlook
 
 Thinking:
@@ -191,6 +192,11 @@ def answer(session_id=None, user_text="", user_id=None, history=None, mode=None,
             text = "Forecast: " + topic
             mode = "predict"
             break
+
+    if text == "@protein" or text.startswith("@protein "):
+        topic = text[len("@protein"):].strip() or "Help me plan a safe, benign protein engineering workflow."
+        text = topic
+        mode = "protein"
 
     handled, result = _command(uid, text)
     if handled:

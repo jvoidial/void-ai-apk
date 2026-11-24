@@ -196,13 +196,15 @@ class PHBTests(BaseCase):
 
     def test_modes_include_compact_and_github(self):
         from voidai import phb
-        for mode in ("ultra", "mini", "github", "predict"):
+        for mode in ("ultra", "mini", "github", "predict", "protein"):
             self.assertIn(mode, phb.MODES)
             self.assertIn("CIRCUIT EMPHASIS", phb.system_prompt(mode))
         self.assertIn("curiosity + openness", phb.system_prompt("fast"))
         self.assertIn("rigor + focus", phb.system_prompt("coder"))
         self.assertIn("PREDICTION MODE", phb.system_prompt("predict"))
         self.assertIn("rigor + curiosity", phb.system_prompt("predict"))
+        self.assertIn("PROTEIN MODE", phb.system_prompt("protein"))
+        self.assertIn("rigor + curiosity", phb.system_prompt("protein"))
 
     def test_gates_follow_state(self):
         from voidai import phb
@@ -350,6 +352,14 @@ class CLITests(BaseCase):
                           env={"OPENAI_API_KEY": None})
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("PREDICTION MODE", result.stdout)
+        self.assertIn("rigor + curiosity", result.stdout)
+
+    def test_protein_system_prompt(self):
+        result = self.cli("--mode", "protein", "--print-system",
+                          env={"OPENAI_API_KEY": None})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("PROTEIN MODE", result.stdout)
+        self.assertIn("benign, non-pathogenic", result.stdout)
         self.assertIn("rigor + curiosity", result.stdout)
 
     def test_message_too_long(self):

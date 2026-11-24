@@ -90,3 +90,15 @@ strips markdown fences, and falls back to writing a reflection plus an intent
 row if the model response cannot be parsed. Any change here must be followed by
 a real turn and a Supabase row check for `user_id = 'jacob'`; `/health` alone
 does not prove persistence.
+
+## Protein / Bio Phase 1
+
+- `protein` is an additive mode; existing modes are unchanged.
+- `POST /protein/fold` accepts a user-provided amino-acid sequence, enforces a
+  benign-target attestation and biosecurity blocklist, then calls ESMFold via
+  ESM Atlas. It returns PDB text and an explicit "not wet-lab validated" notice.
+- `POST /protein/design` proxies to `PROTEIN_DESIGN_URL` when configured; without
+  it the endpoint returns 501 rather than pretending to design proteins.
+- Phase 1 does not create or modify Supabase tables and does not claim binding
+  or laboratory results.
+- Android exposes `/protein` for the chat mode and `/fold SEQUENCE` for ESMFold.

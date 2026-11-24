@@ -210,7 +210,7 @@ window.voidaiToggleSidebar = function() {
   <div id="messages"></div>
   <div id="status">connecting…</div>
   <div id="dock">
-    <input id="input" type="text" placeholder="Ask anything... or @future" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <input id="input" type="text" placeholder="Ask anything... or @future or /fold" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
     <button id="send" aria-label="Send">↑</button>
   </div>
 </div>
@@ -427,6 +427,71 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
+    var foldMatch = text.match(/^[@\/]fold\b\s*([\s\S]*)$/i);
+    if (foldMatch) {
+      var foldSeq = foldMatch[1].replace(/\s+/g, '').toUpperCase();
+      if (!foldSeq) {
+        addMsg('assistant', 'Usage: /fold AMINO_ACID_SEQUENCE');
+        return;
+      }
+      busy = true;
+      els.input.disabled = true;
+      els.send.disabled = true;
+      addMsg('user', text);
+      status('folding…');
+      fetch(PROXY_URL + '/protein/fold', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': VOIDAI_KEY },
+        body: JSON.stringify({
+          sequence: foldSeq,
+          name: 'fold-' + Date.now(),
+          target: 'benign user-provided protein sequence for structure prediction',
+          benign: true
+        })
+      })
+      .then(function(r) {
+        return r.text().then(function(raw) {
+          var d = null;
+          try { d = raw ? JSON.parse(raw) : null; } catch(e) {}
+          if (!r.ok) throw new Error((d && d.error && (d.error.message || d.error)) || ('HTTP ' + r.status));
+          if (!d) throw new Error('empty response');
+          return d;
+        });
+      })
+      .then(function(d) {
+        window.__voidaiLastPdb = d.pdb || '';
+        var summary = '**ESMFold prediction**\n'
+          + '- residues: ' + d.length + '\n'
+          + '- engine: ' + d.engine + '\n'
+          + '- PDB characters: ' + (d.pdb || '').length + '\n\n'
+          + d.disclaimer;
+        var div = addMsg('assistant', summary);
+        if (window.__voidaiLastPdb) {
+          var btn = document.createElement('button');
+          btn.textContent = 'COPY PDB';
+          btn.style.cssText = 'margin-top:8px;background:#111;color:#ddd;border:1px solid #333;border-radius:6px;padding:6px 10px;font:11px ui-monospace,monospace;letter-spacing:.08em;';
+          btn.onclick = function() { window.voidaiCopyPdb(btn); };
+          div.querySelector('.text').appendChild(btn);
+        }
+        history.push({ role: 'user', content: text });
+        history.push({ role: 'assistant', content: summary });
+        saveMemory();
+        if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+        status('ready');
+      })
+      .catch(function(e) {
+        addMsg('assistant', '**Fold error:** ' + (e.message || 'unknown'));
+        status('error');
+      })
+      .then(function() {
+        busy = false;
+        els.input.disabled = false;
+        els.send.disabled = false;
+        try { els.input.focus(); } catch(e) {}
+      });
+      return;
+    }
+
     if (command === 'sync' || command === 'sync now') {
       busy = true;
       els.input.disabled = true;
@@ -476,6 +541,11 @@ window.voidaiToggleSidebar = function() {
 
     var requestedMode = null;
     var outboundText = text;
+    var proteinCmd = text.match(/^[@\/]protein\b\s*([\s\S]*)$/i);
+    if (proteinCmd) {
+      requestedMode = 'protein';
+      outboundText = proteinCmd[1].trim() || 'Help me plan a safe, benign protein engineering workflow.';
+    }
     var prediction = text.match(/^[@\/](predict|future)\b\s*([\s\S]*)$/i);
     if (prediction) {
       requestedMode = 'predict';
@@ -571,6 +641,27 @@ window.voidaiToggleSidebar = function() {
   els.input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
+
+  window.voidaiCopyPdb = function(el) {
+    var pdb = window.__voidaiLastPdb || '';
+    if (!pdb) return;
+    var done = function() {
+      var old = el.textContent;
+      el.textContent = 'COPIED';
+      setTimeout(function() { el.textContent = old; }, 1200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(pdb).then(done);
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = pdb;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch(e) {}
+      document.body.removeChild(ta);
+      done();
+    }
+  };
 
   window.voidaiCopy = function(el) {
     var msg = el.closest('.msg');

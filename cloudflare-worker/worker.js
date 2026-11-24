@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════
 // VOIDAI Worker v2 — Perplexity-class answer engine
-// Modes: fast | deep | research | companion | ultra | coder | mini | github | predict
+// Modes: fast | deep | research | companion | ultra | coder | mini | github | predict | protein
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
@@ -24,6 +24,11 @@ const convertRe = /\b(convert|\d+(?:\.\d+)?\s*(?:c|celsius|f|fahrenheit|km|mi|mi
 const deepRe = /\b(prove or disprove|prove|show that|show why|explain why|why is it true|why is that true|derive|verify|double[- ]?check|calculate|make sure|be certain|are you sure|think carefully|step by step|in depth|in detail|analyze|analyse|reason through|check my work|is this correct|is that correct)\b/i;
 const predictRe = /\b(predict|prediction|foresight|future of|what (will|might|could) happen|by 20(2[7-9]|3\d)|next (decade|five years|ten years)|timeline for|projection)\b/i;
 
+// ── Protein / Bio Phase 1 ──
+const PROTEIN_ESMFOLD_URL = 'https://api.esmatlas.com/foldSequence/v1/pdb/';
+const PROTEIN_MAX_SEQUENCE = 1024;
+const PROTEIN_BLOCK_RE = /\b(anthrax|botulinum|botox|ricin|sarin|nerve agent|smallpox|variola|ebola|marburg|yersinia|plague|tularemia|tularaemia|cholera|prion|pathogen|bioweapon|biological weapon|biological agent|bioterror|select agent|virulence|transmissibility|gain[- ]of[- ]function|weaponize|toxin|venom)\b/i;
+
 // ── Consensus model pool ──
 const CONSENSUS_MODELS = [
   'openai/gpt-oss-120b',
@@ -36,7 +41,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.0.5';
+const WORKER_VERSION = '3.1.0';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -726,6 +731,117 @@ function fitBudget(messages, budget) {
 }
 
 // ════════════════════════════════════════════════════════════
+// PROTEIN / BIO — additive Phase 1
+// ════════════════════════════════════════════════════════════
+
+function proteinSafetyError(body) {
+  var b = body || {};
+  var text = [b.target, b.name, b.description, b.goal]
+    .filter(function (v) { return v != null && String(v).trim(); })
+    .join(' ');
+  if (!text || text.trim().length < 3) {
+    return 'A benign target or description is required.';
+  }
+  if (PROTEIN_BLOCK_RE.test(text)) {
+    return 'Blocked by the biosecurity policy: no pathogen, toxin, virulence, or weaponization work.';
+  }
+  if (b.benign !== true) {
+    return 'Set benign=true to attest this is a benign, non-pathogenic protein engineering request.';
+  }
+  return '';
+}
+
+function cleanProteinSequence(value) {
+  var raw = String(value || '').toUpperCase().replace(/\s+/g, '');
+  if (!raw) return { error: 'sequence is required' };
+  if (!/^[ACDEFGHIKLMNPQRSTVWY]+$/.test(raw)) {
+    return { error: 'sequence must contain only the 20 standard amino-acid letters' };
+  }
+  if (raw.length < 10) return { error: 'sequence must be at least 10 residues' };
+  if (raw.length > PROTEIN_MAX_SEQUENCE) {
+    return { error: 'sequence exceeds the ' + PROTEIN_MAX_SEQUENCE + ' residue Phase 1 limit' };
+  }
+  return { sequence: raw };
+}
+
+async function foldProteinSequence(sequence) {
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, 55000);
+  try {
+    var res = await fetch(PROTEIN_ESMFOLD_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: sequence,
+      signal: controller.signal
+    });
+    var text = await res.text();
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: text.slice(0, 300) || ('ESMFold HTTP ' + res.status) };
+    }
+    if (!/(^|\n)(HEADER|ATOM|MODEL|REMARK)/.test(text)) {
+      return { ok: false, status: 502, error: 'ESMFold returned an unexpected payload' };
+    }
+    return { ok: true, status: 200, pdb: text };
+  } catch (e) {
+    return { ok: false, status: 504, error: 'ESMFold request failed: ' + (e.message || String(e)) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function proxyProteinDesign(body, env) {
+  if (!env.PROTEIN_DESIGN_URL) {
+    return {
+      ok: false,
+      status: 501,
+      text: JSON.stringify({
+        error: {
+          message: 'protein_design_backend_not_configured',
+          detail: 'Phase 1 supports ESMFold. Add PROTEIN_DESIGN_URL and optional PROTEIN_DESIGN_KEY for a GPU design backend.'
+        }
+      })
+    };
+  }
+
+  var requested = Number(body.num_designs);
+  var numDesigns = Number.isFinite(requested)
+    ? Math.max(1, Math.min(Math.floor(requested), 100))
+    : 20;
+  var payload = {
+    target: String(body.target || '').slice(0, 2000),
+    constraints: body.constraints && typeof body.constraints === 'object' ? body.constraints : {},
+    num_designs: numDesigns,
+    user_id: 'jacob',
+    safety: { benign: true }
+  };
+  var headers = { 'Content-Type': 'application/json' };
+  if (env.PROTEIN_DESIGN_KEY) {
+    headers['Authorization'] = 'Bearer ' + env.PROTEIN_DESIGN_KEY;
+  }
+
+  var controller = new AbortController();
+  var timer = setTimeout(function () { controller.abort(); }, 60000);
+  try {
+    var res = await fetch(env.PROTEIN_DESIGN_URL, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    var text = await res.text();
+    return { ok: res.ok, status: res.status, text: text };
+  } catch (e) {
+    return {
+      ok: false,
+      status: 504,
+      text: JSON.stringify({ error: { message: 'protein design backend failed: ' + (e.message || String(e)) } })
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
 // LOCATION RESOLVER — cascading fallback across free APIs
 // ════════════════════════════════════════════════════════════
 
@@ -1246,7 +1362,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     coder: 'MODE: Coder — Write clean, runnable code with language-tagged fences and short explanations. Prefer minimal diffs and name the files you touch.',
     mini: 'MODE: Mini — Compress to the smallest correct answer. Prefer one sentence or a compact list.',
     github: 'MODE: GitHub — Work from repository context. Name files and paths; keep patches minimal and reviewable.',
-    predict: 'MODE: Predict — Produce a falsifiable technology forecast. State horizons, separate known signals from inference, give base/accelerated/slow scenarios, leading indicators, falsifiers, and confidence. Do not invent dates or citations.'
+    predict: 'MODE: Predict — Produce a falsifiable technology forecast. State horizons, separate known signals from inference, give base/accelerated/slow scenarios, leading indicators, falsifiers, and confidence. Do not invent dates or citations.',
+    protein: 'MODE: Protein / Bio — Help with benign, non-pathogenic protein engineering. Separate computational predictions from wet-lab facts. Never claim binding or lab validation without an assay. Refuse pathogen, toxin, virulence, or weaponization work. Phase 1 can fold user-provided sequences through /protein/fold; de novo design requires a configured backend.'
   };
 
   const modeCircuits = {
@@ -1258,7 +1375,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     ultra: 'focus + rigor',
     mini: 'focus + rigor',
     github: 'rigor + focus',
-    predict: 'rigor + curiosity'
+    predict: 'rigor + curiosity',
+    protein: 'rigor + curiosity'
   };
 
   const _amps = (function () {
@@ -1699,7 +1817,7 @@ function describeState(s) {
 // ════════════════════════════════════════════════════════════
 
 function detectMode(userText, requestedMode) {
-  if (requestedMode && ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'].includes(requestedMode)) {
+  if (requestedMode && ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'].includes(requestedMode)) {
     return requestedMode;
   }
 
@@ -1709,6 +1827,7 @@ function detectMode(userText, requestedMode) {
   if (/^\s*\/ultra\b/i.test(userText)) return 'ultra';
   if (/^\s*\/coder\b/i.test(userText)) return 'coder';
   if (/^\s*\/mini\b/i.test(userText)) return 'mini';
+  if (/^\s*[\/@]protein\b/i.test(userText)) return 'protein';
   if (/^\s*[\/@](predict|future)\b/i.test(userText)) return 'predict';
   if (predictRe.test(userText)) return 'predict';
 
@@ -1782,7 +1901,7 @@ export default {
         fallback: 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast','deep','research','companion','ultra','coder','mini','github','predict'],
+        modes: ['fast','deep','research','companion','ultra','coder','mini','github','predict','protein'],
         consciousness: true,
         brain_module: true,
         resonance_layers: 6,
@@ -1791,6 +1910,67 @@ export default {
         source_route: true,
         capabilities_route: true,
         self_knowledge: true
+      });
+    }
+
+    if (new URL(request.url).pathname === '/protein/status' && request.method === 'GET') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      return json({
+        ok: true,
+        phase: 1,
+        esmfold: true,
+        design_backend: !!env.PROTEIN_DESIGN_URL,
+        max_sequence: PROTEIN_MAX_SEQUENCE,
+        safety: 'benign, non-pathogenic targets only',
+        disclaimer: 'Computational predictions are not wet-lab validation.'
+      });
+    }
+
+    if (new URL(request.url).pathname === '/protein/fold' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let pbody;
+      try { pbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+
+      const safety = proteinSafetyError(pbody);
+      if (safety) return json({ error: { message: safety, code: 'biosecurity_block' } }, 403);
+
+      const clean = cleanProteinSequence(pbody && pbody.sequence);
+      if (clean.error) return json({ error: { message: clean.error } }, 400);
+
+      const folded = await foldProteinSequence(clean.sequence);
+      if (!folded.ok) {
+        return json({ error: { message: folded.error || 'ESMFold failed' } }, folded.status || 502);
+      }
+
+      return json({
+        ok: true,
+        mode: 'protein_fold',
+        engine: 'ESMFold v1 via ESM Atlas',
+        name: String((pbody && pbody.name) || 'protein').slice(0, 80),
+        length: clean.sequence.length,
+        pdb: folded.pdb,
+        disclaimer: 'Computational structure prediction only. Not a binding, function, or wet-lab validation.',
+        safety: { benign_attestation: true, target_screened: true, sequence_screened: false }
+      });
+    }
+
+    if (new URL(request.url).pathname === '/protein/design' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let pbody;
+      try { pbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+
+      const safety = proteinSafetyError(pbody);
+      if (safety) return json({ error: { message: safety, code: 'biosecurity_block' } }, 403);
+
+      const proxied = await proxyProteinDesign(pbody || {}, env);
+      return new Response(proxied.text, {
+        status: proxied.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
       });
     }
 
@@ -1866,8 +2046,8 @@ export default {
         fallback: env.GEMINI_API_KEY ? 'gemini-2.0-flash' : 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'],
-        version: '3.0.5',
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
+        version: '3.1.0',
         source_route: true,
         consciousness: true,
         capabilities_route: true,
@@ -1883,7 +2063,7 @@ export default {
       if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
       return json({
         ok: true,
-        diagnose_version: '3.0.5',
+        diagnose_version: '3.1.0',
         brain_ok: (function(){try{var r=BRAIN.resonance();return !!(r&&r.phases&&Object.keys(r.phases).length===6)}catch(e){return false}})(),
         topology_ok: (typeof BRAINSTEM_TOPOLOGY === 'object' &&
                       Object.keys(BRAINSTEM_TOPOLOGY.layers).length === 6),
@@ -1935,18 +2115,18 @@ export default {
         return Response.json({ error: 'unauthorized' }, { status: 401 });
       }
       return Response.json({
-        version: '3.0.5',
+        version: '3.1.0',
         worker: 'void-ai-proxy',
         model: 'openai/gpt-oss-120b',
         provider: 'groq',
         fallbacks: ['openrouter', 'gemini'],
         persona: 'phb-human-agent-v2',
         circuits: ['curiosity', 'focus', 'openness', 'rigor', 'creativity'],
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict'],
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
-        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github'],
-        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain'],
+        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design'],
+        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/protein/status', '/protein/fold', '/protein/design'],
         brain: {
           module: 'schumann-resonance',
           layers: ['coherence','reflex','working','circuit','intent','narrative'],
@@ -2162,7 +2342,7 @@ export default {
       } else {
         result = await callGroq(finalMessages, env, callOpts);
       }
-    } else if (mode === 'predict') {
+    } else if (mode === 'predict' || mode === 'protein') {
       result = await callGroq(finalMessages, env, callOpts);
     } else if (totalChars > VOIDAI_CHUNK_THRESHOLD) {
       result = await callGroqChunked(env, finalMessages, DEFAULT_MODEL, callOpts);

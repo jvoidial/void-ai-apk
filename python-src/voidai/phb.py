@@ -56,6 +56,7 @@ MODES = {
     "mini": "Compress to the smallest correct answer. Prefer one sentence or a compact list.",
     "github": "Work from repository context. Name files and paths; keep patches minimal and reviewable.",
     "predict": "Produce a falsifiable technology forecast. Separate known signals, inference, and speculation.",
+    "protein": "Help with benign, non-pathogenic protein engineering. Separate predictions from lab facts.",
 }
 
 MODE_CIRCUITS = {
@@ -68,6 +69,7 @@ MODE_CIRCUITS = {
     "mini": ("focus", "rigor"),
     "github": ("rigor", "focus"),
     "predict": ("rigor", "curiosity"),
+    "protein": ("rigor", "curiosity"),
 }
 
 PREDICTION_RULES = """PREDICTION MODE:
@@ -78,6 +80,14 @@ PREDICTION_RULES = """PREDICTION MODE:
 - Label confidence low, medium, or high.
 - Do not invent citations, exact dates, prices, or regulatory decisions.
 - End with the single most useful thing to watch next."""
+
+PROTEIN_RULES = """PROTEIN MODE:
+- Work only on benign, non-pathogenic protein engineering.
+- Refuse pathogens, toxins, virulence factors, and weaponization.
+- Separate computational predictions from experimental facts.
+- Never claim binding, function, or lab validation without an assay.
+- ESMFold/AlphaFold can predict structure; RFdiffusion/ProteinMPNN can design.
+- Computational designs are unvalidated candidates and require wet-lab testing."""
 
 ADAPTATION = {
     "tired/overwhelmed/sad": "soft, warm, low density, short sentences",
@@ -170,6 +180,8 @@ def system_prompt(mode="fast", state=None, extra="") -> str:
     ]
     if mode == "predict":
         lines += ["", PREDICTION_RULES]
+    if mode == "protein":
+        lines += ["", PROTEIN_RULES]
     if _value(layers, "intent") < 0.5:
         lines += [
             "",
