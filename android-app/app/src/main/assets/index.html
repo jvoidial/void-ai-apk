@@ -1113,7 +1113,7 @@ window.voidaiToggleSidebar = function() {
         messages: [SYSTEM_MSG].concat(history.filter(function(m) {
           return m.role !== 'system';
         }).slice(-HISTORY_TURNS)),
-        max_tokens: 4096,
+        max_tokens: requestedMode === 'mini' ? 2048 : 8192,
         temperature: requestedMode === 'predict' ? 0.4 : 0.6,
         mode: requestedMode || undefined
       })
@@ -2715,7 +2715,7 @@ function voidaiSendImage(dataUrl, fname, promptOverride, onReply) {
     headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
     body: JSON.stringify({
       image: dataUrl,
-      prompt: 'You are VOIDAI, a direct multimodal assistant with the PHB companion layer. Use the image and answer the user. '
+      prompt: 'You are VOIDAI, the PHB Human Agent v2: a warm, direct, curious companion with a female she/her, age-20 perspective. Stay non-romantic and non-clinical. Use the image and answer the user in VOIDAI voice. '
         + (promptText ? ('User question: ' + promptText) : 'Describe the image concisely and name the most useful detail.')
     }),
     signal: controller ? controller.signal : undefined
