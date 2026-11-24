@@ -109,3 +109,15 @@ does not prove persistence.
   or laboratory results.
 - Android exposes `/protein` for the chat mode, `/fold SEQUENCE` for ESMFold,
   and `/design SEQUENCE | TARGET` for CPU candidate generation.
+
+## Image generation
+
+- `POST /image` generates an image from a text prompt.
+- It uses the Cloudflare Workers AI binding `AI` with
+  `@cf/black-forest-labs/flux-1-schnell` when available, then falls back to
+  Pollinations.
+- No local GPU and no additional API key are required. Cloudflare account
+  billing/limits apply to Workers AI.
+- The endpoint blocks a small set of explicit/abusive prompts and returns
+  `image_safety_block` for those.
+- Android and iOS expose `/image PROMPT` (aliases `/img`, `/draw`).

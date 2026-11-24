@@ -28,6 +28,7 @@ const predictRe = /\b(predict|prediction|foresight|future of|what (will|might|co
 const PROTEIN_ESMFOLD_URL = 'https://api.esmatlas.com/foldSequence/v1/pdb/';
 const PROTEIN_MAX_SEQUENCE = 1024;
 const PROTEIN_BLOCK_RE = /\b(anthrax|botulinum|botox|ricin|sarin|nerve agent|smallpox|variola|ebola|marburg|yersinia|plague|tularemia|tularaemia|cholera|prion|pathogen|bioweapon|biological weapon|biological agent|bioterror|select agent|virulence|transmissibility|gain[- ]of[- ]function|weaponize|toxin|venom)\b/i;
+const IMAGE_BLOCK_RE = /\b(csam|child\s*(porn|sexual|abuse)|underage|nsfw|nude|naked|porn|explicit\s*sex|rape|bestiality|loli|shota|gore|dismemberment|snuff)\b/i;
 
 // ── Consensus model pool ──
 const CONSENSUS_MODELS = [
@@ -41,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.2.0';
+const WORKER_VERSION = '3.3.0';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -2418,7 +2419,7 @@ export default {
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
-        version: '3.2.0',
+        version: '3.3.0',
         source_route: true,
         consciousness: true,
         capabilities_route: true,
@@ -2434,7 +2435,7 @@ export default {
       if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
       return json({
         ok: true,
-        diagnose_version: '3.2.0',
+        diagnose_version: '3.3.0',
         brain_ok: (function(){try{var r=BRAIN.resonance();return !!(r&&r.phases&&Object.keys(r.phases).length===6)}catch(e){return false}})(),
         topology_ok: (typeof BRAINSTEM_TOPOLOGY === 'object' &&
                       Object.keys(BRAINSTEM_TOPOLOGY.layers).length === 6),
@@ -2486,7 +2487,7 @@ export default {
         return Response.json({ error: 'unauthorized' }, { status: 401 });
       }
       return Response.json({
-        version: '3.2.0',
+        version: '3.3.0',
         worker: 'void-ai-proxy',
         model: 'openai/gpt-oss-120b',
         provider: 'groq',
@@ -2496,8 +2497,8 @@ export default {
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
-        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_external'],
-        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/protein/status', '/protein/fold', '/protein/design'],
+        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_external', 'image_generate'],
+        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/image', '/vision', '/protein/status', '/protein/fold', '/protein/design'],
         brain: {
           module: 'schumann-resonance',
           layers: ['coherence','reflex','working','circuit','intent','narrative'],
@@ -2508,6 +2509,90 @@ export default {
           regions: ['medulla-rhythm','spinal-reflex-arc','reticular-formation','pons-nuclei','midbrain-tegmentum','thalamic-relay']
         }
       }, { headers: { 'Access-Control-Allow-Origin': '*' } });
+    }
+
+    if (new URL(request.url).pathname === '/image' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let ibody;
+      try { ibody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+
+      const prompt = String((ibody && (ibody.prompt || ibody.description)) || '').trim().slice(0, 1000);
+      if (prompt.length < 3) return json({ error: { message: 'prompt must be at least 3 characters' } }, 400);
+      if (IMAGE_BLOCK_RE.test(prompt)) {
+        return json({ error: { message: 'Blocked by the image safety policy.', code: 'image_safety_block' } }, 403);
+      }
+
+      const clampDimension = function (value, fallback) {
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.max(256, Math.min(Math.round(n), 1536)) : fallback;
+      };
+      const width = clampDimension(ibody && ibody.width, 1024);
+      const height = clampDimension(ibody && ibody.height, 1024);
+      const requestedSeed = Number(ibody && ibody.seed);
+      const seed = Number.isFinite(requestedSeed) ? Math.max(0, Math.floor(requestedSeed)) : Math.floor(Math.random() * 2147483647);
+      let aiError = '';
+      if (env.AI) {
+        try {
+          const result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt: prompt });
+          if (result && typeof result.image === 'string' && result.image.length > 1000) {
+            const binary = atob(result.image);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return new Response(bytes, {
+              status: 200,
+              headers: {
+                'Content-Type': 'image/jpeg',
+                'Cache-Control': 'public, max-age=86400',
+                'Access-Control-Allow-Origin': '*',
+                'X-Image-Provider': 'cloudflare-workers-ai',
+                'X-Image-Model': 'flux-1-schnell',
+                'X-Image-Seed': String(seed)
+              }
+            });
+          }
+          aiError = 'Workers AI returned no image';
+        } catch (e) {
+          aiError = e.message || String(e);
+        }
+      }
+
+      const model = ['flux', 'turbo', 'kontext'].includes(ibody && ibody.model) ? ibody.model : 'flux';
+      const imageUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt)
+        + '?width=' + width + '&height=' + height + '&model=' + model
+        + '&nologo=true&seed=' + seed;
+
+      const controller = new AbortController();
+      const timer = setTimeout(function () { controller.abort(); }, 90000);
+      try {
+        const upstream = await fetch(imageUrl, {
+          headers: { 'User-Agent': 'VOIDAI/3.3 image-generator' },
+          signal: controller.signal
+        });
+        if (!upstream.ok) {
+          const detail = await upstream.text();
+          return json({ error: { message: 'image provider failed: HTTP ' + upstream.status, detail: (aiError ? ('workers-ai: ' + aiError + '; ') : '') + detail.slice(0, 300) } }, 502);
+        }
+        const contentType = upstream.headers.get('Content-Type') || 'image/jpeg';
+        if (!/^image\//i.test(contentType)) {
+          return json({ error: { message: 'image provider returned a non-image payload', detail: aiError || undefined } }, 502);
+        }
+        return new Response(upstream.body, {
+          status: 200,
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*',
+            'X-Image-Provider': 'pollinations',
+            'X-Image-Model': model,
+            'X-Image-Seed': String(seed)
+          }
+        });
+      } catch (e) {
+        return json({ error: { message: 'image generation failed: ' + (aiError ? ('workers-ai: ' + aiError + '; ') : '') + (e.message || String(e)) } }, 504);
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     if (new URL(request.url).pathname === '/vision' && request.method === 'POST') {
