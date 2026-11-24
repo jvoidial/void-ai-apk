@@ -33,6 +33,10 @@ API, keeps per-user memory, and applies the same PHB persona as the worker.
     PYTHONPATH=python-src python3 -m voidai --user alice --mode deep
     PYTHONPATH=python-src python3 -m voidai --print-system
 
+Modes: `fast`, `deep`, `research`, `companion`, `coder`, `ultra`, `mini`,
+`github`. Each mode sets a circuit emphasis, and the PHB layers update after
+each turn through a short behavioral reflection pass.
+
 Or install the `voidai` command:
 
     pip install -e .

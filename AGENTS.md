@@ -51,3 +51,13 @@ VOIDAI has four runtime surfaces:
   `macos-15-intel` (or another Intel label that the account supports).
 - WKWebView's `runOpenPanelWith` delegate is iOS 18.4+. On older iOS, the built-in
   file input handles images; do not remove the availability guard.
+
+## PHB behavior
+
+- `phb.nudge()` runs before the reply; `phb.reflect()` runs after and is saved
+  to the per-user state. The reflection pass is behavioral bookkeeping, not a
+  medical or physiological claim.
+- Keep the mode-to-circuit mapping (`MODE_CIRCUITS`) aligned with the Worker's
+  `modeCircuits` table.
+- Low intent, low narrative, or coherence below reflex adds a short prompt gate;
+  do not hardcode the sample snapshot values from chat reports.
