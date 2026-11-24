@@ -514,6 +514,20 @@ async function runReflectionPass(userText, assistantText, userId, env) {
     if (parsed.learned || parsed.mood || parsed.insight) {
       try { await saveReflection(env, uid, userText.slice(0, 200), parsed.mood || '', parsed.insight || '', ''); } catch (e) {}
     }
+    if (parsed.learned && parsed.insight) {
+      try { await saveWorkingMemoryItem(env, uid, 'learned', parsed.insight); } catch (e) {}
+    }
+    if (parsed.insight) {
+      try {
+        var recent = await loadRecentReflections(env, uid);
+        var insights = recent.slice(0, 5).map(function (r) {
+          return reflectionFields(r).insight;
+        }).filter(function (v) { return !!v; });
+        if (insights.length) {
+          await updateSelfNarrative(uid, 'Recent threads: ' + insights.join(' | '), env);
+        }
+      } catch (e) {}
+    }
   } catch (e) {}
 }
 
