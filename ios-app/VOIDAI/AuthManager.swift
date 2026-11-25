@@ -66,26 +66,20 @@ final class AuthManager: NSObject {
             }
 
             let params = Self.params(from: callbackURL)
-            if let expected = self.pendingState,
-               let returned = params["state"],
-               !returned.isEmpty,
-               returned != expected {
+            guard let expected = self.pendingState, !expected.isEmpty,
+                  params["state"] == expected else {
                 self.lastError = "sign-in state did not match"
                 self.clearPending()
                 DispatchQueue.main.async { completion(false) }
                 return
             }
-
-            if let code = params["code"], let verifier = self.pendingVerifier {
-                self.exchange(code: code, verifier: verifier) { ok in
-                    self.clearPending()
-                    DispatchQueue.main.async { completion(ok) }
-                }
-            } else {
-                let ok = self.importSession(params: params)
-                if !ok && self.lastError == nil {
-                    self.lastError = "sign-in did not return a valid session"
-                }
+            guard let code = params["code"], let verifier = self.pendingVerifier else {
+                self.lastError = "sign-in did not return a PKCE code"
+                self.clearPending()
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
+            self.exchange(code: code, verifier: verifier) { ok in
                 self.clearPending()
                 DispatchQueue.main.async { completion(ok) }
             }
@@ -156,11 +150,6 @@ final class AuthManager: NSObject {
                                     refreshToken: json["refresh_token"] as? String,
                                     fallbackEmail: fallbackEmail))
         }.resume()
-    }
-
-    private func importSession(params: [String: String]) -> Bool {
-        guard let accessToken = params["access_token"] else { return false }
-        return persist(accessToken: accessToken, refreshToken: params["refresh_token"], fallbackEmail: nil)
     }
 
     private func persist(accessToken: String, refreshToken: String?, fallbackEmail: String?) -> Bool {

@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.4.0';
+const WORKER_VERSION = '3.4.1';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -287,7 +287,7 @@ async function readJsonSafe(res, fallback) {
 // ?on_conflict=user_id, which fails with 42P10 when the index is absent.
 async function upsertByUser(env, table, userId, row) {
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var payload = Object.assign({}, row);
     delete payload.id;
     delete payload.user_id;
@@ -333,7 +333,7 @@ async function initConsciousnessTables(env) {
 
 async function loadRecentReflections(env, userId) {
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var res = await sbFetch(env, '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=5', { method: 'GET' });
     var rows = await readJsonSafe(res, []);
     return Array.isArray(rows) ? rows : [];
@@ -342,7 +342,7 @@ async function loadRecentReflections(env, userId) {
 
 async function loadWorkingMemory(env, userId) {
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var res = await sbFetch(env, '/rest/v1/voidai_working_memory?user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=10', { method: 'GET' });
     var rows = await readJsonSafe(res, []);
     return Array.isArray(rows) ? rows : [];
@@ -351,7 +351,7 @@ async function loadWorkingMemory(env, userId) {
 
 async function loadSelfNarrative(env, userId) {
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var res = await sbFetch(env, '/rest/v1/voidai_self_narrative?user_id=eq.' + encodeURIComponent(uid) + '&order=updated_at.desc&limit=1', { method: 'GET' });
     var rows = await readJsonSafe(res, []);
     if (Array.isArray(rows) && rows.length) return rows[0];
@@ -378,7 +378,7 @@ function reflectionFields(row) {
 }
 
 async function saveReflection(env, userId, turn, mood, insight, note) {
-  var uid = userId || 'jacob';
+  var uid = userId || 'guest';
   try {
     var res = await sbFetch(env, '/rest/v1/voidai_reflections', {
       method: 'POST',
@@ -402,7 +402,7 @@ async function saveReflection(env, userId, turn, mood, insight, note) {
 }
 
 async function saveWorkingMemoryItem(env, userId, key, value) {
-  var uid = userId || 'jacob';
+  var uid = userId || 'guest';
   var text = (key ? key + ': ' : '') + (value || '');
   try {
     var res = await sbFetch(env, '/rest/v1/voidai_working_memory', {
@@ -440,7 +440,7 @@ async function updateSelfNarrative(userId, newNarrative, env) {
     }
   } catch (e) { /* fall through */ }
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var updatedAt = new Date().toISOString();
     var saved = await upsertByUser(env, 'voidai_self_narrative', uid, {
       summary: newNarrative,
@@ -457,7 +457,7 @@ async function updateSelfNarrative(userId, newNarrative, env) {
 
 async function loadIntentState(userId, env) {
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var res = await sbFetch(env,
       '/rest/v1/voidai_intent_state?user_id=eq.' + encodeURIComponent(uid) + '&order=updated_at.desc&limit=1',
       { method: 'GET' });
@@ -469,7 +469,7 @@ async function loadIntentState(userId, env) {
 
 async function updateIntentState(userId, newIntent, env) {
   try {
-    var uid = userId || 'jacob';
+    var uid = userId || 'guest';
     var existing = await loadIntentState(uid, env);
     // The table column is primary_intent; older rows may carry `primary`.
     var existingPrimary = existing ? (existing.primary_intent || existing.primary) : null;
@@ -499,7 +499,7 @@ async function updateIntentState(userId, newIntent, env) {
 }
 
 async function runReflectionPass(userText, assistantText, userId, env, mode) {
-  var uid = userId || 'jacob';
+  var uid = userId || 'guest';
   var parsed = {};
 
   try {
@@ -672,7 +672,9 @@ function json(obj, status) {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-VOID-KEY'
+      'Access-Control-Allow-Headers': 'Content-Type, X-VOID-KEY',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer'
     }
   });
 }
@@ -681,9 +683,9 @@ function safeUserId(value) {
   // Memory rows are keyed by a stable client identity. Keep the key portable
   // across Supabase/PostgREST and reject control characters or query syntax.
   var id = String(value == null ? '' : value).trim().toLowerCase();
-  if (!id) return 'jacob';
+  if (!id) return 'guest';
   id = id.replace(/[^a-z0-9@._:+-]/g, '').slice(0, 120);
-  return id || 'jacob';
+  return id || 'guest';
 }
 
 function redactSecrets(value, env) {
@@ -1211,7 +1213,7 @@ async function proxyProteinDesign(body, env) {
     target: String(body.target || '').slice(0, 2000),
     constraints: body.constraints && typeof body.constraints === 'object' ? body.constraints : {},
     num_designs: numDesigns,
-    user_id: 'jacob',
+    user_id: 'guest',
     safety: { benign: true }
   };
   var headers = { 'Content-Type': 'application/json' };
@@ -2324,7 +2326,7 @@ function attachSources(result, sources) {
 // ════════════════════════════════════════════════════════════
 
 async function loadMindState(env, userId) {
-  const uid = userId || 'jacob';
+  const uid = userId || 'guest';
   try {
     const res = await sbFetch(env, '/rest/v1/voidai_mind_state?user_id=eq.' + encodeURIComponent(uid) + '&order=last_updated.desc&limit=1', { method: 'GET' });
     const rows = await readJsonSafe(res, []);
@@ -2338,7 +2340,7 @@ async function loadMindState(env, userId) {
 }
 
 async function saveMindState(state, env, userId) {
-  const uid = userId || 'jacob';
+  const uid = userId || 'guest';
   try {
     await upsertByUser(env, 'voidai_mind_state', uid,
       Object.assign({}, state, { last_updated: new Date().toISOString() }));

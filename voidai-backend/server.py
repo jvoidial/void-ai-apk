@@ -158,6 +158,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def create_server(host=None, port=None):
     host = host or os.environ.get("VOIDAI_BACKEND_HOST", "127.0.0.1")
+    if host not in ("127.0.0.1", "localhost", "::1") and not _token():
+        raise RuntimeError("VOIDAI_BACKEND_TOKEN is required when binding beyond loopback")
     port = int(port if port is not None else os.environ.get("VOIDAI_BACKEND_PORT", "11435"))
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True

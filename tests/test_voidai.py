@@ -531,6 +531,8 @@ class ServerTests(BaseCase):
         self.assertEqual(self.call("POST", "/api/chat", raw=b"{bad json")[0], 400)
         self.assertEqual(self.call("POST", "/api/chat", {"message": "x", "agent_id": "nope"})[0], 404)
         self.assertEqual(self.call("POST", "/api/chat", {"message": "x", "model": "error-model"})[0], 502)
+        self.assertEqual(self.call("POST", "/api/chat",
+                                    {"message": "x", "base_url": "https://evil.example/v1"})[0], 400)
         self.assertEqual(self.call("GET", "/nope")[0], 404)
 
     def test_options(self):
@@ -598,6 +600,60 @@ class MemoryIdentityTests(unittest.TestCase):
         self.assertIn("kSecClassGenericPassword", auth)
         self.assertIn("config.websiteDataStore = .default()", view)
         self.assertIn("appDidBecomeActive", view)
+
+
+class SecurityHardeningTests(unittest.TestCase):
+    """Regression guards for the security review surfaces."""
+
+    def test_android_blocks_remote_pages_and_backup(self):
+        root = os.path.join(ROOT, "android-app", "app", "src", "main")
+        manifest = open(os.path.join(root, "AndroidManifest.xml"), encoding="utf-8").read()
+        activity = open(os.path.join(root, "java", "com", "voidai", "app", "MainActivity.kt"),
+                        encoding="utf-8").read()
+        self.assertIn('android:allowBackup="false"', manifest)
+        self.assertIn("allowUniversalAccessFromFileURLs = false", activity)
+        self.assertIn("allowFileAccessFromFileURLs = false", activity)
+        self.assertIn("shouldOverrideUrlLoading", activity)
+        self.assertIn("WebResourceRequest", activity)
+        self.assertNotIn("allowUniversalAccessFromFileURLs = true", activity)
+        self.assertNotIn("sessionFromUrl", activity)
+
+    def test_ios_rejects_unsigned_callbacks_and_remote_navigation(self):
+        root = os.path.join(ROOT, "ios-app", "VOIDAI")
+        auth = open(os.path.join(root, "AuthManager.swift"), encoding="utf-8").read()
+        view = open(os.path.join(root, "ViewController.swift"), encoding="utf-8").read()
+        self.assertIn('params["state"] == expected', auth)
+        self.assertIn('params["code"]', auth)
+        self.assertNotIn("importSession(params", auth)
+        self.assertIn("decidePolicyFor navigationAction", view)
+        self.assertIn("UIApplication.shared.open", view)
+
+    def test_worker_has_no_hardcoded_identity_fallback(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        self.assertNotIn("|| 'jacob'", worker)
+        self.assertNotIn("return 'jacob'", worker)
+        self.assertNotIn("user_id: 'jacob'", worker)
+        self.assertIn("|| 'guest'", worker)
+
+    def test_cdn_assets_use_subresource_integrity(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        self.assertEqual(html.count('integrity="sha384-'), 5)
+        self.assertEqual(html.count('crossorigin="anonymous"'), 5)
+
+    def test_python_rejects_untrusted_llm_base_url(self):
+        sys.path.insert(0, PY_SRC)
+        from voidai import server as py_server
+        self.assertEqual(py_server.safe_base_url("https://api.openai.com/v1"),
+                         "https://api.openai.com/v1")
+        self.assertEqual(py_server.safe_base_url("http://127.0.0.1:8080/v1"),
+                         "http://127.0.0.1:8080/v1")
+        self.assertIsNone(py_server.safe_base_url("https://evil.example/v1"))
+        self.assertIsNone(py_server.safe_base_url("http://api.openai.com/v1"))
+        with patched_env(VOIDAI_SERVER_TOKEN=None):
+            with self.assertRaises(RuntimeError):
+                py_server.create_server("0.0.0.0", 0)
 
 
 class BackendTests(BaseCase):

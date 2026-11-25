@@ -16,6 +16,7 @@ final class ViewController: UIViewController {
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.add(self, name: "voidai")
+        config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.userContentController.addUserScript(
             WKUserScript(
                 source: bridgeSource(),
@@ -192,7 +193,38 @@ extension ViewController: PHPickerViewControllerDelegate {
 }
 
 extension ViewController: WKNavigationDelegate {
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    ) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        if url.isFileURL {
+            decisionHandler(.allow)
+            return
+        }
+        if url.scheme == "about" {
+            decisionHandler(.allow)
+            return
+        }
+        if url.scheme == "data" || url.scheme == "blob" {
+            decisionHandler(.cancel)
+            return
+        }
+        // Open remote links in the system browser so an untrusted page never
+        // receives the VoidAI JavaScript bridge.
+        if url.scheme == "http" || url.scheme == "https" ||
+            url.scheme == "mailto" || url.scheme == "tel" {
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+        decisionHandler(.cancel)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard webView.url?.isFileURL == true else { return }
         sendSignedInState()
     }
 }

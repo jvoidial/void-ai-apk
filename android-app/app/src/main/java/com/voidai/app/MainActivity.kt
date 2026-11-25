@@ -15,6 +15,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -28,7 +29,6 @@ import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.ExternalAuthAction
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
-import io.github.jan.supabase.auth.user.UserSession
 import io.github.jan.supabase.auth.providers.Github
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.storage.Storage
@@ -147,12 +147,14 @@ class MainActivity : AppCompatActivity() {
         s.databaseEnabled = true
         s.allowFileAccess = true
         s.allowContentAccess = true
+        s.javaScriptCanOpenWindowsAutomatically = false
+        s.setSupportMultipleWindows(false)
 
         @Suppress("DEPRECATION")
-        s.allowFileAccessFromFileURLs = true
+        s.allowFileAccessFromFileURLs = false
 
         @Suppress("DEPRECATION")
-        s.allowUniversalAccessFromFileURLs = true
+        s.allowUniversalAccessFromFileURLs = false
 
         s.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         s.cacheMode = WebSettings.LOAD_DEFAULT
@@ -215,9 +217,22 @@ class MainActivity : AppCompatActivity() {
                     val sb = supabase ?: return@runOnUiThread
                     lifecycleScope.launch {
                         try {
+                            if (base64Data.length > 16 * 1024 * 1024) {
+                                sendAuthError("upload too large (max 12 MB)")
+                                return@launch
+                            }
+                            val safeName = fileName
+                                .replace('\\', '/')
+                                .substringAfterLast('/')
+                                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                                .take(120)
+                            if (safeName.isEmpty()) {
+                                sendAuthError("invalid upload name")
+                                return@launch
+                            }
                             val bytes = Base64.decode(base64Data, Base64.DEFAULT)
-                            sb.storage.from("voidai-uploads").upload(fileName, bytes) { upsert = true }
-                            val fileNameJs = JSONObject.quote(fileName)
+                            sb.storage.from("voidai-uploads").upload(safeName, bytes) { upsert = true }
+                            val fileNameJs = JSONObject.quote(safeName)
                             webView.evaluateJavascript(
                                 "window.onFileUploaded && window.onFileUploaded($fileNameJs)", null
                             )
@@ -269,14 +284,35 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val url = request.url
+                val scheme = url.scheme?.lowercase() ?: return true
+                if (scheme == "file" && url.toString().startsWith("file:///android_asset/")) {
+                    return false
+                }
+                if (scheme == "http" || scheme == "https" || scheme == "mailto" || scheme == "tel") {
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, url))
+                        true
+                    } catch (e: Exception) {
+                        Log.w("VOIDAI", "external link blocked: ${redact(e.message)}")
+                        true
+                    }
+                }
+                // Never let a remote or data document inherit the native JS bridge.
+                return true
+            }
+
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                webPageReady = true
-                pendingAuthError?.let { message ->
-                    pendingAuthError = null
-                    sendAuthError(message)
+                if (url.startsWith("file:///android_asset/")) {
+                    webPageReady = true
+                    pendingAuthError?.let { message ->
+                        pendingAuthError = null
+                        sendAuthError(message)
+                    }
+                    restoreSignedInState()
                 }
-                restoreSignedInState()
             }
         }
 
@@ -354,42 +390,19 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
-            // The SDK handles both PKCE (?code=) and implicit (#access_token=)
-            // callbacks. Importing manually is only a fallback.
+            // The SDK validates the PKCE code and OAuth state. Do not import
+            // tokens from the callback URL manually; that bypasses state checks.
             try {
                 sb.handleDeeplinks(intent)
             } catch (e: Throwable) {
                 Log.w("VOIDAI", "handleDeeplinks failed: ${redact(e.message)}")
             }
 
-            var user = sb.auth.currentUserOrNull()
+            val user = sb.auth.currentUserOrNull()
             var email = user?.email ?: ""
-            var name = user?.userMetadata?.let { meta ->
+            val name = user?.userMetadata?.let { meta ->
                 meta["user_name"]?.toString()?.trim('"') ?: meta["name"]?.toString()?.trim('"')
             } ?: ""
-
-            if (user == null) {
-                val session = sessionFromUrl(data)
-                if (session != null) {
-                    try {
-                        sb.auth.importSession(session)
-                        user = sb.auth.currentUserOrNull()
-                        email = user?.email ?: email
-                        if (name.isEmpty()) {
-                            name = user?.userMetadata?.let { meta ->
-                                meta["user_name"]?.toString()?.trim('"') ?: meta["name"]?.toString()?.trim('"')
-                            } ?: ""
-                        }
-                        if (email.isEmpty()) {
-                            val (jwtEmail, jwtName, jwtSub) = decodeJwt(session.accessToken)
-                            email = jwtEmail.ifEmpty { jwtSub }
-                            if (name.isEmpty()) name = jwtName
-                        }
-                    } catch (e: Throwable) {
-                        Log.e("VOIDAI", "importSession failed: ${redact(e.message)}")
-                    }
-                }
-            }
 
             if (email.isEmpty()) email = user?.id ?: ""
             if (email.isEmpty()) {
@@ -397,42 +410,6 @@ class MainActivity : AppCompatActivity() {
                 return@launch
             }
             fireSignedIn(email, name)
-        }
-    }
-
-    private fun sessionFromUrl(data: String): UserSession? {
-        val fragment = if (data.contains("#")) data.substringAfter("#") else data.substringAfter("?", "")
-        if (fragment.isEmpty()) return null
-        val params = fragment.split("&").mapNotNull { kv ->
-            val i = kv.indexOf("=")
-            if (i > 0) kv.substring(0, i) to Uri.decode(kv.substring(i + 1)) else null
-        }.toMap()
-        val accessToken = params["access_token"] ?: return null
-        val refreshToken = params["refresh_token"] ?: return null
-        return UserSession(
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            expiresIn = (params["expires_in"]?.toLongOrNull() ?: 3600L),
-            tokenType = params["token_type"] ?: "bearer",
-            user = null,
-            providerToken = params["provider_token"],
-            providerRefreshToken = params["provider_refresh_token"]
-        )
-    }
-
-    private fun decodeJwt(token: String): Triple<String, String, String> {
-        return try {
-            val seg = token.split(".").getOrNull(1) ?: return Triple("", "", "")
-            val padded = seg + "=".repeat((4 - seg.length % 4) % 4)
-            val b64 = padded.replace('-', '+').replace('_', '/')
-            val json = JSONObject(String(Base64.decode(b64, Base64.DEFAULT), Charsets.UTF_8))
-            val meta = json.optJSONObject("user_metadata")
-            val name = meta?.optString("user_name").orEmpty()
-                .ifEmpty { meta?.optString("name").orEmpty() }
-            Triple(json.optString("email"), name, json.optString("sub"))
-        } catch (e: Throwable) {
-            Log.e("VOIDAI", "jwt decode failed: ${redact(e.message)}")
-            Triple("", "", "")
         }
     }
 

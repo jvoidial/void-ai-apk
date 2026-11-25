@@ -33,6 +33,26 @@ TOOLS_DIR = Path(os.environ.get("VOIDAI_TOOLS_DIR") or (PKG_DIR / "tools"))
 WEB_DIR = Path(os.environ.get("VOIDAI_WEB_DIR") or (PKG_DIR / "web"))
 MAX_BODY = 2 * 1024 * 1024
 TOOL_TIMEOUT = 60
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+ALLOWED_LLM_HOSTS = {
+    "api.openai.com", "api.groq.com", "openrouter.ai",
+    "generativelanguage.googleapis.com", "api.deepseek.com",
+}
+
+
+def safe_base_url(value):
+    """Only accept trusted provider endpoints or loopback model servers."""
+    if not value:
+        return None
+    parsed = urlparse(str(value))
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("http", "https") or not host:
+        return None
+    if host in LOOPBACK_HOSTS or host.endswith(".local"):
+        return str(value).rstrip("/")
+    if parsed.scheme == "https" and host in ALLOWED_LLM_HOSTS:
+        return str(value).rstrip("/")
+    return None
 
 
 def load_agents():
@@ -163,7 +183,7 @@ class VoidAIHandler(BaseHTTPRequestHandler):
 
     def _client(self, body=None, model=None):
         key = self._api_key()
-        base = (body or {}).get("base_url") or None
+        base = safe_base_url((body or {}).get("base_url"))
         model = model or (body or {}).get("model_name") or (body or {}).get("model")
         return LLMClient(api_key=key, base_url=base, model=model)
 
@@ -261,6 +281,9 @@ class VoidAIHandler(BaseHTTPRequestHandler):
         if history is not None and not isinstance(history, list):
             return self._send(400, {"error": "history must be a list"})
 
+        if body.get("base_url") and not safe_base_url(body.get("base_url")):
+            return self._send(400, {"error": "base_url not allowed"})
+
         client = self._client(body)
         agent_id = body.get("agent_id")
         try:
@@ -304,6 +327,8 @@ class VoidAIHandler(BaseHTTPRequestHandler):
 
 def create_server(host=None, port=None):
     host = host or os.environ.get("VOIDAI_HOST", "127.0.0.1")
+    if host not in ("127.0.0.1", "localhost", "::1") and not config.server_token():
+        raise RuntimeError("VOIDAI_SERVER_TOKEN is required when binding beyond loopback")
     port = int(port if port is not None else os.environ.get("VOIDAI_PORT", "3000"))
     server = ThreadingHTTPServer((host, port), VoidAIHandler)
     server.daemon_threads = True
