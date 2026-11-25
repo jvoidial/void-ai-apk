@@ -1,4 +1,5 @@
 import AuthenticationServices
+import AVFoundation
 import PhotosUI
 import UIKit
 import WebKit
@@ -6,6 +7,8 @@ import WebKit
 final class ViewController: UIViewController {
     private var webView: WKWebView!
     private var filePickerCompletion: (([URL]?) -> Void)?
+    private let speechSynth = AVSpeechSynthesizer()
+    private var speechToken = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -16,6 +19,7 @@ final class ViewController: UIViewController {
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.add(self, name: "voidai")
+        speechSynth.delegate = self
         config.preferences.javaScriptCanOpenWindowsAutomatically = false
         config.userContentController.addUserScript(
             WKUserScript(
@@ -70,7 +74,21 @@ final class ViewController: UIViewController {
           },
           signOut: function() {
             window.webkit.messageHandlers.voidai.postMessage({action: 'signOut'});
-          }
+          },
+          speak: function(text, rate, pitch, token) {
+            window.webkit.messageHandlers.voidai.postMessage({
+              action: 'speak',
+              text: text,
+              rate: rate,
+              pitch: pitch,
+              token: token
+            });
+            return true;
+          },
+          stopSpeak: function() {
+            window.webkit.messageHandlers.voidai.postMessage({action: 'stopSpeak'});
+          },
+          isSpeaking: function() { return false; }
         };
         """
     }
@@ -157,6 +175,71 @@ final class ViewController: UIViewController {
         """
     }
 
+    private func speakNative(text: String, rate: Double, pitch: Double, token: String) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            notifySpeechDone(token: token)
+            return
+        }
+        speechToken = token
+        speechSynth.stopSpeaking(at: .immediate)
+        let utterance = AVSpeechUtterance(string: String(clean.prefix(4000)))
+        utterance.voice = preferredSpeechVoice()
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * Float(max(0.5, min(2.0, rate)))
+        utterance.pitchMultiplier = Float(max(0.5, min(2.0, pitch)))
+        utterance.volume = 1.0
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .spokenAudio,
+                                    options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true)
+        } catch {
+            // The system voice still speaks; this only makes sure it uses the speaker.
+        }
+        speechSynth.speak(utterance)
+    }
+
+    private func preferredSpeechVoice() -> AVSpeechSynthesisVoice? {
+        let male = ["david", "mark", "daniel", "alex", "fred", "tom", "aaron", "adam", "guy",
+                    "matthew", "joey", "brian", "russell", "rishi", "oliver", "arthur",
+                    "george", "james", "ryan", "eric", "christopher"]
+        let female = ["samantha", "victoria", "karen", "moira", "tessa", "fiona", "allison",
+                      "ava", "susan", "zoe", "serena", "aria", "jenny", "zira", "alexa",
+                      "kate", "nicky", "kathy", "veena", "joanna", "salli", "kimberly",
+                      "ivy", "kendra", "emma", "amy", "olivia", "sophie", "michelle",
+                      "natasha", "clara", "hazel", "sonia", "libby", "emily"]
+        let young = ["aria", "jenny", "ava", "emma", "olivia", "samantha", "michelle", "zoe", "serena"]
+        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("en") }
+        guard !voices.isEmpty else {
+            return AVSpeechSynthesisVoice(language: "en-US")
+        }
+        let us = voices.filter { $0.language == "en-US" }
+        let pool = us.isEmpty ? voices : us
+        let candidates = pool.filter { voice in
+            let name = voice.name.lowercased()
+            return female.contains(where: { name.contains($0) }) &&
+                !male.contains(where: { name.contains($0) })
+        }
+        if let youngVoice = candidates.first(where: { voice in
+            let name = voice.name.lowercased()
+            return young.contains(where: { name.contains($0) })
+        }) {
+            return youngVoice
+        }
+        return candidates.first ?? pool.first ?? AVSpeechSynthesisVoice(language: "en-US")
+    }
+
+    private func notifySpeechDone(token: String? = nil) {
+        let finished = token ?? speechToken
+        speechToken = ""
+        guard !finished.isEmpty else { return }
+        let quoted = jsString(finished)
+        webView.evaluateJavaScript(
+            "window.voidaiNativeSpeechDone && window.voidaiNativeSpeechDone(\(quoted));",
+            completionHandler: nil
+        )
+    }
+
     private func jsString(_ value: String) -> String {
         guard
             let data = try? JSONSerialization.data(withJSONObject: [value]),
@@ -217,6 +300,18 @@ final class ViewController: UIViewController {
     }
 }
 
+extension ViewController: AVSpeechSynthesizerDelegate {
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                           didFinish utterance: AVSpeechUtterance) {
+        notifySpeechDone()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                           didCancel utterance: AVSpeechUtterance) {
+        notifySpeechDone()
+    }
+}
+
 extension ViewController: WKScriptMessageHandler {
     func userContentController(
         _ userContentController: WKUserContentController,
@@ -247,6 +342,15 @@ extension ViewController: WKScriptMessageHandler {
         case "signOut":
             AuthManager.shared.signOut()
             webView.evaluateJavaScript("window.onSignedOut && window.onSignedOut();", completionHandler: nil)
+        case "speak":
+            let text = body["text"] as? String ?? ""
+            let rate = (body["rate"] as? NSNumber)?.doubleValue ?? 1.03
+            let pitch = (body["pitch"] as? NSNumber)?.doubleValue ?? 1.12
+            let token = body["token"] as? String ?? ""
+            speakNative(text: text, rate: rate, pitch: pitch, token: token)
+        case "stopSpeak":
+            speechToken = ""
+            speechSynth.stopSpeaking(at: .immediate)
         default:
             break
         }

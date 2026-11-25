@@ -861,6 +861,23 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd')", html)
         self.assertNotIn("if (cfg.dim >= 4) {\n      // 4D/5D are mathematical projections", html)
 
+    def test_voice_has_native_tts_fallback(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        android = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                    "java", "com", "voidai", "app", "MainActivity.kt"),
+                       encoding="utf-8").read()
+        ios = open(os.path.join(ROOT, "ios-app", "VOIDAI", "ViewController.swift"),
+                   encoding="utf-8").read()
+        self.assertIn("function nativeTtsBridge()", html)
+        self.assertIn("window.voidaiNativeSpeechDone", html)
+        self.assertIn("fun speak(text: String, rate: Float, pitch: Float, token: String): Boolean", android)
+        self.assertIn("TextToSpeech(this)", android)
+        self.assertIn("selectFemaleTtsVoice", android)
+        self.assertIn("private let speechSynth = AVSpeechSynthesizer()", ios)
+        self.assertIn("case \"speak\":", ios)
+        self.assertIn("preferredSpeechVoice", ios)
+
     def test_voice_prefers_young_female_english(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()

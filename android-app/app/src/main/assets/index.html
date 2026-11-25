@@ -4783,9 +4783,19 @@ voidaiReassertSidebar();
     updateToggleButtons();
   }
 
+  function nativeTtsBridge() {
+    var bridge = (typeof window.Android !== 'undefined' && window.Android) ||
+      (typeof window.VoidAI !== 'undefined' && window.VoidAI) || null;
+    return bridge && typeof bridge.speak === 'function' ? bridge : null;
+  }
+
   function stopSpeak() {
     speechToken++;
     try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
+    try {
+      var native = nativeTtsBridge();
+      if (native && typeof native.stopSpeak === 'function') native.stopSpeak();
+    } catch (e) {}
   }
 
   function speechChunks(text) {
@@ -4831,13 +4841,32 @@ voidaiReassertSidebar();
       resumeVoice();
       return;
     }
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+    var native = nativeTtsBridge();
+    if (!native && (!window.speechSynthesis || !window.SpeechSynthesisUtterance)) {
       state.voiceSpeaking = false;
       setStatus('text-to-speech unavailable');
       resumeVoice();
       return;
     }
     if (wasVoice) setStatus(state.voiceMode ? 'voice mode · speaking' : 'voice live · speaking');
+    if (native) {
+      var nativeToken = 'voidai-native-' + token;
+      var accepted = true;
+      try {
+        accepted = native.speak(clean, state.voiceRate, state.voiceURI ? 1.0 : 1.12, nativeToken);
+      } catch (e) {
+        accepted = false;
+      }
+      if (accepted !== false) {
+        window.voidaiNativeSpeechDone = function (finishedToken) {
+          if (finishedToken !== nativeToken) return;
+          state.voiceSpeaking = false;
+          window.voidaiNativeSpeechDone = null;
+          resumeVoice();
+        };
+        return;
+      }
+    }
     var chunks = speechChunks(clean);
     var index = 0;
     var voice = selectedVoice();

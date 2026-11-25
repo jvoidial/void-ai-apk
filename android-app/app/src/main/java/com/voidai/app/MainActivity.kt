@@ -8,6 +8,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Base64
 import android.util.Log
 import org.json.JSONObject
@@ -36,6 +38,7 @@ import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -60,6 +63,9 @@ class MainActivity : AppCompatActivity() {
     private var pendingAuthError: String? = null
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var pendingWebPermission: PermissionRequest? = null
+    private var tts: TextToSpeech? = null
+    private var ttsReady = false
+    private var ttsToken = ""
 
     private val webPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -148,6 +154,7 @@ class MainActivity : AppCompatActivity() {
 
         webView = WebView(this)
         setContentView(webView)
+        initTts()
 
         val s: WebSettings = webView.settings
         s.javaScriptEnabled = true
@@ -218,6 +225,38 @@ class MainActivity : AppCompatActivity() {
                 val sb = supabase ?: return ""
                 return sb.auth.currentUserOrNull()?.id ?: ""
             }
+
+            @JavascriptInterface
+            fun speak(text: String, rate: Float, pitch: Float, token: String): Boolean {
+                val engine = tts ?: return false
+                if (!ttsReady) return false
+                val clean = text.trim()
+                if (clean.isEmpty()) return false
+                ttsToken = token
+                val max = TextToSpeech.getMaxSpeechInputLength().coerceAtLeast(200)
+                val spoken = if (clean.length <= max) clean else clean.take(max - 1)
+                runOnUiThread {
+                    try {
+                        engine.setSpeechRate(rate.coerceIn(0.5f, 2.0f))
+                        engine.setPitch(pitch.coerceIn(0.5f, 2.0f))
+                        engine.speak(spoken, TextToSpeech.QUEUE_FLUSH, null, token)
+                    } catch (e: Exception) {
+                        Log.w("VOIDAI", "tts speak failed: ${redact(e.message)}")
+                    }
+                }
+                return true
+            }
+
+            @JavascriptInterface
+            fun stopSpeak() {
+                ttsToken = ""
+                runOnUiThread {
+                    try { tts?.stop() } catch (_: Exception) {}
+                }
+            }
+
+            @JavascriptInterface
+            fun isSpeaking(): Boolean = try { tts?.isSpeaking == true } catch (_: Exception) { false }
 
             @JavascriptInterface
             fun uploadFile(fileName: String, base64Data: String) {
@@ -353,6 +392,77 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun initTts() {
+        try {
+            tts = TextToSpeech(this) { status ->
+                if (status != TextToSpeech.SUCCESS) return@TextToSpeech
+                val engine = tts ?: return@TextToSpeech
+                var language = try { engine.setLanguage(Locale.US) } catch (_: Exception) { TextToSpeech.LANG_NOT_SUPPORTED }
+                ttsReady = language != TextToSpeech.LANG_MISSING_DATA && language != TextToSpeech.LANG_NOT_SUPPORTED
+                if (!ttsReady) {
+                    language = try { engine.setLanguage(Locale.UK) } catch (_: Exception) { TextToSpeech.LANG_NOT_SUPPORTED }
+                    ttsReady = language != TextToSpeech.LANG_MISSING_DATA && language != TextToSpeech.LANG_NOT_SUPPORTED
+                }
+                selectFemaleTtsVoice(engine)
+                engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) = notifyTtsDone(utteranceId)
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) = notifyTtsDone(utteranceId)
+                    override fun onError(utteranceId: String?, errorCode: Int) = notifyTtsDone(utteranceId)
+                    override fun onStop(utteranceId: String?, interrupted: Boolean) = notifyTtsDone(utteranceId)
+                })
+            }
+        } catch (e: Exception) {
+            Log.w("VOIDAI", "tts init failed: ${redact(e.message)}")
+            ttsReady = false
+        }
+    }
+
+    private fun selectFemaleTtsVoice(engine: TextToSpeech) {
+        try {
+            val voices = engine.voices ?: return
+            val maleRegex = Regex("\\b(david|mark|daniel|alex|fred|tom|aaron|adam|guy|matthew|joey|brian|russell|rishi|oliver|arthur|george|james|ryan|eric|christopher)\\b")
+            val female = listOf("female", "samantha", "victoria", "karen", "moira", "tessa", "fiona", "allison", "ava", "susan", "zoe", "serena", "aria", "jenny", "zira", "alexa", "kate", "nicky", "kathy", "veena", "joanna", "salli", "kimberly", "ivy", "kendra", "emma", "amy", "olivia", "sophie", "michelle", "natasha", "clara", "hazel", "sonia", "libby", "emily")
+            val young = listOf("aria", "jenny", "ava", "emma", "olivia", "samantha", "michelle", "zoe", "serena")
+            val english = voices.filter { it.locale.language.equals("en", true) }
+            val us = english.filter { it.locale.country.equals("US", true) }
+            val pool = if (us.isNotEmpty()) us else english
+            val candidates = pool.filter { voice ->
+                val name = voice.name.lowercase(Locale.US)
+                female.any { name.contains(it) } &&
+                    !maleRegex.containsMatchIn(name) && !name.contains("#male") && !name.contains("male_1") && !name.contains("male_2")
+            }
+            val chosen = candidates.firstOrNull { voice ->
+                val name = voice.name.lowercase(Locale.US)
+                young.any { name.contains(it) }
+            } ?: candidates.firstOrNull() ?: pool.firstOrNull()
+            if (chosen != null) engine.voice = chosen
+        } catch (e: Exception) {
+            Log.w("VOIDAI", "tts voice select failed: ${redact(e.message)}")
+        }
+    }
+
+    private fun notifyTtsDone(utteranceId: String?) {
+        if (utteranceId == null || utteranceId != ttsToken) return
+        runOnUiThread {
+            try {
+                webView.evaluateJavascript(
+                    "window.voidaiNativeSpeechDone && window.voidaiNativeSpeechDone(" +
+                        JSONObject.quote(utteranceId) + ");",
+                    null
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
+    override fun onDestroy() {
+        try { tts?.stop(); tts?.shutdown() } catch (_: Exception) {}
+        tts = null
+        ttsReady = false
+        super.onDestroy()
     }
 
     private fun restoreSignedInState() {
