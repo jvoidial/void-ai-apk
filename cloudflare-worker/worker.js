@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.5.1';
+const WORKER_VERSION = '3.5.2';
 const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
@@ -471,6 +471,13 @@ async function pruneArchivedConversations(env, userId) {
         '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
         '&kind=like.' + encodeURIComponent(CONVERSATION_KIND_PREFIX + '*') +
         '&weight=lt.' + cutoff,
+        { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+      // Old archive rows may predate the weight column. They are older than
+      // the retained cutoff, so remove them in the same pass.
+      await sbFetch(env,
+        '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+        '&kind=like.' + encodeURIComponent(CONVERSATION_KIND_PREFIX + '*') +
+        '&weight=is.null',
         { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
     }
   } catch (e) {}

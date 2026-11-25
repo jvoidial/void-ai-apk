@@ -650,6 +650,7 @@ class ConversationHistorySyncTests(unittest.TestCase):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()
         self.assertIn("pruneArchivedConversations", worker)
+        self.assertIn("weight=is.null", worker)
         self.assertIn("bulkInsertArchivedConversations", worker)
         self.assertIn("deleteArchivedConversations", worker)
         self.assertIn("ids: voidaiDeleted.slice(0, 200)", html)
