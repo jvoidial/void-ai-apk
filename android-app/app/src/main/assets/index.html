@@ -4778,6 +4778,7 @@ voidaiReassertSidebar();
           if (liveAuto && (state.liveActive || state.voiceMode)) {
             if (state.stream) captureLiveFrame(text);
             else if (app.els && app.els.send) app.send();
+            try { rec.stop(); } catch (e) {}
           }
         }
       };
@@ -4954,6 +4955,7 @@ voidaiReassertSidebar();
       resumeVoice();
       return;
     }
+    if (wasVoice) setStatus(state.voiceMode ? 'voice mode · speaking' : 'voice live · speaking');
     var chunks = speechChunks(clean);
     var index = 0;
     var voice = selectedVoice();
