@@ -69,11 +69,12 @@ def run_tool(name, args=None):
     except OSError as exc:
         return {"error": "tool failed to start: %s" % exc}
     if proc.returncode != 0:
-        return {"error": (proc.stderr or "tool exited with %d" % proc.returncode).strip()[:500]}
+        detail = (proc.stderr or "tool exited with %d" % proc.returncode).strip()[:500]
+        return {"error": config.redact(detail)}
     try:
         return json.loads(proc.stdout or "{}")
     except ValueError:
-        return {"error": "tool returned non-JSON", "stdout": (proc.stdout or "")[:500]}
+        return {"error": "tool returned non-JSON", "stdout": config.redact((proc.stdout or "")[:500])}
 
 
 def _safe_child(base, relative):
@@ -92,8 +93,12 @@ class VoidAIHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
+        try:
+            message = fmt % args
+        except Exception:
+            message = fmt
         stamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-        sys.stderr.write("[%s] %s\n" % (stamp, fmt % args))
+        sys.stderr.write("[%s] %s\n" % (stamp, config.redact(message)))
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -279,11 +284,11 @@ class VoidAIHandler(BaseHTTPRequestHandler):
                     client=client,
                 )
         except ValueError as exc:
-            return self._send(400, {"error": str(exc)})
+            return self._send(400, {"error": config.redact(str(exc))})
         except LLMError as exc:
-            return self._send(502, {"error": str(exc)})
+            return self._send(502, {"error": config.redact(str(exc))})
         except Exception as exc:  # keep the server alive, do not leak internals
-            self.log_message("chat failed: %s", exc)
+            self.log_message("chat failed: %s", config.redact(str(exc)))
             return self._send(500, {"error": "internal error"})
         payload = {
             "response": reply,

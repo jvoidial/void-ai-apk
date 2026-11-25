@@ -28,6 +28,27 @@ else:
     _IMPORT_ERROR = None
 
 MAX_BODY = 2 * 1024 * 1024
+_SECRET_ENV = (
+    "VOIDAI_BACKEND_TOKEN", "VOIDAI_SERVER_TOKEN", "OPENAI_API_KEY",
+    "GROQ_API_KEY", "OPENROUTER_API_KEY", "GEMINI_API_KEY",
+)
+
+
+def _redact(value):
+    """Strip credential-shaped text before writing it to a client or log."""
+    text = "" if value is None else str(value)
+    for name in _SECRET_ENV:
+        secret = os.environ.get(name)
+        if secret and len(secret) >= 8:
+            text = text.replace(secret, "[redacted]")
+    import re
+    text = re.sub(r"([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+",
+                  r"\1[redacted]", text, flags=re.IGNORECASE)
+    text = re.sub(r"(Bearer\s+)[A-Za-z0-9._~+\/-]{8,}",
+                  r"\1[redacted]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b",
+                  "[redacted-jwt]", text)
+    return text
 
 
 def _token():
@@ -39,7 +60,11 @@ class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):
-        sys.stderr.write("[backend] " + (fmt % args) + "\n")
+        try:
+            message = fmt % args
+        except Exception:
+            message = fmt
+        sys.stderr.write("[backend] " + _redact(message) + "\n")
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -126,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
             except TypeError:
                 reply = generate_reply(messages)
             except Exception as exc:  # keep serving
-                return self._send(500, {"error": "backend error: %s" % exc})
+                return self._send(500, {"error": "backend error: %s" % _redact(exc)})
 
         return self._send(200, {"reply": reply, "user_id": user_id})
 

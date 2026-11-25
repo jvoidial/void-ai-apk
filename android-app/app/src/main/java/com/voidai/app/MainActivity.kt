@@ -39,6 +39,14 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
+    private fun redact(value: Any?): String {
+        var text = (value ?: "").toString()
+        text = text.replace(Regex("(?i)([?#&](?:access_token|refresh_token|token|code|key|apikey)=)[^&\\s]+"), "${'$'}1[redacted]")
+        text = text.replace(Regex("(?i)(Bearer\\s+)[A-Za-z0-9._~+/-]{8,}"), "${'$'}1[redacted]")
+        text = text.replace(Regex("\\beyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\b"), "[redacted-jwt]")
+        return text.take(500)
+    }
+
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var pendingWebPermission: PermissionRequest? = null
@@ -90,7 +98,7 @@ class MainActivity : AppCompatActivity() {
                 install(Storage)
             }.also { Log.i("VOIDAI", "Supabase ready") }
         } catch (e: Throwable) {
-            Log.e("VOIDAI", "Supabase init failed", e)
+            Log.e("VOIDAI", "Supabase init failed: ${redact(e.message)}")
             null
         }
     }
@@ -105,12 +113,13 @@ class MainActivity : AppCompatActivity() {
             try {
                 val sw = StringWriter()
                 throwable.printStackTrace(PrintWriter(sw))
-                Log.e("VOIDAI_CRASH", sw.toString())
+                val crash = redact(sw.toString())
+                Log.e("VOIDAI_CRASH", crash)
                 runOnUiThread {
                     try {
                         AlertDialog.Builder(this)
                             .setTitle("VOIDAI error")
-                            .setMessage(sw.toString().take(1500))
+                            .setMessage(crash.take(1500))
                             .setPositiveButton("OK") { _, _ ->
                                 defaultHandler?.uncaughtException(thread, throwable)
                             }
@@ -286,8 +295,9 @@ class MainActivity : AppCompatActivity() {
         Log.i("VOIDAI", "handleIntent len=${data.length}")
 
         if (data.contains("error=")) {
-            Log.e("VOIDAI", "oauth error: ${data.take(200)}")
-            sendAuthError(data.take(200))
+            val detail = redact(data)
+            Log.e("VOIDAI", "oauth error: $detail")
+            sendAuthError(detail)
             return
         }
 
@@ -302,7 +312,7 @@ class MainActivity : AppCompatActivity() {
             try {
                 sb.handleDeeplinks(intent)
             } catch (e: Throwable) {
-                Log.w("VOIDAI", "handleDeeplinks failed: ${e.message}")
+                Log.w("VOIDAI", "handleDeeplinks failed: ${redact(e.message)}")
             }
 
             var user = sb.auth.currentUserOrNull()
@@ -329,7 +339,7 @@ class MainActivity : AppCompatActivity() {
                             if (name.isEmpty()) name = jwtName
                         }
                     } catch (e: Throwable) {
-                        Log.e("VOIDAI", "importSession failed", e)
+                        Log.e("VOIDAI", "importSession failed: ${redact(e.message)}")
                     }
                 }
             }
@@ -374,7 +384,7 @@ class MainActivity : AppCompatActivity() {
                 .ifEmpty { meta?.optString("name").orEmpty() }
             Triple(json.optString("email"), name, json.optString("sub"))
         } catch (e: Throwable) {
-            Log.e("VOIDAI", "jwt decode failed", e)
+            Log.e("VOIDAI", "jwt decode failed: ${redact(e.message)}")
             Triple("", "", "")
         }
     }
@@ -385,11 +395,11 @@ class MainActivity : AppCompatActivity() {
         webView.evaluateJavascript(
             "window.onSignedIn && window.onSignedIn($emailJs, $nameJs)", null
         )
-        Log.i("VOIDAI", "onSignedIn fired: $email")
+        Log.i("VOIDAI", "onSignedIn fired")
     }
 
     private fun sendAuthError(message: String) {
-        val safe = JSONObject.quote(message.replace("\n", " ").take(500))
+        val safe = JSONObject.quote(redact(message.replace("\n", " ")))
         webView.evaluateJavascript(
             "window.onAuthError && window.onAuthError($safe)", null
         )

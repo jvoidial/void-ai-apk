@@ -305,6 +305,18 @@ class ConfigTests(BaseCase):
         self.assertNotIn("/", fallback)
         self.assertNotIn("..", fallback)
 
+    def test_redacts_secret_values_and_urls(self):
+        from voidai import config
+        with patched_env(OPENAI_API_KEY="unit-test-key-123456789"):
+            text = config.redact(
+                "key unit-test-key-123456789 at https://example.test?key=abc123456789 "
+                "Bearer abcdefghijklmnop"
+            )
+        self.assertNotIn("unit-test-key-123456789", text)
+        self.assertNotIn("abc123456789", text)
+        self.assertNotIn("abcdefghijklmnop", text)
+        self.assertGreaterEqual(text.count("[redacted]"), 3)
+
     def test_memory_is_per_user(self):
         from voidai import memory_mesh
         with patched_env(VOIDAI_HOME=self.home):

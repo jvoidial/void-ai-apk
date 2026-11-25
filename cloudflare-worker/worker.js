@@ -1,6 +1,6 @@
 // ════════════════════════════════════════════════════════════
 // VOIDAI Worker v2 — Perplexity-class answer engine
-// Modes: fast | deep | research | companion | ultra | coder | mini | github | predict | protein
+// Modes: fast | deep | research | companion | ultra | coder | mini | github | predict | protein | builder
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
@@ -677,6 +677,26 @@ function json(obj, status) {
   });
 }
 
+function redactSecrets(value, env) {
+  if (value == null) return value;
+  let out = String(value);
+  const names = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY', 'TAVILY_API_KEY',
+    'PROTEIN_DESIGN_KEY', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY',
+    'CF_SOURCE_TOKEN', 'GITHUB_TOKEN', 'VOIDAI'];
+  if (env) {
+    for (const name of names) {
+      const secret = env[name];
+      if (typeof secret === 'string' && secret.length >= 8) {
+        out = out.split(secret).join('[redacted]');
+      }
+    }
+  }
+  return out
+    .replace(/([?&](?:key|api_key|apikey|token|access_token)=)[^&\s"']+/gi, '$1[redacted]')
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]{8,}/gi, '$1[redacted]')
+    .replace(/((?:api[_-]?key|token|secret)\s*["']?\s*[:=]\s*["']?)[A-Za-z0-9._~+\/-]{8,}/gi, '$1[redacted]');
+}
+
 function extractContent(r) {
   try {
     const d = JSON.parse(r.text);
@@ -1205,7 +1225,7 @@ async function proxyProteinDesign(body, env) {
     return {
       ok: false,
       status: 504,
-      text: JSON.stringify({ error: { message: 'protein design backend failed: ' + (e.message || String(e)) } })
+      text: JSON.stringify({ error: { message: redactSecrets('protein design backend failed: ' + (e.message || String(e)), env) } })
     };
   } finally {
     clearTimeout(timer);
@@ -1969,14 +1989,18 @@ async function callGemini(messages, env) {
     body.systemInstruction = { parts: [{ text: systemMsg.map(function (m) { return m.content; }).join('\n') }] };
   }
   const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + env.GEMINI_API_KEY,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+      body: JSON.stringify(body)
+    }
   );
   const rawGemini = await res.text();
   let data = null;
   try { data = rawGemini ? JSON.parse(rawGemini) : null; } catch (e) {}
   if (!res.ok) {
-    return { ok: false, status: res.status, text: rawGemini || JSON.stringify({ error: { message: 'gemini error' } }) };
+    return { ok: false, status: res.status, text: redactSecrets(rawGemini || JSON.stringify({ error: { message: 'gemini error' } }), env) };
   }
   if (!data) {
     return { ok: false, status: 502, text: JSON.stringify({ error: { message: 'empty gemini response' } }) };
@@ -2037,7 +2061,7 @@ async function callGroqVision(visionBody, env) {
         body: JSON.stringify(Object.assign({}, visionBody, { model: model }))
       });
       const text = await r.text();
-      if (r.ok && text) return { ok: true, text: text, model: model };
+      if (r.ok && text.trim()) return { ok: true, text: text, model: model };
       errors.push('groq/' + model + ': ' + briefProviderError(text, r.status));
       if (r.status === 401 || r.status === 403) break;
     } catch (e) {
@@ -2068,7 +2092,7 @@ async function callOpenRouterVision(visionBody, env) {
         body: JSON.stringify(Object.assign({}, visionBody, { model: model }))
       });
       const text = await r.text();
-      if (r.ok && text) return { ok: true, text: text, model: model };
+      if (r.ok && text.trim()) return { ok: true, text: text, model: model };
       errors.push('openrouter/' + model + ': ' + briefProviderError(text, r.status));
       if (r.status === 401 || r.status === 403) break;
     } catch (e) {
@@ -2091,9 +2115,9 @@ async function callGeminiVision(prompt, dataUrl, env) {
   const errors = [];
   for (const model of models) {
     try {
-      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + env.GEMINI_API_KEY, {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
         body: JSON.stringify({
           contents: [{
             role: 'user',
@@ -2115,7 +2139,7 @@ async function callGeminiVision(prompt, dataUrl, env) {
       const text = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
         data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
         data.candidates[0].content.parts[0].text;
-      if (!text) {
+      if (!text || !text.trim()) {
         errors.push('gemini/' + model + ': empty response');
         continue;
       }
@@ -2139,7 +2163,7 @@ async function callWorkersVision(prompt, dataUrl, env) {
     try {
       const result = await env.AI.run(model, { image: Array.from(bytes), prompt: prompt, max_tokens: 1024 });
       const text = result && (result.response || result.description || result.text || result.result);
-      if (text) return { ok: true, model: model, text: JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }) };
+      if (text && String(text).trim()) return { ok: true, model: model, text: JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }) };
       errors.push('workers-ai/' + model + ': empty response');
     } catch (e) {
       errors.push('workers-ai/' + model + ': ' + (e.message || String(e)));
@@ -2401,9 +2425,12 @@ async function callOpenRouter(messages, env, model, opts) {
       })
     });
     const text = await res.text();
+    if (res.status === 204 || res.status === 205 || (res.ok && !text.trim())) {
+      return { ok: false, status: 502, text: '{"error":{"message":"empty openrouter response"}}' };
+    }
     return { ok: res.ok, status: res.status, text: text };
   } catch (e) {
-    return { ok: false, status: 500, text: '{"error":{"message":"' + (e.message || 'openrouter error') + '"}}' };
+    return { ok: false, status: 500, text: '{"error":{"message":"' + redactSecrets(e.message || 'openrouter error', env) + '"}}' };
   }
 }
 
@@ -2437,7 +2464,7 @@ export default {
         version: WORKER_VERSION,
         model: DEFAULT_MODEL,
         provider: 'groq',
-        fallback: 'none',
+        fallback: env.GEMINI_API_KEY ? 'gemini-2.5-flash' : 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
         modes: ['fast','deep','research','companion','ultra','coder','mini','github','predict','protein','builder'],
@@ -2548,7 +2575,7 @@ export default {
         }
         if (!srcResp.ok) {
           const errText = await srcResp.text();
-          return Response.json({ error: 'source_fetch_failed', upstream_status: srcResp.status, message: errText.slice(0, 500) }, { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } });
+          return Response.json({ error: 'source_fetch_failed', upstream_status: srcResp.status, message: redactSecrets(errText, env).slice(0, 500) }, { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } });
         }
         const srcText = await srcResp.text();
         let workerVersion = '';
@@ -2570,7 +2597,7 @@ export default {
         ctx.waitUntil(caches.default.put(cacheKey, response.clone()));
         return response;
       } catch (e) {
-        return Response.json({ error: 'source_fetch_failed', upstream_status: 0, message: (e.message || String(e)).slice(0, 500) }, { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } });
+        return Response.json({ error: 'source_fetch_failed', upstream_status: 0, message: redactSecrets(e.message || String(e), env).slice(0, 500) }, { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
     }
 
@@ -2580,7 +2607,7 @@ export default {
         await initConsciousnessTables(env);
         return json({ ok: true, message: 'consciousness tables initialized' });
       } catch (e) {
-        return json({ ok: false, error: String(e) }, 500);
+        return json({ ok: false, error: redactSecrets(String(e), env) }, 500);
       }
     }
 
@@ -2728,7 +2755,7 @@ export default {
           }
           aiError = 'Workers AI returned no image';
         } catch (e) {
-          aiError = e.message || String(e);
+          aiError = redactSecrets(e.message || String(e), env);
         }
       }
 
@@ -2746,7 +2773,7 @@ export default {
         });
         if (!upstream.ok) {
           const detail = await upstream.text();
-          return json({ error: { message: 'image provider failed: HTTP ' + upstream.status, detail: (aiError ? ('workers-ai: ' + aiError + '; ') : '') + detail.slice(0, 300) } }, 502);
+          return json({ error: { message: 'image provider failed: HTTP ' + upstream.status, detail: redactSecrets((aiError ? ('workers-ai: ' + aiError + '; ') : '') + detail.slice(0, 300), env) } }, 502);
         }
         const contentType = upstream.headers.get('Content-Type') || 'image/jpeg';
         if (!/^image\//i.test(contentType)) {
@@ -2764,7 +2791,7 @@ export default {
           }
         });
       } catch (e) {
-        return json({ error: { message: 'image generation failed: ' + (aiError ? ('workers-ai: ' + aiError + '; ') : '') + (e.message || String(e)) } }, 504);
+        return json({ error: { message: redactSecrets('image generation failed: ' + (aiError ? ('workers-ai: ' + aiError + '; ') : '') + (e.message || String(e)), env) } }, 504);
       } finally {
         clearTimeout(timer);
       }
@@ -2826,10 +2853,10 @@ export default {
         workersError = workersVision.error;
       }
 
-      return json({ error: { message: 'vision failed (groq: ' + groqVision.error.slice(0, 220) +
-        '; openrouter: ' + openrouterError.slice(0, 220) +
-        '; gemini: ' + geminiError.slice(0, 220) +
-        '; workers-ai: ' + workersError.slice(0, 220) + ')' } }, 502);
+      return json({ error: { message: redactSecrets('vision failed (groq: ' + String(groqVision.error || '').slice(0, 220) +
+        '; openrouter: ' + String(openrouterError || '').slice(0, 220) +
+        '; gemini: ' + String(geminiError || '').slice(0, 220) +
+        '; workers-ai: ' + String(workersError || '').slice(0, 220) + ')', env) } }, 502);
     }
 
     if (request.method !== 'POST') return json({ error: { message: 'method not allowed' } }, 405);
@@ -2962,7 +2989,7 @@ export default {
       result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
     }
 
-    if (!result || typeof result.text !== 'string' || !result.text) {
+    if (!result || !result.ok || typeof result.text !== 'string' || !result.text.trim()) {
       return json({ error: { message: 'upstream returned an empty response' } }, 502);
     }
 
@@ -2975,6 +3002,10 @@ export default {
       var parsed = JSON.parse(result.text);
       assistantText = parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content || '';
     } catch (e) {}
+
+    if (!assistantText || !String(assistantText).trim()) {
+      return json({ error: { message: 'upstream returned no message content' } }, 502);
+    }
 
     ctx.waitUntil(
       runReflectionPass(userText, assistantText, 'jacob', env, mode)
@@ -3002,7 +3033,7 @@ export default {
       });
     }
     } catch (outerErr) {
-      return json({ error: { message: 'internal error', detail: String(outerErr) } }, 500);
+      return json({ error: { message: 'internal error', detail: redactSecrets(String(outerErr), env) } }, 500);
     }
   }
 };

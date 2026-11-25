@@ -18,9 +18,9 @@ VALID_ROLES = ("system", "user", "assistant")
 
 class LLMError(RuntimeError):
     def __init__(self, message, status=None, body=None):
-        super().__init__(message)
+        super().__init__(config.redact(message))
         self.status = status
-        self.body = body
+        self.body = config.redact(body)
 
 
 def _clean_messages(messages):
@@ -66,7 +66,7 @@ class LLMClient:
 
     def describe(self):
         return {
-            "base_url": self.base_url,
+            "base_url": config.redact(self.base_url),
             "model": self.model,
             "key_set": self.configured(),
         }

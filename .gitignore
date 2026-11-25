@@ -62,3 +62,14 @@ cloudflare-worker/worker.local.js
 /ios-app/VOIDAI.xcodeproj/
 xcuserdata/
 DerivedData/
+
+# Local secret stores and tool state
+.dev.vars
+.env.local
+.env.*.local
+.wrangler/
+**/node_modules/
+*.token
+*.secret
+secrets.json
+supabase/.temp/

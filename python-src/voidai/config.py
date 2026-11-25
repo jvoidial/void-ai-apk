@@ -28,6 +28,30 @@ def _env(*names, default=None):
     return default
 
 
+_SECRET_ENV_NAMES = (
+    "OPENAI_API_KEY", "VOIDAI_GPT_KEY", "OPENROUTER_API_KEY", "GROQ_API_KEY",
+    "GEMINI_API_KEY", "TAVILY_API_KEY", "PROTEIN_DESIGN_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_ANON_KEY",
+    "VOIDAI_SERVER_TOKEN", "VOIDAI_BACKEND_TOKEN", "VOIDAI_TOKEN",
+)
+
+
+def redact(value) -> str:
+    """Remove credential-shaped text before it reaches logs or clients."""
+    text = "" if value is None else str(value)
+    for name in _SECRET_ENV_NAMES:
+        secret = os.environ.get(name)
+        if secret and len(secret) >= 8:
+            text = text.replace(secret, "[redacted]")
+    text = re.sub(r"([?&](?:key|api_key|apikey|token|access_token)=)[^&\s]+",
+                  r"\1[redacted]", text, flags=re.IGNORECASE)
+    text = re.sub(r"(Bearer\s+)[A-Za-z0-9._~+\/-]{8,}",
+                  r"\1[redacted]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b",
+                  "[redacted-jwt]", text)
+    return text
+
+
 def home() -> Path:
     """Return the writable VOIDAI data directory (created on demand)."""
     raw = os.environ.get("VOIDAI_HOME")

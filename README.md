@@ -51,9 +51,15 @@ The phone camera has a file-picker fallback, so photo analysis still works when
 
 Provider keys (Groq, OpenRouter, Gemini, Supabase service role) stay in the
 Cloudflare Worker environment. The app only carries the Worker access gate and
-the Supabase anon key that the existing Android build already needs. No key is
-shown in the UI, chat, or capability panel. Never put a provider key in the
-WebView, a bundle, a screenshot, or a commit.
+the Supabase publishable/anon key that sign-in needs. The Android build no
+longer embeds Groq, OpenAI, or OpenRouter keys. No key is shown in the UI, chat,
+or capability panel. Never put a provider key in the WebView, a bundle, a
+screenshot, or a commit. Run the tracked-file guard before releasing:
+
+    python3 scripts/check_secrets.py
+
+Provider-error messages are redacted before they reach clients or logs, so a
+failed request cannot echo a key embedded in a provider URL.
 
 ## CLI (GPT, PHB basis)
 
