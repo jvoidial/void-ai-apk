@@ -861,6 +861,38 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd')", html)
         self.assertNotIn("if (cfg.dim >= 4) {\n      // 4D/5D are mathematical projections", html)
 
+    def test_voice_prefers_young_female_english(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        start = html.index("  function isFemaleVoice(v)")
+        end = html.index("  function selectedVoice()", start)
+        harness = html[start:end] + r"""
+var cases = [
+  [[{name:"David",lang:"en-US"},{name:"Samantha",lang:"en-US"},{name:"Zira",lang:"en-US"}]],
+  [[{name:"Daniel",lang:"en-GB"},{name:"Karen",lang:"en-GB"}]],
+  [[{name:"English (United States)",lang:"en-US"},{name:"Daniel",lang:"en-GB"}]],
+  [[{name:"Thomas",lang:"fr-FR"},{name:"Amelie",lang:"fr-FR"}]]
+];
+var out = cases.map(function(c) { var v = pickPreferredVoice(c[0]); return v ? v.name : null; });
+process.stdout.write(JSON.stringify(out));
+"""
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+            fh.write(harness)
+            path = fh.name
+        try:
+            result = subprocess.run([node, path], check=True, text=True,
+                                    capture_output=True)
+            picked = json.loads(result.stdout)
+        finally:
+            os.unlink(path)
+        self.assertEqual(picked, ["Samantha", "Karen", "English (United States)", "Thomas"])
+        self.assertIn("savedAutoSpeak === null ? true", html)
+        self.assertIn("u.pitch = state.voiceURI ? 1.0 : 1.12", html)
+        self.assertIn("VOICE: AUTO (FEMALE)", html)
+
     def test_builder_routes_object_prompts_by_dimension(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()

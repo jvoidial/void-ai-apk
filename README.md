@@ -6,8 +6,8 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 
 ## Download
 
-- **APK** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.3-release.apk`
-- **iOS IPA (unsigned)** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.3-unsigned.ipa`
+- **APK** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.4-release.apk`
+- **iOS IPA (unsigned)** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.4-unsigned.ipa`
 - **Build artifacts** — [Build APK](https://github.com/jvoidial/void-ai-apk/actions/workflows/build.yml) and [iOS IPA](https://github.com/jvoidial/void-ai-apk/actions/workflows/ios-unsigned.yml) workflows
 - **Source** — [Download ZIP](https://github.com/jvoidial/void-ai-apk/archive/refs/heads/main.zip)
 
@@ -22,6 +22,7 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Image vision — attach a photo, downscaled on-device, analyzed through a Groq → OpenRouter → Gemini → Workers AI fallback chain
 - Image Maker tab — prompt, FLUX/TURBO/KONTEXT model, size, seed, preview, copy prompt, and download
 - Astra media layer — gallery photo vision, voice input, spoken replies, and a continuous voice loop
+- Voice output — auto-speak with a young female English voice preferred, plus a voice picker and speed control
 - Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder/simulator
 - Conversation history — saved chats, switch, delete, restore after reload, clear, and per-turn persistence including errors and tool commands
 - Builder/Simulator tab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D scenes, and a linked N-D simulation workbench

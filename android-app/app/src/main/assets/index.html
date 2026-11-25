@@ -4182,7 +4182,7 @@ voidaiReassertSidebar();
     voiceSpeaking: false,
     voiceAutoPrev: false,
     voiceURI: '',
-    voiceRate: 1.0,
+    voiceRate: 1.03,
     autoSpeak: false,
     stream: null,
     streamLabel: '',
@@ -4198,7 +4198,8 @@ voidaiReassertSidebar();
   try {
     var savedMode = localStorage.getItem('voidai_mode');
     if (savedMode && MODES.some(function (m) { return m.id === savedMode; })) state.mode = savedMode;
-    state.autoSpeak = localStorage.getItem('voidai_autospeak') === '1';
+    var savedAutoSpeak = localStorage.getItem('voidai_autospeak');
+    state.autoSpeak = savedAutoSpeak === null ? true : savedAutoSpeak === '1';
     state.voiceURI = localStorage.getItem('voidai_voice_uri') || '';
     var savedRate = parseFloat(localStorage.getItem('voidai_voice_rate'));
     if (savedRate >= 0.7 && savedRate <= 1.4) state.voiceRate = savedRate;
@@ -4275,6 +4276,24 @@ voidaiReassertSidebar();
     return v.name + (v.lang ? ' · ' + v.lang : '');
   }
 
+  function isFemaleVoice(v) {
+    var name = String(v && v.name || '').toLowerCase();
+    if (/(david|mark|daniel|\balex\b|fred|tom|aaron|adam|guy|matthew|joey|brian|russell|rishi|oliver|arthur|george|james|ryan|eric|christopher|steffan|\bmale\b|\bman\b)/.test(name)) return false;
+    return /(samantha|victoria|karen|moira|tessa|fiona|allison|ava|susan|zoe|serena|aria|jenny|zira|alexa|female|woman|girl|kate|nicky|kathy|veena|joanna|salli|kimberly|ivy|kendra|emma|amy|olivia|sophie|michelle|natasha|clara|hazel|sonia|libby|emily|google us english)/.test(name);
+  }
+
+  function pickPreferredVoice(voices) {
+    var english = voices.filter(function (v) { return /^en/i.test(v.lang || ''); });
+    if (!english.length) english = voices.slice();
+    var us = english.filter(function (v) { return /^en[-_]US/i.test(v.lang || ''); });
+    var pool = us.length ? us : english;
+    var female = pool.filter(isFemaleVoice);
+    var young = female.filter(function (v) {
+      return /aria|jenny|ava|emma|olivia|samantha|google us english|michelle|zoe|serena/i.test(v.name || '');
+    });
+    return young[0] || female[0] || pool[0] || voices[0] || null;
+  }
+
   function selectedVoice() {
     var voices = voiceList();
     if (!voices.length) return null;
@@ -4283,9 +4302,7 @@ voidaiReassertSidebar();
         if (voices[i].voiceURI === state.voiceURI || voices[i].name === state.voiceURI) return voices[i];
       }
     }
-    var preferred = voices.filter(function (v) { return /^en[-_]US/i.test(v.lang || ''); })[0] ||
-      voices.filter(function (v) { return /^en/i.test(v.lang || ''); })[0] || voices[0];
-    return preferred || null;
+    return pickPreferredVoice(voices);
   }
 
   function setVoice(uri) {
@@ -4296,7 +4313,7 @@ voidaiReassertSidebar();
       if (selects[i]) selects[i].value = state.voiceURI;
     }
     var chosen = selectedVoice();
-    setStatus('voice: ' + (chosen ? voiceLabel(chosen) : 'system default'));
+    setStatus('voice: ' + (chosen ? voiceLabel(chosen) : 'auto · young female preferred'));
   }
 
   function setVoiceRate(rate) {
@@ -4328,7 +4345,7 @@ voidaiReassertSidebar();
       sel.innerHTML = '';
       var auto = document.createElement('option');
       auto.value = '';
-      auto.textContent = 'VOICE: AUTO';
+      auto.textContent = 'VOICE: AUTO (FEMALE)';
       sel.appendChild(auto);
       for (var j = 0; j < voices.length; j++) {
         var opt = document.createElement('option');
@@ -4347,7 +4364,7 @@ voidaiReassertSidebar();
       rate.onchange = function () { setVoiceRate(this.value); };
     }
     var chip = document.getElementById('voidai-voice-chip');
-    if (chip) chip.title = chosen ? ('AI voice: ' + voiceLabel(chosen)) : 'AI voice: system default';
+    if (chip) chip.title = chosen ? ('AI voice: ' + voiceLabel(chosen) + ' · young female preferred') : 'AI voice: auto · young female preferred';
   }
 
   function buildUi() {
@@ -4837,7 +4854,7 @@ voidaiReassertSidebar();
         u.lang = voice.lang || 'en-US';
       }
       u.rate = state.voiceRate;
-      u.pitch = 1.0;
+      u.pitch = state.voiceURI ? 1.0 : 1.12;
       u.onend = speakNext;
       u.onerror = function () {
         if (token !== speechToken) return;
