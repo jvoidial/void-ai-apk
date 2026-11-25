@@ -30,23 +30,25 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Storage — per-user files, RLS-isolated
 - Cost: **$0**
 
-### Astra-style live use
+### Astra photo and voice
 
-Tap **CAM** to open the camera. Ask a question in the box and tap **LOOK**, or tap
-**VOICE** for a hands-free loop: VOIDAI captures the current frame, answers, and
-speaks the answer. **CAM** takes a photo, **MIC** dictates into the composer,
-**READ** speaks the last reply, and **TOOLS** opens the mode, routing, PHB, and
-capability panel.
+Tap **PHOTO** to choose a still image from the gallery. Type a question and send
+it, or tap **VOICE** for a hands-free loop: VOIDAI transcribes your speech, sends
+the turn, and speaks the answer. **MIC** dictates into the composer, **READ**
+speaks the last reply, and **TOOLS** opens the mode, routing, PHB, and capability
+panel.
+
+There is no live camera, live video, or screen share. Photos come from the
+gallery only.
 
 The same tools are available as commands:
 
-    /live  /astra  /camera  /look PROMPT  /screen  /voice  /read  /tools
+    /live  /astra  /photo  /camera  /look PROMPT  /voice  /read  /tools
     /builder  /images  /image PROMPT  /mode  /mode deep  /help  /sync  /recap
 
-Android asks for camera and microphone permission the first time a live tool
-uses them. iOS does the same through the usage descriptions in `Info.plist`.
-The phone camera has a file-picker fallback, so photo analysis still works when
-`getUserMedia` is unavailable.
+Android asks for microphone permission for voice and never requests camera
+permission. iOS uses the photo-library, microphone, and speech-recognition usage
+descriptions in `Info.plist`; live video is rejected.
 
 ### Secrets
 
@@ -138,7 +140,7 @@ or your own certificate before a stock iPhone will install it. The
          |               |
          |          Supabase memory + storage
          |
-    camera / mic / screen -> /vision (Groq, OpenRouter fallback)
+    gallery photo / mic -> /vision (Groq, OpenRouter fallback)
 
 ## Verify the live Worker
 
