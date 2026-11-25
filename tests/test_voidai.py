@@ -733,6 +733,39 @@ class SecurityHardeningTests(unittest.TestCase):
         self.assertIn("const MAX_TOTAL_CHARS = 180000;", worker)
         self.assertIn("code: 'empty_upstream'", worker)
 
+    def test_ios_camera_is_still_photo_only_and_voice_is_two_way(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        swift = open(os.path.join(ROOT, "ios-app", "VOIDAI", "ViewController.swift"),
+                     encoding="utf-8").read()
+        plist = open(os.path.join(ROOT, "ios-app", "VOIDAI", "Info.plist"),
+                     encoding="utf-8").read()
+        readme = open(os.path.join(ROOT, "ios-app", "README.md"),
+                      encoding="utf-8").read()
+
+        self.assertIn("UIImagePickerController", swift)
+        self.assertIn("cameraCaptureMode = .photo", swift)
+        self.assertIn("Take Photo", swift)
+        self.assertIn("Live camera is disabled on iOS", swift)
+        self.assertIn("getUserMedia", swift)
+        self.assertNotIn("AVCaptureSession", swift)
+        self.assertIn("camera is never used for live video", readme)
+        self.assertIn("NSSpeechRecognitionUsageDescription", plist)
+        self.assertIn("still image", plist)
+
+        self.assertIn("voiceMode: false", html)
+        self.assertIn("voiceSpeaking: false", html)
+        self.assertIn("function startVoiceMode()", html)
+        self.assertIn("function stopVoiceMode()", html)
+        self.assertIn("function resumeVoice()", html)
+        self.assertIn("state.voiceMode || state.liveVoice", html)
+        self.assertIn("data-va-tool=\"mic\" title=\"Two-way voice conversation\"", html)
+        self.assertIn("id=\"voidai-voice-chip\"", html)
+        self.assertIn("id=\"va-voice-select\"", html)
+        self.assertIn("function populateVoiceSelects()", html)
+        self.assertIn("u.voice = voice", html)
+        self.assertIn("u.rate = state.voiceRate", html)
+
     def test_scene_extraction_drops_trailing_prose(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()

@@ -24,8 +24,10 @@ required to produce the build.
 
 - WKWebView with the shared VOIDAI chat UI, JavaScript enabled, and local asset
   access for `index.html`.
-- Native image attachment through `PHPickerViewController`, wired to the WebView
-  file input. The web layer still downscales before sending to `/vision`.
+- Native image attachment through `PHPickerViewController`, plus a still-photo
+  `UIImagePickerController` camera path, wired to the WebView file input. The
+  camera is never used for live video on iOS. The web layer still downscales
+  before sending to `/vision`.
 - GitHub sign-in through Supabase OAuth using `ASWebAuthenticationSession` and
   the `voidai://auth-callback` redirect scheme.
 - Native bridge exposed as `window.VoidAI`, alongside the existing
@@ -45,12 +47,19 @@ callback and stores the display identity (email/name) plus tokens in
 `UserDefaults`. It does not change the Worker's `X-VOID-KEY` auth, Supabase
 tables, or Cloudflare configuration.
 
-## Live camera and voice
+## Camera and voice
 
-The shared `index.html` includes the same Astra live layer as Android. WKWebView
-requests camera and microphone access through the usage descriptions in
-`Info.plist`. If the installed iOS runtime does not expose `getUserMedia`, the
-photo picker and typed chat still work.
+The shared `index.html` includes the Astra layer, but iOS deliberately blocks
+live `getUserMedia` video. The camera opens only for a still photo: the `PHOTO`
+control and `SNAP PHOTO` action show **Take Photo** and **Choose Photo**. The
+`CAMERA / VISION` live action is hidden on iOS.
+
+`VOICE` and `LISTEN` start a two-way voice conversation when the iOS runtime
+exposes `SpeechRecognition`: the user speaks, the message is sent, the assistant
+reply is spoken, and listening resumes. The toolbar and capabilities panel list
+the system voices, and the chosen voice plus speed persist locally. Microphone
+and speech-recognition usage strings live in `Info.plist`. If the runtime does
+not expose those web APIs, the photo picker and typed chat still work.
 
 ## Files
 

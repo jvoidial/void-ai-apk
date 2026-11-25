@@ -38,9 +38,11 @@
 <key>NSPhotoLibraryUsageDescription</key>
 <string>Attach an image to a VOIDAI message.</string>
 <key>NSCameraUsageDescription</key>
-<string>VOIDAI Live uses the camera to see and answer questions about what you show it.</string>
+<string>VOIDAI uses the camera only when you choose Take Photo to attach a still image to a message.</string>
 <key>NSMicrophoneUsageDescription</key>
-<string>VOIDAI Live uses the microphone for voice questions and spoken replies.</string>
+<string>VOIDAI uses the microphone for hands-free voice conversation and spoken replies.</string>
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>VOIDAI uses speech recognition to turn your voice into messages during hands-free conversation.</string>
 <key>CFBundleURLTypes</key>
 <array>
 <dict>

@@ -4130,6 +4130,10 @@ voidaiReassertSidebar();
     mode: 'fast',
     liveActive: false,
     liveVoice: false,
+    voiceMode: false,
+    voiceSpeaking: false,
+    voiceURI: '',
+    voiceRate: 1.0,
     autoSpeak: false,
     stream: null,
     streamLabel: '',
@@ -4140,11 +4144,15 @@ voidaiReassertSidebar();
     imgBusy: false,
     imgMeta: null
   };
+  var speechToken = 0;
 
   try {
     var savedMode = localStorage.getItem('voidai_mode');
     if (savedMode && MODES.some(function (m) { return m.id === savedMode; })) state.mode = savedMode;
     state.autoSpeak = localStorage.getItem('voidai_autospeak') === '1';
+    state.voiceURI = localStorage.getItem('voidai_voice_uri') || '';
+    var savedRate = parseFloat(localStorage.getItem('voidai_voice_rate'));
+    if (savedRate >= 0.7 && savedRate <= 1.4) state.voiceRate = savedRate;
   } catch (e) {}
 
   window.voidaiMode = state.mode;
@@ -4209,6 +4217,84 @@ voidaiReassertSidebar();
     }).join('');
   }
 
+  function voiceList() {
+    try {
+      return (window.speechSynthesis && speechSynthesis.getVoices ? speechSynthesis.getVoices() : [])
+        .filter(function (v) { return v && v.name; });
+    } catch (e) { return []; }
+  }
+
+  function voiceLabel(v) {
+    return v.name + (v.lang ? ' · ' + v.lang : '');
+  }
+
+  function selectedVoice() {
+    var voices = voiceList();
+    if (!voices.length) return null;
+    if (state.voiceURI) {
+      for (var i = 0; i < voices.length; i++) {
+        if (voices[i].voiceURI === state.voiceURI || voices[i].name === state.voiceURI) return voices[i];
+      }
+    }
+    var preferred = voices.filter(function (v) { return /^en[-_]US/i.test(v.lang || ''); })[0] ||
+      voices.filter(function (v) { return /^en/i.test(v.lang || ''); })[0] || voices[0];
+    return preferred || null;
+  }
+
+  function setVoice(uri) {
+    state.voiceURI = String(uri || '');
+    try { localStorage.setItem('voidai_voice_uri', state.voiceURI); } catch (e) {}
+    var selects = [document.getElementById('voidai-voice-chip'), document.getElementById('va-voice-select')];
+    for (var i = 0; i < selects.length; i++) {
+      if (selects[i]) selects[i].value = state.voiceURI;
+    }
+    var chosen = selectedVoice();
+    setStatus('voice: ' + (chosen ? voiceLabel(chosen) : 'system default'));
+  }
+
+  function setVoiceRate(rate) {
+    rate = Number(rate);
+    if (!(rate >= 0.7 && rate <= 1.4)) rate = 1.0;
+    state.voiceRate = rate;
+    try { localStorage.setItem('voidai_voice_rate', String(rate)); } catch (e) {}
+    var el = document.getElementById('va-voice-rate');
+    if (el) el.value = String(rate);
+    setStatus('voice speed: ' + rate.toFixed(1));
+  }
+
+  function populateVoiceSelects() {
+    var voices = voiceList();
+    var chosen = selectedVoice();
+    var current = state.voiceURI || (chosen ? (chosen.voiceURI || chosen.name) : '');
+    var selects = [document.getElementById('voidai-voice-chip'), document.getElementById('va-voice-select')];
+    for (var i = 0; i < selects.length; i++) {
+      var sel = selects[i];
+      if (!sel) continue;
+      sel.innerHTML = '';
+      var auto = document.createElement('option');
+      auto.value = '';
+      auto.textContent = 'VOICE: AUTO';
+      sel.appendChild(auto);
+      for (var j = 0; j < voices.length; j++) {
+        var opt = document.createElement('option');
+        opt.value = voices[j].voiceURI || voices[j].name;
+        opt.textContent = voiceLabel(voices[j]);
+        sel.appendChild(opt);
+      }
+      sel.value = current && voices.some(function (v) {
+        return (v.voiceURI || v.name) === current;
+      }) ? current : '';
+      sel.onchange = function () { setVoice(this.value); };
+    }
+    var rate = document.getElementById('va-voice-rate');
+    if (rate) {
+      rate.value = String(state.voiceRate);
+      rate.onchange = function () { setVoiceRate(this.value); };
+    }
+    var chip = document.getElementById('voidai-voice-chip');
+    if (chip) chip.title = chosen ? ('AI voice: ' + voiceLabel(chosen)) : 'AI voice: system default';
+  }
+
   function buildUi() {
     if (document.getElementById('voidai-astra-style')) return;
     var style = document.createElement('style');
@@ -4216,11 +4302,13 @@ voidaiReassertSidebar();
     style.textContent = [
       '#voidai-astra-tools{display:flex;gap:6px;align-items:center;padding:0 2px 7px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;}',
       '#voidai-astra-tools::-webkit-scrollbar{display:none;}',
-      '#voidai-astra-tools button,#voidai-mode-chip{border:1px solid #242424;background:#0d0d0d;color:#9a9a9a;border-radius:8px;font:10px ui-monospace,monospace;letter-spacing:.08em;padding:7px 9px;white-space:nowrap;cursor:pointer;}',
-      '#voidai-astra-tools button:hover,#voidai-mode-chip:hover{color:#fff;border-color:#555;}',
+      '#voidai-astra-tools button,#voidai-mode-chip,#voidai-voice-chip{border:1px solid #242424;background:#0d0d0d;color:#9a9a9a;border-radius:8px;font:10px ui-monospace,monospace;letter-spacing:.08em;padding:7px 9px;white-space:nowrap;cursor:pointer;}',
+      '#voidai-astra-tools button:hover,#voidai-mode-chip:hover,#voidai-voice-chip:hover{color:#fff;border-color:#555;}',
       '#voidai-astra-tools button.active,.va-live-actions button.active{color:#d9efe2;border-color:#8fb7a0;background:#142117;}',
       '#voidai-astra-tools button[aria-pressed="true"],.va-live-actions button[aria-pressed="true"]{color:#d9efe2;border-color:#8fb7a0;background:#142117;}',
       '#voidai-mode-chip{max-width:118px;appearance:none;}',
+      '#voidai-voice-chip{max-width:156px;appearance:none;}',
+      '.va-select{background:#111;border:1px solid #2c2c2c;color:#ccc;border-radius:8px;padding:8px 10px;font:10px ui-monospace,monospace;max-width:100%;}',
       '.va-modal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ddd;}',
       '.va-modal.open{display:flex;}',
       '.va-panel{width:100%;max-width:720px;max-height:90vh;overflow:auto;background:#080808;border:1px solid #2a2a2a;border-radius:14px;box-shadow:0 20px 80px #000;}',
@@ -4262,12 +4350,13 @@ voidaiReassertSidebar();
     var tools = document.createElement('div');
     tools.id = 'voidai-astra-tools';
     tools.innerHTML = '<select id="voidai-mode-chip" aria-label="Reasoning mode">' + modeOptionsHtml() + '</select>' +
+      '<select id="voidai-voice-chip" aria-label="AI voice"><option value="">VOICE: AUTO</option></select>' +
       '<button type="button" data-va-tool="builder" aria-pressed="false">BUILDER/SIM</button>' +
       '<button type="button" data-va-tool="images" aria-pressed="false">IMAGES</button>' +
       '<button type="button" data-va-tool="protein" aria-pressed="false">PROTEIN</button>' +
       '<button type="button" data-va-tool="camera">CAM</button>' +
-      '<button type="button" data-va-tool="mic">MIC</button>' +
-      '<button type="button" data-va-tool="listen">LISTEN</button>' +
+      '<button type="button" data-va-tool="mic" title="Two-way voice conversation">VOICE</button>' +
+      '<button type="button" data-va-tool="listen" title="Hands-free voice conversation">LISTEN</button>' +
       '<button type="button" data-va-tool="read">READ</button>' +
       '<button type="button" data-va-tool="speak">SPEAK</button>' +
       '<button type="button" data-va-tool="tools">TOOLS</button>';
@@ -4285,6 +4374,12 @@ voidaiReassertSidebar();
       '<div class="va-body">' +
         '<p class="va-lede">Builder/Simulator tab for code, live preview, object physics, and 3D/4D/5D scenes; separate Image and Protein Studio tabs; camera/vision, screen and voice; 11 reasoning modes; PHB Human Agent v2; persistent memory; and every Worker tool. Protein Studio uses model reasoning and local WebGL only, not a specialized biology model. Provider keys stay server-side; this panel never displays a secret.</p>' +
         '<h3>REASONING MODES (11)</h3><div class="va-grid" id="va-modes">' + modeButtonsHtml() + '</div>' +
+        '<h3>AI VOICE</h3><div class="va-actions">' +
+          '<select id="va-voice-select" class="va-select" aria-label="AI voice"><option value="">System default</option></select>' +
+          '<select id="va-voice-rate" class="va-select" aria-label="Voice speed">' +
+            '<option value="0.9">RATE 0.9</option><option value="1">RATE 1.0</option><option value="1.1">RATE 1.1</option>' +
+          '</select>' +
+        '</div>' +
         '<h3>ASTRA ACTIONS</h3><div class="va-actions">' +
           '<button type="button" data-va-action="builder">BUILDER/SIM</button>' +
           '<button type="button" data-va-action="images">IMAGE MAKER</button>' +
@@ -4293,7 +4388,7 @@ voidaiReassertSidebar();
           '<button type="button" data-va-action="image">ATTACH IMAGE</button>' +
           '<button type="button" data-va-action="camera">SNAP PHOTO</button>' +
           '<button type="button" data-va-action="screen">SHARE SCREEN</button>' +
-          '<button type="button" data-va-action="mic">VOICE INPUT</button>' +
+          '<button type="button" data-va-action="mic">VOICE MODE</button>' +
           '<button type="button" data-va-action="read">READ LAST</button>' +
           '<button type="button" data-va-action="speak">AUTO-SPEAK: ON</button>' +
           '<button type="button" data-va-action="capabilities">REFRESH ROUTING</button>' +
@@ -4329,6 +4424,14 @@ voidaiReassertSidebar();
     if (chip) {
       chip.value = state.mode;
       chip.addEventListener('change', function () { setMode(chip.value, true); });
+    }
+    populateVoiceSelects();
+    if (window.speechSynthesis) {
+      try { speechSynthesis.addEventListener('voiceschanged', populateVoiceSelects); }
+      catch (e) { speechSynthesis.onvoiceschanged = populateVoiceSelects; }
+      setTimeout(populateVoiceSelects, 0);
+      setTimeout(populateVoiceSelects, 500);
+      setTimeout(populateVoiceSelects, 1500);
     }
     var speakBtn = document.querySelector('[data-va-action="speak"]');
     if (speakBtn) speakBtn.textContent = 'AUTO-SPEAK: ' + (state.autoSpeak ? 'ON' : 'OFF');
@@ -4433,6 +4536,7 @@ voidaiReassertSidebar();
     if (!state.autoSpeak && window.speechSynthesis) {
       try { window.speechSynthesis.cancel(); } catch (e) {}
     }
+    if (!state.autoSpeak && state.voiceMode) stopVoiceMode();
   }
 
   function attachImage() {
@@ -4493,6 +4597,8 @@ voidaiReassertSidebar();
   function closeLive() {
     state.liveActive = false;
     state.liveVoice = false;
+    state.voiceMode = false;
+    state.voiceSpeaking = false;
     window.voidaiLiveVoice = false;
     stopMic();
     stopSpeak();
@@ -4644,6 +4750,7 @@ voidaiReassertSidebar();
   function startMic(liveAuto) {
     var SR = speechCtor();
     if (!SR) { setStatus('speech recognition unavailable — use keyboard'); return; }
+    if (state.voiceSpeaking) return;
     stopMic(true);
     state.liveVoice = !!liveAuto;
     window.voidaiLiveVoice = state.liveVoice;
@@ -4668,7 +4775,7 @@ voidaiReassertSidebar();
         if (text && app.els && app.els.input) app.els.input.value = text;
         if (text) setStatus('heard: ' + text.slice(0, 80));
         if (finalText && text) {
-          if (liveAuto && state.liveActive) {
+          if (liveAuto && (state.liveActive || state.voiceMode)) {
             if (state.stream) captureLiveFrame(text);
             else if (app.els && app.els.send) app.send();
           }
@@ -4679,7 +4786,9 @@ voidaiReassertSidebar();
         var err = event && event.error ? event.error : 'error';
         if (err === 'not-allowed' || err === 'service-not-allowed') {
           state.liveVoice = false;
+          state.voiceMode = false;
           window.voidaiLiveVoice = false;
+          updateMicButtons();
           setStatus('microphone permission denied');
         } else if (err !== 'no-speech' && err !== 'aborted') {
           setStatus('voice: ' + err);
@@ -4689,14 +4798,16 @@ voidaiReassertSidebar();
         if (state.recognition !== rec) return;
         state.micActive = false;
         updateMicButtons();
-        if (state.liveVoice && !app.busy && state.liveActive) {
-          setTimeout(function () { if (state.liveVoice && state.liveActive) startMic(true); }, 500);
+        if (state.liveVoice && !state.voiceSpeaking && !app.busy && (state.liveActive || state.voiceMode)) {
+          setTimeout(function () {
+            if (state.liveVoice && !state.voiceSpeaking && (state.liveActive || state.voiceMode)) startMic(true);
+          }, 500);
         }
       };
       state.micActive = true;
       updateMicButtons();
       rec.start();
-      setStatus(liveAuto ? 'voice live · speak' : 'listening…');
+      setStatus(liveAuto ? (state.voiceMode ? 'voice mode · listening' : 'voice live · speak') : 'listening…');
     } catch (e) {
       state.micActive = false;
       updateMicButtons();
@@ -4716,42 +4827,59 @@ voidaiReassertSidebar();
     updateMicButtons();
   }
 
-  function toggleMic(fromLive) {
-    if (state.micActive) { stopMic(); setStatus('mic off'); return; }
-    if (fromLive) {
-      startMic(true);
-      var modal = document.getElementById('voidai-live-modal');
-      if (modal && !modal.classList.contains('open')) openLive();
-    } else {
-      closeCap();
-      startMic(false);
+  function startVoiceMode() {
+    if (!speechCtor()) {
+      setStatus('voice input unavailable — use the keyboard');
+      return false;
     }
+    closeCap();
+    state.voiceMode = true;
+    state.voiceSpeaking = false;
+    if (!state.autoSpeak) toggleAutoSpeak(true);
+    startMic(true);
+    updateMicButtons();
+    setStatus('voice mode · listening');
+    return true;
+  }
+
+  function stopVoiceMode() {
+    state.voiceMode = false;
+    state.voiceSpeaking = false;
+    stopMic();
+    stopSpeak();
+    updateMicButtons();
+    setStatus('voice off');
+  }
+
+  function toggleMic(fromLive) {
+    if (state.micActive || state.voiceMode) { stopVoiceMode(); return; }
+    if (fromLive && state.liveActive) {
+      startMic(true);
+      return;
+    }
+    startVoiceMode();
   }
 
   function toggleListen() {
-    if (state.liveVoice || state.micActive) {
-      stopMic();
-      updateToggleButtons();
-      setStatus('listening off');
+    if (state.voiceMode || state.micActive || state.liveVoice) {
+      stopVoiceMode();
       return;
     }
-    closeCap();
-    startMic(true);
-    if (!state.liveActive) openLive();
-    updateToggleButtons();
+    startVoiceMode();
   }
 
   function stopListening() {
-    stopMic();
-    updateToggleButtons();
-    setStatus('listening off');
+    stopVoiceMode();
   }
 
   function updateToggleButtons() {
     var live = document.querySelector('[data-va-tool="live"]');
     if (live) { live.classList.toggle('active', !!state.liveActive); live.setAttribute('aria-pressed', state.liveActive ? 'true' : 'false'); }
     var listen = document.querySelector('[data-va-tool="listen"]');
-    if (listen) { listen.classList.toggle('active', !!(state.liveVoice || state.micActive)); listen.setAttribute('aria-pressed', (state.liveVoice || state.micActive) ? 'true' : 'false'); }
+    var voiceOn = !!(state.voiceMode || state.liveVoice || state.micActive);
+    if (listen) { listen.classList.toggle('active', voiceOn); listen.setAttribute('aria-pressed', voiceOn ? 'true' : 'false'); }
+    var voice = document.querySelector('[data-va-tool="mic"]');
+    if (voice) { voice.classList.toggle('active', voiceOn); voice.setAttribute('aria-pressed', voiceOn ? 'true' : 'false'); }
     var speak = document.querySelector('[data-va-action="speak"]');
     if (speak) { speak.classList.toggle('active', !!state.autoSpeak); speak.setAttribute('aria-pressed', state.autoSpeak ? 'true' : 'false'); }
     var speakTool = document.querySelector('[data-va-tool="speak"]');
@@ -4761,49 +4889,107 @@ voidaiReassertSidebar();
   }
 
   function updateMicButtons() {
+    var on = !!(state.micActive || state.voiceMode);
     var buttons = document.querySelectorAll('[data-va-tool="mic"],[data-va-live="mic"],[data-va-action="mic"]');
     for (var i = 0; i < buttons.length; i++) {
-      buttons[i].style.color = state.micActive ? '#d9efe2' : '';
-      buttons[i].style.borderColor = state.micActive ? '#8fb7a0' : '';
-      buttons[i].classList.toggle('active', !!state.micActive);
-      buttons[i].setAttribute('aria-pressed', state.micActive ? 'true' : 'false');
+      buttons[i].style.color = on ? '#d9efe2' : '';
+      buttons[i].style.borderColor = on ? '#8fb7a0' : '';
+      buttons[i].classList.toggle('active', on);
+      buttons[i].setAttribute('aria-pressed', on ? 'true' : 'false');
     }
     updateToggleButtons();
   }
 
   function stopSpeak() {
+    speechToken++;
     try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) {}
   }
 
-  // Wrap TTS so live voice does not feed back into the microphone.
+  function speechChunks(text) {
+    var parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+    var chunks = [];
+    var buffer = '';
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i].trim();
+      if (!part) continue;
+      if (buffer && (buffer + ' ' + part).length > 260) {
+        chunks.push(buffer);
+        buffer = part;
+      } else {
+        buffer = buffer ? buffer + ' ' + part : part;
+      }
+    }
+    if (buffer) chunks.push(buffer);
+    return chunks;
+  }
+
+  // Wrap TTS so live/voice mode does not feed back into the microphone.
   window.voidaiSpeak = function (text) {
-    var wasLive = state.liveVoice;
+    var wasVoice = !!(state.liveVoice || state.voiceMode);
+    state.voiceSpeaking = true;
     stopMic(true);
+    stopSpeak();
+    var token = ++speechToken;
+    function resumeVoice() {
+      if (!wasVoice || !(state.liveActive || state.voiceMode)) return;
+      setTimeout(function () {
+        if (app.busy) { resumeVoice(); return; }
+        if (state.liveVoice || state.voiceMode) startMic(true);
+      }, 550);
+    }
     var clean = String(text == null ? '' : text)
       .replace(/```[\s\S]*?```/g, ' code block ')
       .replace(/[#*_`>]/g, '')
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 5000);
-    if (!clean) return;
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-      setStatus('text-to-speech unavailable');
+    if (!clean) {
+      state.voiceSpeaking = false;
+      resumeVoice();
       return;
     }
-    try { window.speechSynthesis.cancel(); } catch (e) {}
-    var u = new SpeechSynthesisUtterance(clean);
-    u.rate = 1.0;
-    u.pitch = 1.0;
-    u.onend = function () {
-      if (wasLive && state.liveActive && !app.busy) {
-        state.liveVoice = true;
-        window.voidaiLiveVoice = true;
-        setTimeout(function () { if (state.liveVoice && state.liveActive) startMic(true); }, 550);
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+      state.voiceSpeaking = false;
+      setStatus('text-to-speech unavailable');
+      resumeVoice();
+      return;
+    }
+    var chunks = speechChunks(clean);
+    var index = 0;
+    var voice = selectedVoice();
+    function speakNext() {
+      if (token !== speechToken) return;
+      if (index >= chunks.length) {
+        state.voiceSpeaking = false;
+        resumeVoice();
+        return;
       }
-    };
-    window.speechSynthesis.speak(u);
+      var u = new SpeechSynthesisUtterance(chunks[index++]);
+      if (voice) {
+        u.voice = voice;
+        u.lang = voice.lang || 'en-US';
+      }
+      u.rate = state.voiceRate;
+      u.pitch = 1.0;
+      u.onend = speakNext;
+      u.onerror = function () {
+        if (token !== speechToken) return;
+        state.voiceSpeaking = false;
+        resumeVoice();
+      };
+      try {
+        window.speechSynthesis.speak(u);
+      } catch (e) {
+        state.voiceSpeaking = false;
+        resumeVoice();
+      }
+    }
+    speakNext();
   };
-  window.voidaiStopSpeak = stopSpeak;
+  window.voidaiStopSpeak = function () {
+    state.voiceSpeaking = false;
+    stopSpeak();
+  };
 
   function readLast() {
     var nodes = app.els && app.els.messages ? app.els.messages.querySelectorAll('.msg.assistant .text') : [];

@@ -24,6 +24,13 @@ final class ViewController: UIViewController {
                 forMainFrameOnly: true
             )
         )
+        config.userContentController.addUserScript(
+            WKUserScript(
+                source: photoOnlySource(),
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
 
         webView = WKWebView(frame: view.bounds, configuration: config)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -68,6 +75,88 @@ final class ViewController: UIViewController {
         """
     }
 
+    private func photoOnlySource() -> String {
+        """
+        (function () {
+          if (!window.VoidAI || window.VoidAI.platform !== 'ios') return;
+          try {
+            var media = navigator.mediaDevices;
+            if (media && typeof media.getUserMedia === 'function') {
+              var original = media.getUserMedia.bind(media);
+              media.getUserMedia = function (constraints) {
+                if (constraints && constraints.video) {
+                  return Promise.reject(new DOMException(
+                    'Live camera is disabled on iOS. Use Take Photo.',
+                    'NotAllowedError'
+                  ));
+                }
+                return original(constraints);
+              };
+            }
+          } catch (e) {}
+          function usePhotoPicker(prompt) {
+            if (typeof window.voidaiAttachImage !== 'function') return false;
+            var text = prompt == null ? '' : String(prompt).trim();
+            if (text && window.voidaiApp && window.voidaiApp.els && window.voidaiApp.els.input) {
+              window.voidaiApp.els.input.value = text;
+            }
+            window.voidaiAttachImage(true);
+            return true;
+          }
+          window.addEventListener('click', function (event) {
+            var node = event.target;
+            while (node && node !== document) {
+              if (node.getAttribute) {
+                var tool = node.getAttribute('data-va-tool');
+                var action = node.getAttribute('data-va-action');
+                if (tool === 'camera' || action === 'camera' || action === 'live') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  usePhotoPicker();
+                  return;
+                }
+              }
+              node = node.parentNode;
+            }
+          }, true);
+          var originalCapture = window.voidaiCaptureCamera;
+          window.voidaiCaptureCamera = function () {
+            if (usePhotoPicker()) return true;
+            if (typeof originalCapture === 'function') return originalCapture.apply(this, arguments);
+            return false;
+          };
+          var originalLive = window.voidaiOpenLive;
+          window.voidaiOpenLive = function () {
+            if (usePhotoPicker()) return true;
+            if (typeof originalLive === 'function') return originalLive.apply(this, arguments);
+            return false;
+          };
+          var originalLook = window.voidaiLook;
+          window.voidaiLook = function (prompt) {
+            if (usePhotoPicker(prompt)) return true;
+            if (typeof originalLook === 'function') return originalLook.apply(this, arguments);
+            return false;
+          };
+          function adjust() {
+            var cam = document.querySelector('[data-va-tool="camera"]');
+            if (cam && cam.textContent !== 'PHOTO') {
+              cam.textContent = 'PHOTO';
+              cam.title = 'Take or choose a photo';
+            }
+            var live = document.querySelector('[data-va-action="live"]');
+            if (live) live.style.display = 'none';
+          }
+          if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', adjust);
+          else adjust();
+          setTimeout(adjust, 500);
+          setTimeout(adjust, 1500);
+          try {
+            new MutationObserver(adjust).observe(document.body, { childList: true, subtree: true });
+          } catch (e) {}
+        })();
+        """
+    }
+
     private func jsString(_ value: String) -> String {
         guard
             let data = try? JSONSerialization.data(withJSONObject: [value]),
@@ -90,6 +179,54 @@ final class ViewController: UIViewController {
         let email = jsString(AuthManager.shared.email)
         let name = jsString(AuthManager.shared.name)
         webView.evaluateJavaScript("window.onSignedIn && window.onSignedIn(\(email), \(name));", completionHandler: nil)
+    }
+
+    private func finishFilePicker(_ urls: [URL]?) {
+        let completion = filePickerCompletion
+        filePickerCompletion = nil
+        completion?(urls)
+    }
+
+    private func presentPhotoPicker() {
+        var config = PHPickerConfiguration(photoLibrary: .shared())
+        config.selectionLimit = 1
+        config.filter = .images
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    private func presentCameraPicker() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            finishFilePicker(nil)
+            return
+        }
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.mediaTypes = ["public.image"]
+        picker.cameraCaptureMode = .photo
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    private func writeTemporaryImage(_ image: UIImage) -> URL? {
+        guard let data = image.jpegData(compressionQuality: 0.85) else { return nil }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("jpg")
+        do {
+            try data.write(to: url, options: .atomic)
+            scheduleTemporaryFileCleanup(url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    private func scheduleTemporaryFileCleanup(_ url: URL) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 600) {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 }
 
@@ -138,12 +275,23 @@ extension ViewController: WKUIDelegate {
         completionHandler: @escaping ([URL]?) -> Void
     ) {
         filePickerCompletion = completionHandler
-        var config = PHPickerConfiguration(photoLibrary: .shared())
-        config.selectionLimit = 1
-        config.filter = .images
-        let picker = PHPickerViewController(configuration: config)
-        picker.delegate = self
-        present(picker, animated: true)
+        let chooser = UIAlertController(
+            title: "Add Image",
+            message: "Take a photo or choose one from your library.",
+            preferredStyle: .alert
+        )
+        let camera = UIAlertAction(title: "Take Photo", style: .default) { [weak self] _ in
+            self?.dismiss(animated: true) { self?.presentCameraPicker() }
+        }
+        camera.isEnabled = UIImagePickerController.isSourceTypeAvailable(.camera)
+        chooser.addAction(camera)
+        chooser.addAction(UIAlertAction(title: "Choose Photo", style: .default) { [weak self] _ in
+            self?.dismiss(animated: true) { self?.presentPhotoPicker() }
+        })
+        chooser.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.finishFilePicker(nil)
+        })
+        present(chooser, animated: true)
     }
 }
 
@@ -155,40 +303,34 @@ extension ViewController: PHPickerViewControllerDelegate {
             let provider = results.first?.itemProvider,
             provider.canLoadObject(ofClass: UIImage.self)
         else {
-            filePickerCompletion?(nil)
-            filePickerCompletion = nil
+            finishFilePicker(nil)
             return
         }
 
         provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
             guard let self = self else { return }
-            guard
-                let image = object as? UIImage,
-                let data = image.jpegData(compressionQuality: 0.85)
-            else {
-                DispatchQueue.main.async {
-                    self.filePickerCompletion?(nil)
-                    self.filePickerCompletion = nil
-                }
-                return
-            }
-
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("jpg")
-            do {
-                try data.write(to: url, options: .atomic)
-                DispatchQueue.main.async {
-                    self.filePickerCompletion?([url])
-                    self.filePickerCompletion = nil
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.filePickerCompletion?(nil)
-                    self.filePickerCompletion = nil
-                }
+            let url = (object as? UIImage).flatMap { self.writeTemporaryImage($0) }
+            DispatchQueue.main.async {
+                self.finishFilePicker(url.map { [$0] })
             }
         }
+    }
+}
+
+extension ViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true) { [weak self] in
+            self?.finishFilePicker(nil)
+        }
+    }
+
+    func imagePickerController(
+        _ picker: UIImagePickerController,
+        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+    ) {
+        picker.dismiss(animated: true)
+        let image = info[.originalImage] as? UIImage
+        finishFilePicker(image.flatMap { writeTemporaryImage($0) }.map { [$0] })
     }
 }
 
