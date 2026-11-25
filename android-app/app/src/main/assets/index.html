@@ -309,7 +309,7 @@ html, body {
 #gl-code:focus { border-color: #3f6874; }
 #gl-note { font-size: 8px; line-height: 1.5; color: #547078; }
 #gl-note b { color: #9ac3cf; font-weight: 500; }
-#gl-controls .gl-toggle.active { border-color: #67e8e8; color: #67e8e8; background: #0e2528; }
+#gl-controls .gl-toggle.active, #gl-controls .gl-dim.active { border-color: #67e8e8; color: #67e8e8; background: #0e2528; }
 #gl-controls .gl-toggle { min-width: 52px; }
 @media (max-width: 520px) {
   #gl-head { padding: 10px 12px 8px; }
@@ -318,6 +318,51 @@ html, body {
   #gl-code { height: 116px; font-size: 9px; }
   #gl-note { font-size: 8px; }
 }
+
+/* VOIDAI IMAGE MAKER — separate tab */
+#img-modal {
+  position: fixed; inset: 0; z-index: 2147483003;
+  background: rgba(0,0,0,0.985); display: none; align-items: stretch; justify-content: center;
+  font-family: ui-monospace, "SF Mono", monospace; color: #d8d8d8;
+}
+#img-modal.open { display: flex; }
+#img-panel {
+  width: 100%; max-width: 900px; height: 100%; display: flex; flex-direction: column;
+  background: #050505; padding-bottom: env(safe-area-inset-bottom);
+}
+#img-head {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 14px 10px; border-bottom: 1px solid #171717;
+}
+#img-kicker { font-size: 9px; letter-spacing: 0.22em; color: #666; }
+#img-title { font-size: 14px; letter-spacing: 0.06em; color: #f0f0f0; margin-top: 3px; }
+#img-close {
+  background: #111; border: 1px solid #333; color: #bbb; border-radius: 7px;
+  padding: 7px 10px; font: 10px ui-monospace, monospace; letter-spacing: 0.12em; cursor: pointer;
+}
+#img-stage {
+  position: relative; flex: 1; min-height: 230px; display: flex; align-items: center; justify-content: center;
+  background: #010101; overflow: hidden;
+}
+#img-result { display: none; max-width: 100%; max-height: 100%; object-fit: contain; }
+#img-empty { font-size: 10px; letter-spacing: 0.12em; color: #555; text-align: center; padding: 24px; line-height: 1.7; }
+#img-controls {
+  flex-shrink: 0; padding: 11px 14px 14px; border-top: 1px solid #171717;
+  display: flex; flex-direction: column; gap: 8px; max-height: 48%; overflow-y: auto;
+}
+#img-prompt {
+  width: 100%; box-sizing: border-box; background: #0b0b0b; border: 1px solid #292929;
+  border-radius: 7px; color: #eee; padding: 10px; font: 11px ui-monospace, monospace; outline: none;
+}
+#img-prompt:focus { border-color: #555; }
+#img-prompt::placeholder { color: #454545; }
+#img-model, #img-size, #img-seed {
+  background: #0b0b0b; border: 1px solid #292929; border-radius: 7px; color: #ddd;
+  padding: 8px; font: 10px ui-monospace, monospace; outline: none;
+}
+#img-seed { width: 76px; }
+#img-status { font-size: 9px; color: #777; line-height: 1.5; min-height: 12px; }
+#img-status.error { color: #e08a8a; }
 </style>
 </head>
 <body>
@@ -433,6 +478,12 @@ window.voidaiToggleSidebar = function() {
         <button id="gl-ai" class="sim-btn" type="button">AI BUILD</button>
       </div>
       <div class="sim-row">
+        <span class="sim-label">DIM</span>
+        <button id="gl-dim-3" class="sim-btn gl-dim active" type="button" data-gl-dim="3">3D</button>
+        <button id="gl-dim-4" class="sim-btn gl-dim" type="button" data-gl-dim="4">4D</button>
+        <button id="gl-dim-5" class="sim-btn gl-dim" type="button" data-gl-dim="5">5D</button>
+      </div>
+      <div class="sim-row">
         <span class="sim-label">TEMPLATE</span>
         <select id="gl-template">
           <option value="orbit">Orbit / N-body</option>
@@ -454,6 +505,36 @@ window.voidaiToggleSidebar = function() {
       </div>
       <textarea id="gl-code" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
       <div id="gl-note"><b>Sandbox:</b> local Three.js, no CDN, no network, no app data, cookies, or storage. Loops get a ~1.5s CPU budget and a heartbeat watchdog resets unresponsive frames; this is still best-effort, not a hard CPU sandbox. AI BUILD asks the builder model for code; edit it, RUN it, COPY it, or DOWNLOAD it. 4D/5D views are mathematical projections.</div>
+    </div>
+  </div>
+</div>
+
+<div id="img-modal" aria-hidden="true">
+  <div id="img-panel">
+    <div id="img-head">
+      <div><div id="img-kicker">VOIDAI IMAGE MAKER</div><div id="img-title">IMAGE STUDIO</div></div>
+      <button id="img-close" type="button">CLOSE</button>
+    </div>
+    <div id="img-stage">
+      <img id="img-result" alt="Generated image" />
+      <div id="img-empty">Describe an image, then tap GENERATE.<br />The maker stays a separate tab from Builder/Simulator.</div>
+    </div>
+    <div id="img-controls">
+      <input id="img-prompt" type="text" placeholder="describe an image: cybernetic owl, neon city, product shot" autocomplete="off" />
+      <div class="sim-row">
+        <span class="sim-label">MODEL</span>
+        <select id="img-model"><option value="flux">FLUX</option><option value="turbo">TURBO</option><option value="kontext">KONTEXT</option></select>
+        <span class="sim-label">SIZE</span>
+        <select id="img-size"><option value="1024x1024">1024²</option><option value="1024x768">1024×768</option><option value="768x1024">768×1024</option><option value="512x512">512²</option></select>
+        <span class="sim-label">SEED</span>
+        <input id="img-seed" type="number" min="0" step="1" placeholder="auto" />
+      </div>
+      <div class="sim-row">
+        <button id="img-generate" class="sim-btn" type="button">GENERATE</button>
+        <button id="img-download" class="sim-btn" type="button">DOWNLOAD</button>
+        <button id="img-copy" class="sim-btn" type="button">COPY PROMPT</button>
+      </div>
+      <div id="img-status">Image maker ready. Provider keys stay server-side.</div>
     </div>
   </div>
 </div>
@@ -690,6 +771,7 @@ window.voidaiToggleSidebar = function() {
     if (/\b(sync|refresh|rebalance)\b.*\b(state|brain|phb|mind|coherence|layers)\b/.test(low) || /\bsync now\b/.test(low)) return '/sync';
     if (/\b(recap|summari[sz]e|summary)\b.*\b(chat|conversation|session|last|that|answer|everything)\b/.test(low) || /^\s*recap\s*$/.test(low)) return '/recap';
 
+    if (/\b(image maker|image studio|images maker|image tab)\b/.test(low)) return '/images';
     if (/\b(generate|create|make|draw|render|show)\b.*\b(image|picture|illustration|art|logo)\b/.test(low) && !/\b(webgl|3d|scene|protein)\b/.test(low)) {
       var imagePrompt = text.replace(/^.*?\b(?:of|about|for)\b\s*/i, '').trim();
       return '/image ' + (imagePrompt || text);
@@ -745,7 +827,8 @@ window.voidaiToggleSidebar = function() {
         '- `/mode fast|deep|research|companion|ultra|coder|mini|github|predict|protein|builder`',
         '',
         '**Tools**',
-        '- `/image PROMPT` (alias `/img`, `/draw`) — generate an image',
+        '- `/images` — open the separate Image Maker tab',
+        '- `/image PROMPT` (alias `/img`, `/draw`) — generate an image in chat',
         '- `/fold SEQUENCE` — ESMFold structure prediction',
         '- `/design SEQUENCE | TARGET` — CPU protein design',
         '- `/protein` — benign protein-engineering mode',
@@ -783,6 +866,8 @@ window.voidaiToggleSidebar = function() {
 
     var simpleTools = {
       'builder': 'voidaiOpenBuilder',
+      'images': 'voidaiOpenImageMaker',
+      'image-maker': 'voidaiOpenImageMaker',
       'live': 'voidaiOpenLive', 'live-off': 'voidaiCloseLive',
       'astra': 'voidaiOpenLive',
       'camera': 'voidaiCaptureCamera', 'screen': 'voidaiCaptureScreen',
@@ -796,7 +881,8 @@ window.voidaiToggleSidebar = function() {
       var fn = window[simpleTools[command]];
       if (typeof fn === 'function') {
         var notes = {
-          'builder': 'Builder lab opened. Simulate an object or switch to 3D BUILD.',
+          'builder': 'Builder/SIM opened. Edit code, run the preview, or open SIM LAB.',
+          'images': 'Image Maker opened as a separate tab.',
           'live': 'Opening the live camera and microphone.',
           'live-off': 'Live camera closed.',
           'astra': 'Opening the live camera and microphone.',
@@ -1023,6 +1109,16 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
+    var imagesMatch = text.match(/^[@\/](?:images|imagemaker|image-maker)\b\s*([\s\S]*)$/i);
+    if (imagesMatch) {
+      if (typeof window.voidaiOpenImageMaker === 'function') {
+        window.voidaiOpenImageMaker(imagesMatch[1].trim());
+        status('image maker ready');
+      } else {
+        addMsg('assistant', '**Image maker error:** image studio failed to load.');
+      }
+      return;
+    }
     var imageMatch = text.match(/^[@\/](?:image|img|draw)\b\s*([\s\S]*)$/i);
     if (imageMatch) {
       var imagePrompt = imageMatch[1].trim();
@@ -2486,6 +2582,27 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function templateLabel(key) { return LABELS[key] || key.toUpperCase(); }
 
+  function dimForTemplate(key) { return key === 'penteract' ? 5 : (key === 'tesseract' ? 4 : 3); }
+
+  function setGLDimActive(dim) {
+    [3, 4, 5].forEach(function (d) {
+      var btn = el('gl-dim-' + d);
+      if (!btn) return;
+      var active = Number(d) === Number(dim);
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+  }
+
+  function chooseGLDim(dim) {
+    var key = dim === 5 ? 'penteract' : (dim === 4 ? 'tesseract' : 'orbit');
+    GL.template = key;
+    el('gl-template').value = key;
+    el('gl-code').value = codeFor(key, 0);
+    setGLDimActive(dim);
+    run();
+  }
+
   function guardLoops(code) {
     return String(code)
       .replace(/(\bfor\s*\([^)]*\)\s*\{)/g, '$1 window.__voidaiGuard();')
@@ -2669,6 +2786,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     GL.template = cfg.key;
     el('gl-template').value = cfg.key;
     el('gl-code').value = codeFor(cfg.key, cfg.count);
+    setGLDimActive(dimForTemplate(cfg.key));
     setStatus(aiPrompt ? 'VOIDAI is writing the scene…' : 'Starting sandboxed Three.js scene…', true);
     run();
     if (aiPrompt) setTimeout(function() { generateScene(aiPrompt); }, 120);
@@ -2697,6 +2815,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     modal.setAttribute('aria-hidden', 'true');
     frame.srcdoc = '';
     setStatus('Sandbox closed.', false);
+    if (window.voidaiToolClosed) window.voidaiToolClosed('builder');
   }
 
   function buildFromPrompt() {
@@ -2770,6 +2889,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
     el('gl-template').addEventListener('change', function() {
       el('gl-code').value = TEMPLATES[this.value] || TEMPLATES.orbit;
+      setGLDimActive(dimForTemplate(this.value));
+    });
+    [3, 4, 5].forEach(function (d) {
+      var btn = el('gl-dim-' + d);
+      if (btn) btn.addEventListener('click', function () { chooseGLDim(d); });
     });
     el('gl-copy').addEventListener('click', function() {
       var code = el('gl-code').value || '';
@@ -2797,6 +2921,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     el('gl-sim').addEventListener('click', function() {
       closeGL();
       if (typeof window.voidaiOpenSim === 'function') window.voidaiOpenSim('3d orbit objects');
+      if (window.voidaiToolOpened) window.voidaiToolOpened('builder', true);
     });
     el('gl-prompt').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') { e.preventDefault(); buildFromPrompt(); }
@@ -3255,7 +3380,7 @@ voidaiReassertSidebar();
     { id: 'github', label: 'GITHUB', desc: 'Repository-aware, minimal patches.' },
     { id: 'predict', label: 'PREDICT', desc: 'Falsifiable forecasts and indicators.' },
     { id: 'protein', label: 'PROTEIN', desc: 'Benign computational protein work.' },
-    { id: 'builder', label: 'BUILDER', desc: 'Specs, simulations, and bounded buildable code.' }
+    { id: 'builder', label: 'BUILDER/SIM', desc: 'Build, simulate objects, and run bounded code.' }
   ];
 
   var state = {
@@ -3267,7 +3392,9 @@ voidaiReassertSidebar();
     streamLabel: '',
     recognition: null,
     micActive: false,
-    capsLoaded: false
+    capsLoaded: false,
+    imgObjectUrl: '',
+    imgBusy: false
   };
 
   try {
@@ -3349,7 +3476,7 @@ voidaiReassertSidebar();
       '#voidai-astra-tools button:hover,#voidai-mode-chip:hover{color:#fff;border-color:#555;}',
       '#voidai-astra-tools button.active,.va-live-actions button.active{color:#d9efe2;border-color:#8fb7a0;background:#142117;}',
       '#voidai-astra-tools button[aria-pressed="true"],.va-live-actions button[aria-pressed="true"]{color:#d9efe2;border-color:#8fb7a0;background:#142117;}',
-      '#voidai-mode-chip{max-width:92px;appearance:none;}',
+      '#voidai-mode-chip{max-width:118px;appearance:none;}',
       '.va-modal{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ddd;}',
       '.va-modal.open{display:flex;}',
       '.va-panel{width:100%;max-width:720px;max-height:90vh;overflow:auto;background:#080808;border:1px solid #2a2a2a;border-radius:14px;box-shadow:0 20px 80px #000;}',
@@ -3391,12 +3518,12 @@ voidaiReassertSidebar();
     var tools = document.createElement('div');
     tools.id = 'voidai-astra-tools';
     tools.innerHTML = '<select id="voidai-mode-chip" aria-label="Reasoning mode">' + modeOptionsHtml() + '</select>' +
-      '<button type="button" data-va-tool="builder">BUILDER</button>' +
+      '<button type="button" data-va-tool="builder" aria-pressed="false">BUILDER/SIM</button>' +
+      '<button type="button" data-va-tool="images" aria-pressed="false">IMAGES</button>' +
       '<button type="button" data-va-tool="camera">CAM</button>' +
       '<button type="button" data-va-tool="mic">MIC</button>' +
       '<button type="button" data-va-tool="listen">LISTEN</button>' +
       '<button type="button" data-va-tool="read">READ</button>' +
-      '<button type="button" data-va-tool="image">IMAGE</button>' +
       '<button type="button" data-va-tool="speak">SPEAK</button>' +
       '<button type="button" data-va-tool="tools">TOOLS</button>';
     var dock = document.getElementById('dock');
@@ -3411,11 +3538,12 @@ voidaiReassertSidebar();
     cap.innerHTML = '<div class="va-panel">' +
       '<div class="va-head"><div><div class="va-kicker">VOIDAI ASTRA</div><div class="va-title">CAPABILITIES</div></div><button type="button" class="va-close" data-va-close="cap">CLOSE</button></div>' +
       '<div class="va-body">' +
-        '<p class="va-lede">Builder lab for simulations and 3D builds, camera/vision tools, screen and voice, 11 reasoning modes, PHB Human Agent v2, persistent memory, and every Worker tool. Provider keys stay server-side; this panel never displays a secret.</p>' +
+        '<p class="va-lede">Builder/Simulator tab for code, live preview, object physics, and 3D/4D/5D scenes; a separate Image Maker tab; camera/vision, screen and voice; 11 reasoning modes; PHB Human Agent v2; persistent memory; and every Worker tool. Provider keys stay server-side; this panel never displays a secret.</p>' +
         '<h3>REASONING MODES (11)</h3><div class="va-grid" id="va-modes">' + modeButtonsHtml() + '</div>' +
         '<h3>ASTRA ACTIONS</h3><div class="va-actions">' +
-          '<button type="button" data-va-action="builder">BUILDER LAB</button>' +
-          '<button type="button" data-va-action="live">LIVE CAMERA</button>' +
+          '<button type="button" data-va-action="builder">BUILDER/SIM</button>' +
+          '<button type="button" data-va-action="images">IMAGE MAKER</button>' +
+          '<button type="button" data-va-action="live">CAMERA / VISION</button>' +
           '<button type="button" data-va-action="image">ATTACH IMAGE</button>' +
           '<button type="button" data-va-action="camera">SNAP PHOTO</button>' +
           '<button type="button" data-va-action="screen">SHARE SCREEN</button>' +
@@ -3426,7 +3554,8 @@ voidaiReassertSidebar();
         '</div>' +
         '<h3>AI ROUTING</h3><pre class="va-pre" id="va-routing">PRIMARY: openai/gpt-oss-120b via Groq\nFALLBACKS: OpenRouter, Gemini\nVISION: Groq → OpenRouter → Gemini → Workers AI fallback\nCONSENSUS: multi-model adjudication in deep mode</pre>' +
         '<h3>PHB PERSONA</h3><div class="va-note" id="va-phb">Human Agent v2: six layers (coherence, reflex, working, circuit, intent, narrative), five circuits (curiosity, focus, openness, rigor, creativity), female she/her, 20-year-old perspective, casual-precise, steady and warm, non-romantic. Full system prompt remains in the Worker; this client does not rewrite it.</div>' +
-        '<h3>JUST ASK</h3><pre class="va-pre">“open the builder and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“open the camera and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /sim /webgl /live /image /sync</pre>' +
+        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Camera/vision · Screen share · Photo attach · Mic dictation · TTS/read · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
+        '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“open the camera and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /images /sim /webgl /live /image /sync</pre>' +
         '<div class="va-pre" id="va-cap-status" style="margin-top:12px">Capabilities not loaded yet.</div>' +
       '</div></div>';
     document.body.appendChild(cap);
@@ -3475,6 +3604,9 @@ voidaiReassertSidebar();
   function openBuilder(prompt) {
     closeCap();
     closeLive();
+    if (typeof closeImageMaker === 'function') closeImageMaker();
+    setToolActive('builder', true);
+    setToolActive('images', false);
     if (typeof window.voidaiCloseSim === 'function') window.voidaiCloseSim();
     if (typeof window.voidaiSetMode === 'function') window.voidaiSetMode('builder', false);
     var request = String(prompt || '').trim();
@@ -3508,6 +3640,7 @@ voidaiReassertSidebar();
 
   function runTool(name) {
     if (name === 'builder') return openBuilder();
+    if (name === 'images') return openImageMaker();
     if (name === 'live') return openLive();
     if (name === 'camera') return captureCamera();
     if (name === 'mic') return toggleMic(false);
@@ -3520,6 +3653,7 @@ voidaiReassertSidebar();
 
   function runAction(name) {
     if (name === 'builder') return openBuilder();
+    if (name === 'images') return openImageMaker();
     if (name === 'live') return openLive();
     if (name === 'image') return attachImage();
     if (name === 'camera') return captureCamera();
@@ -3564,6 +3698,9 @@ voidaiReassertSidebar();
 
   function openLive() {
     closeCap();
+    if (typeof closeImageMaker === 'function') closeImageMaker();
+    setToolActive('builder', false);
+    setToolActive('images', false);
     var modal = document.getElementById('voidai-live-modal');
     if (!modal) return;
     modal.classList.add('open');
@@ -3965,7 +4102,159 @@ voidaiReassertSidebar();
       });
   }
 
+  function setToolActive(name, active) {
+    var btn = document.querySelector('[data-va-tool="' + name + '"]');
+    if (!btn) return;
+    btn.classList.toggle('active', !!active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+
+  function imgStatus(text, isError) {
+    var el = document.getElementById('img-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  function openImageMaker(prompt) {
+    closeCap();
+    closeLive();
+    if (typeof window.voidaiCloseWebGL === 'function') window.voidaiCloseWebGL();
+    if (typeof window.voidaiCloseSim === 'function') window.voidaiCloseSim();
+    var modal = document.getElementById('img-modal');
+    if (!modal) return;
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+    var input = document.getElementById('img-prompt');
+    if (input && prompt) input.value = String(prompt);
+    setToolActive('images', true);
+    setToolActive('builder', false);
+    imgStatus('Image maker ready. Describe an image, choose a model/size/seed, then GENERATE.', false);
+    setStatus('image maker');
+    if (input) { try { input.focus(); } catch (e) {} }
+  }
+
+  function closeImageMaker() {
+    var modal = document.getElementById('img-modal');
+    if (modal) {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+    if (state.imgObjectUrl) {
+      try { URL.revokeObjectURL(state.imgObjectUrl); } catch (e) {}
+      state.imgObjectUrl = '';
+    }
+    var img = document.getElementById('img-result');
+    if (img) { img.removeAttribute('src'); img.style.display = 'none'; }
+    var empty = document.getElementById('img-empty');
+    if (empty) empty.style.display = '';
+    setToolActive('images', false);
+  }
+
+  function generateImageMaker() {
+    if (state.imgBusy) return;
+    var app = window.voidaiApp;
+    var input = document.getElementById('img-prompt');
+    var prompt = input ? input.value.trim() : '';
+    if (!prompt) { imgStatus('Describe the image first.', true); return; }
+    if (!app || !app.PROXY_URL || !app.VOIDAI_KEY) { imgStatus('VOIDAI app bridge is unavailable.', true); return; }
+    if (typeof app.PROXY_URL !== 'string') { imgStatus('Worker proxy is unavailable.', true); return; }
+    var modelEl = document.getElementById('img-model');
+    var sizeEl = document.getElementById('img-size');
+    var seedEl = document.getElementById('img-seed');
+    var dims = (sizeEl ? sizeEl.value : '1024x1024').split('x');
+    var width = parseInt(dims[0], 10) || 1024;
+    var height = parseInt(dims[1], 10) || 1024;
+    var body = {
+      prompt: prompt,
+      width: width,
+      height: height,
+      model: modelEl ? modelEl.value : 'flux'
+    };
+    var seedText = seedEl ? seedEl.value.trim() : '';
+    if (seedText !== '') body.seed = Math.max(0, Math.floor(Number(seedText) || 0));
+    state.imgBusy = true;
+    var btn = document.getElementById('img-generate');
+    if (btn) { btn.disabled = true; btn.textContent = 'GENERATING…'; }
+    imgStatus('Generating with ' + body.model + ' at ' + width + '×' + height + '…', false);
+    fetch(app.PROXY_URL + '/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function (raw) {
+          var message = 'HTTP ' + r.status;
+          try {
+            var d = raw ? JSON.parse(raw) : null;
+            message = (d && d.error && (d.error.message || d.error)) || message;
+          } catch (e) {}
+          throw new Error(message);
+        });
+      }
+      return r.blob();
+    }).then(function (blob) {
+      if (!blob || !blob.size) throw new Error('empty image');
+      if (state.imgObjectUrl) { try { URL.revokeObjectURL(state.imgObjectUrl); } catch (e) {} }
+      state.imgObjectUrl = URL.createObjectURL(blob);
+      var img = document.getElementById('img-result');
+      if (img) { img.src = state.imgObjectUrl; img.style.display = 'block'; }
+      var empty = document.getElementById('img-empty');
+      if (empty) empty.style.display = 'none';
+      imgStatus('Image ready. DOWNLOAD saves it locally.', false);
+    }).catch(function (e) {
+      imgStatus('Image generation failed: ' + (e.message || e), true);
+    }).then(function () {
+      state.imgBusy = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'GENERATE'; }
+    });
+  }
+
+  function downloadImageMaker() {
+    if (!state.imgObjectUrl) { imgStatus('Generate an image first.', true); return; }
+    var a = document.createElement('a');
+    a.href = state.imgObjectUrl;
+    a.download = 'voidai-image.jpg';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { a.remove(); }, 600);
+    imgStatus('Download started.', false);
+  }
+
+  function copyImagePrompt() {
+    var input = document.getElementById('img-prompt');
+    var text = input ? input.value : '';
+    if (!text) { imgStatus('No prompt to copy.', true); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { imgStatus('Prompt copied.', false); }).catch(function () { imgStatus('Copy failed; select the prompt manually.', true); });
+    } else {
+      input.select();
+      try { document.execCommand('copy'); imgStatus('Prompt copied.', false); } catch (e) { imgStatus('Copy failed; select the prompt manually.', true); }
+    }
+  }
+
+  function setupImageMaker() {
+    var close = document.getElementById('img-close');
+    if (close) close.addEventListener('click', closeImageMaker);
+    var gen = document.getElementById('img-generate');
+    if (gen) gen.addEventListener('click', generateImageMaker);
+    var dl = document.getElementById('img-download');
+    if (dl) dl.addEventListener('click', downloadImageMaker);
+    var cp = document.getElementById('img-copy');
+    if (cp) cp.addEventListener('click', copyImagePrompt);
+    var input = document.getElementById('img-prompt');
+    if (input) input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); generateImageMaker(); }
+    });
+  }
+
+  window.voidaiToolClosed = function (name) { setToolActive(name, false); };
+  window.voidaiToolOpened = function (name, active) { setToolActive(name, active !== false); };
+  window.voidaiOpenImageMaker = openImageMaker;
+  window.voidaiCloseImageMaker = closeImageMaker;
+  window.voidaiGenerateImageMaker = generateImageMaker;
+
   buildUi();
+  setupImageMaker();
 
   window.voidaiShowCapabilities = openCap;
   window.voidaiOpenBuilder = openBuilder;

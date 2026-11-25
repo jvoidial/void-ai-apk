@@ -19,9 +19,10 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Consensus reasoning — two models in parallel, adjudication on disagreement
 - Time & units — timezone clock, C-F, km-mi, kg-lb, m-ft
 - Image vision — attach a photo, downscaled on-device, analyzed through a Groq → OpenRouter → Gemini → Workers AI fallback chain
+- Image Maker tab — prompt, FLUX/TURBO/KONTEXT model, size, seed, preview, copy prompt, and download
 - Astra live layer — live camera preview, snap-and-ask vision, screen share, voice input, spoken replies, and a continuous voice loop
 - Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder
-- Builder lab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, and an N-D simulation workbench
+- Builder/Simulator tab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D scenes, and a linked N-D simulation workbench
 - PHB layers — coherence, reflex, working, circuit, intent, narrative
 - Sign-in — GitHub OAuth via Supabase (Android + iOS)
 - Storage — per-user files, RLS-isolated
@@ -29,7 +30,7 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 
 ### Astra-style live use
 
-Tap **LIVE** to open the camera. Ask a question in the box and tap **LOOK**, or tap
+Tap **CAM** to open the camera. Ask a question in the box and tap **LOOK**, or tap
 **VOICE** for a hands-free loop: VOIDAI captures the current frame, answers, and
 speaks the answer. **CAM** takes a photo, **MIC** dictates into the composer,
 **READ** speaks the last reply, and **TOOLS** opens the mode, routing, PHB, and

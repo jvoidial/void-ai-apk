@@ -146,7 +146,8 @@ does not prove persistence.
 
 ## N-D simulation workbench
 
-- `/builder` opens the editable Three.js code and live-preview builder.
+- `BUILDER/SIM` and `/builder` open the editable Three.js code and live-preview
+  builder. `/images` opens the separate Image Maker tab.
 - `/sim`, `/simulate`, and `/simulator` open the full-screen Canvas 2D workbench.
 - 3D scenes: orbit/N-body, Lorenz attractor, wave field, and particle cloud.
 - 4D/5D scenes: tesseract, penteract, N-D lattice, and N-D harmonic state curve.

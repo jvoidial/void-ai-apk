@@ -2016,8 +2016,7 @@ function visionResponse(text, model) {
 async function callGroqVision(visionBody, env) {
   if (!env.GROQ_API_KEY) return { ok: false, error: 'no groq key' };
   const models = visionModelCandidates(env.VISION_MODEL, [
-    'meta-llama/llama-4-maverick-17b-128e-instruct',
-    'meta-llama/llama-4-scout-17b-16e-instruct'
+    'meta-llama/llama-4-maverick-17b-128e-instruct'
   ]);
   const errors = [];
   for (const model of models) {

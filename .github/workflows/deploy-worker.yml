@@ -19,7 +19,7 @@ jobs:
       - name: Verify Worker source
         working-directory: cloudflare-worker
         run: |
-          test "$(sha256sum worker.js | awk '{print $1}')" = "edfec22e2904d29124b59413344e3b4575604a2f8ebf41f01187dcae7dc70911"
+          test "$(sha256sum worker.js | awk '{print $1}')" = "51bba6fa2d6d8099d013c9560ea46c3225850bfbb3acf9421b300a0190dee98c"
           node --check worker.js
 
       - name: Deploy
