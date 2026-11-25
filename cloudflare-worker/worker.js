@@ -438,6 +438,7 @@ async function pruneArchivedConversations(env, userId) {
     if (!Array.isArray(rows) || !rows.length) return;
     var seen = {};
     var kept = 0;
+    var cutoff = null;
     var remove = [];
     rows.forEach(function (row) {
       if (!row || row.id == null) return;
@@ -448,8 +449,12 @@ async function pruneArchivedConversations(env, userId) {
         return;
       }
       seen[kind] = true;
-      if (kept < MAX_ARCHIVE_CONVERSATIONS) kept++;
-      else remove.push(String(row.id));
+      if (kept < MAX_ARCHIVE_CONVERSATIONS) {
+        kept++;
+        cutoff = Number(row.weight) || 0;
+      } else {
+        remove.push(String(row.id));
+      }
     });
     for (var i = 0; i < remove.length; i += 40) {
       var ids = remove.slice(i, i + 40).filter(function (id) {
@@ -460,6 +465,13 @@ async function pruneArchivedConversations(env, userId) {
         method: 'DELETE',
         headers: { 'Prefer': 'return=minimal' }
       });
+    }
+    if (cutoff != null && cutoff > 0) {
+      await sbFetch(env,
+        '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+        '&kind=like.' + encodeURIComponent(CONVERSATION_KIND_PREFIX + '*') +
+        '&weight=lt.' + cutoff,
+        { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
     }
   } catch (e) {}
 }
