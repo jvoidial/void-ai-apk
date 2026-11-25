@@ -861,6 +861,45 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd')", html)
         self.assertNotIn("if (cfg.dim >= 4) {\n      // 4D/5D are mathematical projections", html)
 
+    def test_builder_routes_object_prompts_by_dimension(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+
+        sim_start = html.index("  function isSimSceneRequest(input)")
+        sim_end = html.index("  function parsePrompt(input)", sim_start)
+        sim_harness = html[sim_start:sim_end] + r"""
+process.stdout.write(JSON.stringify({
+  human: isSimSceneRequest("build a human"),
+  tesseract: isSimSceneRequest("4d tesseract"),
+  orbit: isSimSceneRequest("300 orbiting objects")
+}));
+"""
+        known_start = html.index("  function isKnownSceneRequest(input)")
+        known_end = html.index("  function codeFor(key, count)", known_start)
+        known_harness = html[known_start:known_end] + r"""
+process.stdout.write(JSON.stringify({
+  human: isKnownSceneRequest("build a human"),
+  objects: isKnownSceneRequest("60 bouncing objects"),
+  explicit4d: isExplicitNDTemplate("4d tesseract")
+}));
+"""
+        for harness, expected in (
+            (sim_harness, {"human": False, "tesseract": True, "orbit": True}),
+            (known_harness, {"human": False, "objects": True, "explicit4d": True}),
+        ):
+            with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+                fh.write(harness)
+                path = fh.name
+            try:
+                result = subprocess.run([node, path], check=True, text=True,
+                                        capture_output=True)
+                self.assertEqual(json.loads(result.stdout), expected)
+            finally:
+                os.unlink(path)
+
     def test_builder_normalizer_strips_imports_and_global_redeclarations(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()
