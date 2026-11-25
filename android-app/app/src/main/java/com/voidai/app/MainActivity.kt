@@ -50,6 +50,11 @@ class MainActivity : AppCompatActivity() {
         return text.take(500)
     }
 
+    private val SAFE_DATA_IMAGE = listOf(
+        "data:image/png", "data:image/jpeg", "data:image/jpg",
+        "data:image/gif", "data:image/webp"
+    )
+
     private lateinit var webView: WebView
     private var webPageReady = false
     private var pendingAuthError: String? = null
@@ -303,6 +308,10 @@ class MainActivity : AppCompatActivity() {
                         true
                     }
                 }
+                // Keep the app's local image/builder download paths working.
+                val raw = url.toString().lowercase()
+                if (scheme == "blob") return false
+                if (scheme == "data" && SAFE_DATA_IMAGE.any { raw.startsWith(it) }) return false
                 // Never let a remote or data document inherit the native JS bridge.
                 return true
             }

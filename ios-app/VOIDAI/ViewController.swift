@@ -210,6 +210,18 @@ extension ViewController: WKNavigationDelegate {
             decisionHandler(.allow)
             return
         }
+        if navigationAction.shouldPerformDownload {
+            decisionHandler(.allow)
+            return
+        }
+        let raw = url.absoluteString.lowercased()
+        if url.scheme == "blob" { decisionHandler(.allow); return }
+        if url.scheme == "data" &&
+            ["data:image/png", "data:image/jpeg", "data:image/jpg",
+             "data:image/gif", "data:image/webp"].contains(where: { raw.hasPrefix($0) }) {
+            decisionHandler(.allow)
+            return
+        }
         if url.scheme == "data" || url.scheme == "blob" {
             decisionHandler(.cancel)
             return

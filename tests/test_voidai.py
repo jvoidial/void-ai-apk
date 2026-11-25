@@ -616,6 +616,8 @@ class SecurityHardeningTests(unittest.TestCase):
         self.assertIn("shouldOverrideUrlLoading", activity)
         self.assertIn("WebResourceRequest", activity)
         self.assertIn("flowType = FlowType.PKCE", activity)
+        self.assertIn('if (scheme == "blob") return false', activity)
+        self.assertIn("SAFE_DATA_IMAGE", activity)
         self.assertNotIn("allowUniversalAccessFromFileURLs = true", activity)
         self.assertNotIn("sessionFromUrl", activity)
 
@@ -628,6 +630,8 @@ class SecurityHardeningTests(unittest.TestCase):
         self.assertNotIn("importSession(params", auth)
         self.assertIn("decidePolicyFor navigationAction", view)
         self.assertIn("UIApplication.shared.open", view)
+        self.assertIn("shouldPerformDownload", view)
+        self.assertIn("data:image/png", view)
 
     def test_worker_has_no_hardcoded_identity_fallback(self):
         worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
@@ -642,6 +646,25 @@ class SecurityHardeningTests(unittest.TestCase):
                                  "assets", "index.html"), encoding="utf-8").read()
         self.assertEqual(html.count('integrity="sha384-'), 5)
         self.assertEqual(html.count('crossorigin="anonymous"'), 5)
+
+    def test_feature_surfaces_remain_wired(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        modes = ["fast", "deep", "research", "companion", "ultra", "coder",
+                 "mini", "github", "predict", "protein", "builder"]
+        for mode in modes:
+            self.assertIn("'%s'" % mode, worker)
+        for marker in ["voidaiOpenBuilder", "voidaiOpenLive", "voidaiOpenImage",
+                       "voidaiGenerateWebGLScene", "downloadImageMaker",
+                       "voidaiToggleMic", "voidaiToggleListen", "voidaiReadLast",
+                       "voidaiCaptureCamera", "voidaiCaptureScreen",
+                       "voidaiShowCapabilities"]:
+            self.assertIn(marker, html)
+        for route in ["/image", "/vision", "/protein/fold", "/protein/design",
+                      "/brain", "/capabilities", "/diagnose"]:
+            self.assertIn("pathname === '%s'" % route, worker)
 
     def test_python_rejects_untrusted_llm_base_url(self):
         sys.path.insert(0, PY_SRC)
