@@ -1,6 +1,7 @@
 import AuthenticationServices
 import AVFoundation
 import PhotosUI
+import Speech
 import UIKit
 import WebKit
 
@@ -9,6 +10,13 @@ final class ViewController: UIViewController {
     private var filePickerCompletion: (([URL]?) -> Void)?
     private let speechSynth = AVSpeechSynthesizer()
     private var speechToken = ""
+    private let nativeSpeechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private var nativeRecognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var nativeRecognitionTask: SFSpeechRecognitionTask?
+    private let nativeAudioEngine = AVAudioEngine()
+    private var nativeSpeechListening = false
+    private var nativeSpeechRequested = false
+    private var nativeTapInstalled = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -60,6 +68,10 @@ final class ViewController: UIViewController {
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        nativeAudioEngine.stop()
+        nativeTapInstalled = false
+        nativeRecognitionTask?.cancel()
+        speechSynth.stopSpeaking(at: .immediate)
     }
 
     private func bridgeSource() -> String {
@@ -88,7 +100,15 @@ final class ViewController: UIViewController {
           stopSpeak: function() {
             window.webkit.messageHandlers.voidai.postMessage({action: 'stopSpeak'});
           },
-          isSpeaking: function() { return false; }
+          isSpeaking: function() { return false; },
+          isSpeechAvailable: function() { return \(nativeSpeechRecognizer?.isAvailable == true ? "true" : "false"); },
+          startListening: function() {
+            window.webkit.messageHandlers.voidai.postMessage({action: 'startListening'});
+            return true;
+          },
+          stopListening: function() {
+            window.webkit.messageHandlers.voidai.postMessage({action: 'stopListening'});
+          }
         };
         """
     }
@@ -173,6 +193,149 @@ final class ViewController: UIViewController {
           } catch (e) {}
         })();
         """
+    }
+
+    private func startNativeListening() {
+        guard !nativeSpeechListening else { return }
+        nativeSpeechRequested = true
+        guard let recognizer = nativeSpeechRecognizer, recognizer.isAvailable else {
+            notifyNativeSpeechError("speech recognition unavailable")
+            notifyNativeSpeechEnd()
+            return
+        }
+        let status = SFSpeechRecognizer.authorizationStatus()
+        if status == .authorized {
+            beginNativeRecognition(recognizer)
+        } else if status == .notDetermined {
+            SFSpeechRecognizer.requestAuthorization { [weak self] status in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    guard self.nativeSpeechRequested else { return }
+                    if status == .authorized {
+                        self.beginNativeRecognition(recognizer)
+                    } else {
+                        self.notifyNativeSpeechError("speech recognition permission denied")
+                        self.notifyNativeSpeechEnd()
+                    }
+                }
+            }
+        } else {
+            notifyNativeSpeechError("speech recognition permission denied")
+            notifyNativeSpeechEnd()
+        }
+    }
+
+    private func beginNativeRecognition(_ recognizer: SFSpeechRecognizer) {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
+
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = true
+            request.taskHint = .dictation
+            nativeRecognitionRequest = request
+
+            let input = nativeAudioEngine.inputNode
+            let format = input.outputFormat(forBus: 0)
+            guard format.channelCount > 0 else {
+                notifyNativeSpeechError("microphone input unavailable")
+                notifyNativeSpeechEnd()
+                return
+            }
+            input.removeTap(onBus: 0)
+            input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+                request.append(buffer)
+            }
+            nativeTapInstalled = true
+            nativeAudioEngine.prepare()
+            try nativeAudioEngine.start()
+            nativeSpeechListening = true
+
+            nativeRecognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                guard let self = self else { return }
+                DispatchQueue.main.async {
+                    if let result = result {
+                        let text = result.bestTranscription.formattedString
+                        if !text.isEmpty {
+                            self.notifyNativeSpeechResult(text, isFinal: result.isFinal)
+                        }
+                        if result.isFinal {
+                            self.finishNativeRecognition()
+                            return
+                        }
+                    }
+                    if let error = error, self.nativeSpeechListening {
+                        self.notifyNativeSpeechError(error.localizedDescription)
+                        self.finishNativeRecognition()
+                    }
+                }
+            }
+        } catch {
+            notifyNativeSpeechError(error.localizedDescription)
+            finishNativeRecognition()
+            notifyNativeSpeechEnd()
+        }
+    }
+
+    private func stopNativeListening() {
+        nativeSpeechRequested = false
+        guard nativeSpeechListening else { return }
+        nativeSpeechListening = false
+        nativeAudioEngine.stop()
+        if nativeTapInstalled {
+            nativeAudioEngine.inputNode.removeTap(onBus: 0)
+            nativeTapInstalled = false
+        }
+        nativeRecognitionRequest?.endAudio()
+        nativeRecognitionRequest = nil
+        nativeRecognitionTask?.cancel()
+        nativeRecognitionTask = nil
+    }
+
+    private func finishNativeRecognition() {
+        let wasListening = nativeSpeechListening
+        nativeSpeechListening = false
+        nativeSpeechRequested = false
+        nativeAudioEngine.stop()
+        if nativeTapInstalled {
+            nativeAudioEngine.inputNode.removeTap(onBus: 0)
+            nativeTapInstalled = false
+        }
+        nativeRecognitionRequest?.endAudio()
+        nativeRecognitionRequest = nil
+        nativeRecognitionTask?.cancel()
+        nativeRecognitionTask = nil
+        if wasListening { notifyNativeSpeechEnd() }
+    }
+
+    private func notifyNativeSpeechResult(_ text: String, isFinal: Bool) {
+        let quoted = jsString(text)
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript(
+                "window.voidaiNativeSpeechResult && window.voidaiNativeSpeechResult(\(quoted), \(isFinal));",
+                completionHandler: nil
+            )
+        }
+    }
+
+    private func notifyNativeSpeechError(_ message: String) {
+        let quoted = jsString(message)
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript(
+                "window.voidaiNativeSpeechError && window.voidaiNativeSpeechError(\(quoted));",
+                completionHandler: nil
+            )
+        }
+    }
+
+    private func notifyNativeSpeechEnd() {
+        DispatchQueue.main.async { [weak self] in
+            self?.webView.evaluateJavaScript(
+                "window.voidaiNativeSpeechEnd && window.voidaiNativeSpeechEnd();",
+                completionHandler: nil
+            )
+        }
     }
 
     private func speakNative(text: String, rate: Double, pitch: Double, token: String) {
@@ -351,6 +514,10 @@ extension ViewController: WKScriptMessageHandler {
         case "stopSpeak":
             speechToken = ""
             speechSynth.stopSpeaking(at: .immediate)
+        case "startListening":
+            startNativeListening()
+        case "stopListening":
+            stopNativeListening()
         default:
             break
         }

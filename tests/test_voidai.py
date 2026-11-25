@@ -882,8 +882,18 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("NSAllowsLocalNetworking", info)
         ios = open(os.path.join(ROOT, "ios-app", "VOIDAI", "ViewController.swift"),
                    encoding="utf-8").read()
+        android = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                    "java", "com", "voidai", "app", "MainActivity.kt"),
+                       encoding="utf-8").read()
         self.assertIn("requestMediaCapturePermissionFor", ios)
         self.assertIn("type == .microphone", ios)
+        self.assertIn("function startNativeMic(liveAuto)", html)
+        self.assertIn("function nativeSttBridge()", html)
+        self.assertIn("window.voidaiNativeSpeechResult", html)
+        self.assertIn("SpeechRecognizer.createSpeechRecognizer", android)
+        self.assertIn("fun startListening(): Boolean", android)
+        self.assertIn("SFSpeechRecognizer(locale:", ios)
+        self.assertIn("case \"startListening\":", ios)
 
     def test_voice_has_native_tts_fallback(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",

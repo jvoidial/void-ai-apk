@@ -8,6 +8,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Base64
@@ -45,6 +48,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : AppCompatActivity() {
 
+    companion object { private const val REQ_NATIVE_AUDIO = 7101 }
+
     private fun redact(value: Any?): String {
         var text = (value ?: "").toString()
         text = text.replace(Regex("(?i)([?#&](?:access_token|refresh_token|token|code|key|apikey)=)[^&\\s]+"), "${'$'}1[redacted]")
@@ -66,6 +71,9 @@ class MainActivity : AppCompatActivity() {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     private var ttsToken = ""
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var speechListening = false
+    private var pendingStartListening = false
 
     private val webPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -225,6 +233,37 @@ class MainActivity : AppCompatActivity() {
                 val sb = supabase ?: return ""
                 return sb.auth.currentUserOrNull()?.id ?: ""
             }
+
+            @JavascriptInterface
+            fun isSpeechAvailable(): Boolean {
+                return try { SpeechRecognizer.isRecognitionAvailable(this@MainActivity) } catch (_: Exception) { false }
+            }
+
+            @JavascriptInterface
+            fun startListening(): Boolean {
+                if (!isSpeechAvailable()) return false
+                if (ContextCompat.checkSelfPermission(
+                        this@MainActivity, Manifest.permission.RECORD_AUDIO
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    pendingStartListening = true
+                    runOnUiThread {
+                        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_NATIVE_AUDIO)
+                    }
+                    return true
+                }
+                runOnUiThread { startNativeListening() }
+                return true
+            }
+
+            @JavascriptInterface
+            fun stopListening() {
+                pendingStartListening = false
+                runOnUiThread { stopNativeListening() }
+            }
+
+            @JavascriptInterface
+            fun isListening(): Boolean = speechListening
 
             @JavascriptInterface
             fun speak(text: String, rate: Float, pitch: Float, token: String): Boolean {
@@ -394,6 +433,115 @@ class MainActivity : AppCompatActivity() {
         handleIntent(intent)
     }
 
+    private fun createNativeRecognizer(): SpeechRecognizer {
+        speechRecognizer?.destroy()
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                speechListening = false
+            }
+
+            override fun onError(error: Int) {
+                speechListening = false
+                when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH,
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> notifyNativeSpeechEnd()
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                        notifyNativeSpeechError("microphone permission denied")
+                    SpeechRecognizer.ERROR_NETWORK,
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+                        notifyNativeSpeechError("speech service network unavailable")
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
+                        notifyNativeSpeechError("speech recognizer busy")
+                    else -> notifyNativeSpeechError("speech recognition error $error")
+                }
+            }
+
+            override fun onResults(results: Bundle?) {
+                speechListening = false
+                val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()?.trim().orEmpty()
+                if (text.isNotEmpty()) notifyNativeSpeechResult(text, true)
+                notifyNativeSpeechEnd()
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()?.trim().orEmpty()
+                if (text.isNotEmpty()) notifyNativeSpeechResult(text, false)
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        speechRecognizer = recognizer
+        return recognizer
+    }
+
+    private fun startNativeListening() {
+        if (speechListening) return
+        if (ContextCompat.checkSelfPermission(
+                this, Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingStartListening = true
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQ_NATIVE_AUDIO)
+            return
+        }
+        try {
+            val recognizer = speechRecognizer ?: createNativeRecognizer()
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.US.toLanguageTag())
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+            }
+            speechListening = true
+            recognizer.startListening(intent)
+        } catch (e: Exception) {
+            speechListening = false
+            notifyNativeSpeechError(e.message ?: "speech recognizer unavailable")
+        }
+    }
+
+    private fun stopNativeListening() {
+        speechListening = false
+        try { speechRecognizer?.cancel() } catch (_: Exception) {}
+    }
+
+    private fun notifyNativeSpeechResult(text: String, isFinal: Boolean) {
+        runOnUiThread {
+            webView.evaluateJavascript(
+                "window.voidaiNativeSpeechResult && window.voidaiNativeSpeechResult(" +
+                    JSONObject.quote(text) + ", " + isFinal + ");",
+                null
+            )
+        }
+    }
+
+    private fun notifyNativeSpeechError(message: String) {
+        runOnUiThread {
+            webView.evaluateJavascript(
+                "window.voidaiNativeSpeechError && window.voidaiNativeSpeechError(" +
+                    JSONObject.quote(message) + ");",
+                null
+            )
+        }
+    }
+
+    private fun notifyNativeSpeechEnd() {
+        runOnUiThread {
+            webView.evaluateJavascript(
+                "window.voidaiNativeSpeechEnd && window.voidaiNativeSpeechEnd();",
+                null
+            )
+        }
+    }
+
     private fun initTts() {
         try {
             tts = TextToSpeech(this) { status ->
@@ -458,7 +606,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_NATIVE_AUDIO) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                if (pendingStartListening) {
+                    pendingStartListening = false
+                    startNativeListening()
+                }
+            } else {
+                pendingStartListening = false
+                notifyNativeSpeechError("microphone permission denied")
+                notifyNativeSpeechEnd()
+            }
+        }
+    }
+
     override fun onDestroy() {
+        try { speechRecognizer?.destroy() } catch (_: Exception) {}
+        speechRecognizer = null
+        speechListening = false
         try { tts?.stop(); tts?.shutdown() } catch (_: Exception) {}
         tts = null
         ttsReady = false

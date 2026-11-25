@@ -4196,6 +4196,7 @@ voidaiReassertSidebar();
     whisperAudio: null,
     whisperDiscard: false,
     whisperSession: 0,
+    nativeSpeechSession: 0,
     capsLoaded: false,
     imgObjectUrl: '',
     imgBusy: false,
@@ -4492,11 +4493,11 @@ voidaiReassertSidebar();
             '<option value="0.9">RATE 0.9</option><option value="1">RATE 1.0</option><option value="1.1">RATE 1.1</option>' +
           '</select>' +
         '</div>' +
-        '<h3>WHISPER LISTENING (OPTIONAL)</h3><div class="va-actions">' +
+        '<h3>WHISPER FALLBACK (OPTIONAL)</h3><div class="va-actions">' +
           '<input id="va-stt-url" class="va-select" type="url" placeholder="http://192.168.1.10:8002/listen" style="min-width:260px" />' +
           '<button type="button" data-va-action="save-stt">SAVE LISTEN URL</button>' +
         '</div>' +
-        '<div class="va-note">Empty = device speech recognition. Set a HTTPS or private-LAN Whisper endpoint to record audio and send it there instead.</div>' +
+        '<div class="va-note">On-device speech recognition works automatically when you tap VOICE or LISTEN. The Whisper URL is optional: set it only if you want recorded audio sent to your own Whisper service instead.</div>' +
         '<h3>ASTRA ACTIONS</h3><div class="va-actions">' +
           '<button type="button" data-va-action="builder">BUILDER/SIM</button>' +
           '<button type="button" data-va-action="images">IMAGE MAKER</button>' +
@@ -4509,7 +4510,7 @@ voidaiReassertSidebar();
         '</div>' +
         '<h3>AI ROUTING</h3><pre class="va-pre" id="va-routing">PRIMARY: openai/gpt-oss-120b via Groq\nFALLBACKS: OpenRouter, Gemini\nVISION: Groq → OpenRouter → Gemini → Workers AI fallback\nCONSENSUS: multi-model adjudication in deep mode</pre>' +
         '<h3>PHB PERSONA</h3><div class="va-note" id="va-phb">Human Agent v2: six layers (coherence, reflex, working, circuit, intent, narrative), five circuits (curiosity, focus, openness, rigor, creativity), female she/her, 20-year-old perspective, casual-precise, steady and warm, non-romantic. Full system prompt remains in the Worker; this client does not rewrite it.</div>' +
-        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Gallery photo vision · Photo attach · Two-way voice conversation · Mic dictation · Native TTS/read · Optional Whisper URL for recorded-audio transcription · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
+        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Gallery photo vision · Photo attach · Two-way voice conversation · Mic dictation · Native TTS/read · Built-in device speech recognition · Optional Whisper URL for recorded-audio transcription · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
         '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“attach a photo and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /build /images /sim /webgl /photo /image /sync</pre>' +
         '<div class="va-pre" id="va-cap-status" style="margin-top:12px">Capabilities not loaded yet.</div>' +
       '</div></div>';
@@ -4689,6 +4690,7 @@ voidaiReassertSidebar();
   function startMic(liveAuto) {
     if (state.voiceSpeaking) return;
     stopMic(true);
+    if (nativeSttBridge() && startNativeMic(liveAuto)) return;
     if (whisperReady()) {
       startWhisperMic(liveAuto);
       return;
@@ -4766,6 +4768,11 @@ voidaiReassertSidebar();
     state.recognition = null;
     state.micActive = false;
     state.whisperSession++;
+    state.nativeSpeechSession++;
+    try {
+      var nativeSpeech = nativeSttBridge();
+      if (nativeSpeech && typeof nativeSpeech.stopListening === 'function') nativeSpeech.stopListening();
+    } catch (e) {}
     if (!preserveLive) {
       state.liveVoice = false;
       window.voidaiLiveVoice = false;
@@ -4777,6 +4784,65 @@ voidaiReassertSidebar();
       cleanupWhisperAudio();
     }
     updateMicButtons();
+  }
+
+  function startNativeMic(liveAuto) {
+    var bridge = nativeSttBridge();
+    if (!bridge) return false;
+    var session = ++state.nativeSpeechSession;
+    var finalDelivered = false;
+    state.liveVoice = !!liveAuto;
+    window.voidaiLiveVoice = state.liveVoice;
+    state.micActive = true;
+    updateMicButtons();
+    window.voidaiNativeSpeechResult = function (text, isFinal) {
+      if (session !== state.nativeSpeechSession) return;
+      var clean = String(text || '').trim();
+      if (!clean) return;
+      if (app.els && app.els.input) app.els.input.value = clean;
+      setStatus('heard: ' + clean.slice(0, 80));
+      if (isFinal && liveAuto && (state.liveActive || state.voiceMode)) {
+        finalDelivered = true;
+        state.micActive = false;
+        updateMicButtons();
+        try { bridge.stopListening(); } catch (e) {}
+        if (app.els && app.els.send) app.send();
+      }
+    };
+    window.voidaiNativeSpeechError = function (message) {
+      if (session !== state.nativeSpeechSession) return;
+      var msg = String(message || 'speech error');
+      if (/no match|timeout|nothing|didn.t catch/i.test(msg)) {
+        setStatus("didn't catch that");
+        return;
+      }
+      if (/permission/i.test(msg)) {
+        setStatus('microphone permission denied', true);
+        if (state.voiceMode) stopVoiceMode();
+        return;
+      }
+      setStatus('voice: ' + msg, true);
+    };
+    window.voidaiNativeSpeechEnd = function () {
+      if (session !== state.nativeSpeechSession) return;
+      state.micActive = false;
+      updateMicButtons();
+      if (finalDelivered) return;
+      if (state.liveVoice && !state.voiceSpeaking && !app.busy && (state.liveActive || state.voiceMode)) {
+        setTimeout(function () {
+          if (session === state.nativeSpeechSession && state.liveVoice && !state.voiceSpeaking) startMic(true);
+        }, 500);
+      }
+    };
+    var started = true;
+    try { started = bridge.startListening(); } catch (e) { started = false; }
+    if (started === false) {
+      state.micActive = false;
+      updateMicButtons();
+      return false;
+    }
+    setStatus(liveAuto ? (state.voiceMode ? 'voice mode · listening' : 'voice live · speak') : 'listening…');
+    return true;
   }
 
   function cleanupWhisperAudio() {
@@ -4959,7 +5025,7 @@ voidaiReassertSidebar();
   }
 
   function startVoiceMode() {
-    if (!speechCtor() && !whisperReady()) {
+    if (!speechCtor() && !whisperReady() && !nativeSttBridge()) {
       setStatus('voice input unavailable — set a Whisper URL or use the keyboard');
       return false;
     }
@@ -5035,6 +5101,16 @@ voidaiReassertSidebar();
     var bridge = (typeof window.Android !== 'undefined' && window.Android) ||
       (typeof window.VoidAI !== 'undefined' && window.VoidAI) || null;
     return bridge && typeof bridge.speak === 'function' ? bridge : null;
+  }
+
+  function nativeSttBridge() {
+    var bridge = (typeof window.Android !== 'undefined' && window.Android) ||
+      (typeof window.VoidAI !== 'undefined' && window.VoidAI) || null;
+    if (!bridge || typeof bridge.startListening !== 'function') return null;
+    try {
+      if (typeof bridge.isSpeechAvailable === 'function' && !bridge.isSpeechAvailable()) return null;
+    } catch (e) { return null; }
+    return bridge;
   }
 
   function stopSpeak() {
