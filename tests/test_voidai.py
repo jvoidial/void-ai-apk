@@ -861,6 +861,16 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd')", html)
         self.assertNotIn("if (cfg.dim >= 4) {\n      // 4D/5D are mathematical projections", html)
 
+    def test_worker_predict_mode_has_provider_fallback(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        self.assertIn("async function callWorkersText", worker)
+        self.assertIn("if (env.AI)", worker)
+        self.assertIn("mode === 'predict' || mode === 'protein'", worker)
+        self.assertIn("callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts)", worker)
+        self.assertIn("empty_upstream", worker)
+        self.assertIn("detail: String(emptyDetail)", worker)
+
     def test_whisper_listening_path_and_service(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()

@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.5.2';
+const WORKER_VERSION = '3.5.3';
 const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
@@ -841,17 +841,53 @@ async function callGroqWithRetry(env, messages, model, opts) {
 
 async function callGroqAuto(env, messages, model, opts) {
   var result = await callGroqWithRetry(env, messages, model, opts);
-  if (result.ok) return result;
+  if (result.ok && extractContent(result)) return result;
   if (env.OPENROUTER_API_KEY) {
     try {
       var orResult = await callOpenRouter(messages, env, 'openai/gpt-oss-120b', opts);
-      if (orResult.ok && orResult.text && orResult.text.trim()) return orResult;
+      if (orResult.ok && extractContent(orResult)) return orResult;
     } catch (e) {}
   }
   if (env.GEMINI_API_KEY) {
-    return await callGemini(messages, env);
+    try {
+      var gem = await callGemini(messages, env);
+      if (gem && gem.ok && extractContent(gem)) return gem;
+    } catch (e) {}
+  }
+  if (env.AI) {
+    try {
+      var wa = await callWorkersText(messages, env, opts);
+      if (wa && wa.ok && extractContent(wa)) return wa;
+    } catch (e) {}
   }
   return result;
+}
+
+async function callWorkersText(messages, env, opts) {
+  opts = opts || {};
+  var models = ['@cf/meta/llama-3.1-8b-instruct', '@cf/meta/llama-3.3-70b-instruct-fp8-fast'];
+  var errors = [];
+  for (var i = 0; i < models.length; i++) {
+    try {
+      var result = await env.AI.run(models[i], {
+        messages: messages,
+        max_tokens: Math.min(opts.maxTokens || 4096, 4096),
+        temperature: opts.temperature != null ? opts.temperature : 0.5
+      });
+      var text = result && (result.response || result.text || result.result);
+      if (text && String(text).trim()) {
+        return {
+          ok: true,
+          status: 200,
+          text: JSON.stringify({ choices: [{ message: { role: 'assistant', content: String(text) } }], model: models[i] })
+        };
+      }
+      errors.push(models[i] + ': empty response');
+    } catch (e) {
+      errors.push(models[i] + ': ' + (e.message || String(e)));
+    }
+  }
+  return { ok: false, status: 502, text: JSON.stringify({ error: { message: errors.join(' | ') } }) };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3422,7 +3458,7 @@ export default {
         result = await callGroq(finalMessages, env, callOpts);
       }
     } else if (mode === 'predict' || mode === 'protein') {
-      result = await callGroq(finalMessages, env, callOpts);
+      result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else if (totalChars > VOIDAI_CHUNK_THRESHOLD) {
       result = await callGroqChunked(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else {
@@ -3430,7 +3466,13 @@ export default {
     }
 
     if (!result || !result.ok || typeof result.text !== 'string' || !result.text.trim()) {
-      return json({ error: { message: 'upstream returned an empty response', code: 'empty_upstream', retryable: true } }, 502);
+      var emptyDetail = result ? redactSecrets(briefProviderError(result.text, result.status), env) : 'no provider result';
+      return json({ error: {
+        message: 'upstream returned an empty response',
+        code: 'empty_upstream',
+        retryable: true,
+        detail: String(emptyDetail).slice(0, 300)
+      } }, 502);
     }
 
     if (resultSources.length > 0) {
@@ -3444,7 +3486,7 @@ export default {
     } catch (e) {}
 
     if (!assistantText || !String(assistantText).trim()) {
-      return json({ error: { message: 'upstream returned no message content', code: 'empty_message', retryable: true } }, 502);
+      return json({ error: { message: 'upstream returned no message content', code: 'empty_message', retryable: true, detail: redactSecrets(String(result.text || '').slice(0, 300), env) } }, 502);
     }
 
     ctx.waitUntil(
