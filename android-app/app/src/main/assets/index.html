@@ -1551,12 +1551,6 @@ window.voidaiToggleSidebar = function() {
     return nativeBridge() !== null;
   }
 
-  function rememberUser(email) {
-    var id = String(email || '').trim().toLowerCase();
-    if (!id) return;
-    try { localStorage.setItem(USER_KEY, id); } catch(e) {}
-  }
-
   function currentUserId() {
     var nativeId = '';
     var email = '';
@@ -1624,7 +1618,6 @@ window.voidaiToggleSidebar = function() {
   };
 
   window.onSignedIn = function(email, name) {
-    rememberUser(email);
     if (typeof window.voidaiAdoptAccount === 'function') {
       try { window.voidaiAdoptAccount(email); } catch(e) {}
     }
@@ -1673,7 +1666,6 @@ window.voidaiToggleSidebar = function() {
       try {
         var e = typeof bridge.getCurrentUser === 'function' ? bridge.getCurrentUser() : '';
         var n = typeof bridge.getUserName === 'function' ? bridge.getUserName() : '';
-        rememberUser(e || '');
         if (e && typeof window.voidaiAdoptAccount === 'function') {
           try { window.voidaiAdoptAccount(e); } catch(err2) {}
         }
@@ -3144,10 +3136,7 @@ window.voidaiAdoptAccount = function(email) {
     if (msgs) msgs.innerHTML = '';
     if (typeof voidaiRenderConvs === 'function') voidaiRenderConvs();
   }
-  try {
-    localStorage.setItem('voidai_owner', id);
-    localStorage.setItem('voidai_user_id', id);
-  } catch(e) {}
+  try { localStorage.setItem('voidai_owner', id); } catch(e) {}
   return changed;
 };
 
