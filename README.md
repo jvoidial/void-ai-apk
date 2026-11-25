@@ -20,7 +20,7 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Time & units — timezone clock, C-F, km-mi, kg-lb, m-ft
 - Image vision — attach a photo, downscaled on-device, analyzed through a Groq → OpenRouter → Gemini → Workers AI fallback chain
 - Image Maker tab — prompt, FLUX/TURBO/KONTEXT model, size, seed, preview, copy prompt, and download
-- Astra live layer — live camera preview, snap-and-ask vision, screen share, voice input, spoken replies, and a continuous voice loop
+- Astra media layer — gallery photo vision, voice input, spoken replies, and a continuous voice loop
 - Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder/simulator
 - Conversation history — saved chats, switch, delete, restore after reload, clear, and per-turn persistence including errors and tool commands
 - Builder/Simulator tab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D scenes, and a linked N-D simulation workbench
@@ -118,7 +118,7 @@ Run the tests:
 ## iOS unsigned IPA
 
 `ios-app/` is a WKWebView clone that reuses the same `index.html`. It supports
-image attachment, live camera/voice when the installed iOS runtime allows it,
+image attachment, gallery photo vision, and two-way voice when the installed iOS runtime allows it,
 and Supabase GitHub sign-in through `ASWebAuthenticationSession`.
 
     brew install xcodegen

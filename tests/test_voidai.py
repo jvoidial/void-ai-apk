@@ -733,7 +733,7 @@ class SecurityHardeningTests(unittest.TestCase):
         self.assertIn("const MAX_TOTAL_CHARS = 180000;", worker)
         self.assertIn("code: 'empty_upstream'", worker)
 
-    def test_ios_camera_is_still_photo_only_and_voice_is_two_way(self):
+    def test_ios_photo_is_gallery_only_and_voice_is_two_way(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()
         swift = open(os.path.join(ROOT, "ios-app", "VOIDAI", "ViewController.swift"),
@@ -743,15 +743,30 @@ class SecurityHardeningTests(unittest.TestCase):
         readme = open(os.path.join(ROOT, "ios-app", "README.md"),
                       encoding="utf-8").read()
 
-        self.assertIn("UIImagePickerController", swift)
-        self.assertIn("cameraCaptureMode = .photo", swift)
-        self.assertIn("Take Photo", swift)
+        self.assertIn("PHPickerViewController", swift)
+        self.assertIn("presentPhotoPicker", swift)
+        self.assertIn("voidaiAttachImage(false)", swift)
+        self.assertNotIn("UIImagePickerController", swift)
         self.assertIn("Live camera is disabled on iOS", swift)
         self.assertIn("getUserMedia", swift)
         self.assertNotIn("AVCaptureSession", swift)
         self.assertIn("camera is never used for live video", readme)
+        self.assertNotIn("NSCameraUsageDescription", plist)
+        self.assertIn("NSPhotoLibraryUsageDescription", plist)
         self.assertIn("NSSpeechRecognitionUsageDescription", plist)
-        self.assertIn("still image", plist)
+        self.assertNotIn('data-va-action="live"', html)
+        self.assertNotIn('data-va-action="screen"', html)
+        self.assertNotIn("VOIDAI LIVE", html)
+        self.assertNotIn("data-va-live", html)
+        self.assertIn("voidaiAttachImage(false)", html)
+        manifest = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                     "AndroidManifest.xml"), encoding="utf-8").read()
+        activity = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                     "java", "com", "voidai", "app", "MainActivity.kt"),
+                        encoding="utf-8").read()
+        self.assertNotIn("android.permission.CAMERA", manifest)
+        self.assertNotIn("RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA", activity)
+        self.assertIn("request.deny()", activity)
 
         self.assertIn("voiceMode: false", html)
         self.assertIn("voiceSpeaking: false", html)

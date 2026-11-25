@@ -69,7 +69,6 @@ class MainActivity : AppCompatActivity() {
         if (request == null) return@registerForActivityResult
         val allGranted = request.resources.all { resource ->
             val permission = when (resource) {
-                PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
                 PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
                 else -> null
             }
@@ -255,11 +254,11 @@ class MainActivity : AppCompatActivity() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 if (request == null) return
                 runOnUiThread {
-                    val needed = mutableListOf<String>()
-                    if (request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE) &&
-                        ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                        needed.add(Manifest.permission.CAMERA)
+                    if (request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) {
+                        request.deny()
+                        return@runOnUiThread
                     }
+                    val needed = mutableListOf<String>()
                     if (request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) &&
                         ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                         needed.add(Manifest.permission.RECORD_AUDIO)

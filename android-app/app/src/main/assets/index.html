@@ -928,7 +928,7 @@ window.voidaiToggleSidebar = function() {
       var helpLines = [
         '**VOIDAI — just ask**',
         'No command syntax is required. Try:',
-        '- “open the camera and describe what you see”',
+        '- “attach a photo and describe what you see”',
         '- “read that back” / “stop speaking”',
         '- “turn off the mic” / “start listening”',
         '- “turn on auto-speak” / “attach an image”',
@@ -940,10 +940,9 @@ window.voidaiToggleSidebar = function() {
         '',
         '**Optional commands**',
         '',
-        '**Astra live tools**',
-        '- `/live` or `/astra` — live camera + voice',
-        '- `/camera` or `/look PROMPT` — capture and analyze a photo',
-        '- `/screen` — share a screen or window and analyze it',
+        '**Astra photo tools**',
+        '- `/live`, `/astra`, or `/photo` — gallery photo and voice',
+        '- `/camera` or `/look PROMPT` — take or choose a still photo and analyze it',
         '- `/voice` or `/mic` — dictate into the composer',
         '- `/read` — read the last reply aloud',
         '- `/tools` or `/capabilities` — modes, routing, PHB, and abilities',
@@ -1003,7 +1002,7 @@ window.voidaiToggleSidebar = function() {
       'images': 'voidaiOpenImageMaker',
       'image-maker': 'voidaiOpenImageMaker',
       'live': 'voidaiOpenLive', 'live-off': 'voidaiCloseLive',
-      'astra': 'voidaiOpenLive',
+      'astra': 'voidaiOpenLive', 'photo': 'voidaiCaptureCamera',
       'camera': 'voidaiCaptureCamera', 'screen': 'voidaiCaptureScreen',
       'voice': 'voidaiToggleMic', 'mic': 'voidaiToggleMic',
       'read': 'voidaiReadLast', 'capabilities': 'voidaiShowCapabilities',
@@ -1017,11 +1016,12 @@ window.voidaiToggleSidebar = function() {
         var notes = {
           'builder': 'Builder/SIM opened. Edit code, run the preview, or open SIM LAB.',
           'images': 'Image Maker opened as a separate tab.',
-          'live': 'Opening the live camera and microphone.',
-          'live-off': 'Live camera closed.',
-          'astra': 'Opening the live camera and microphone.',
-          'camera': 'Capturing a photo for vision analysis.',
-          'screen': 'Choose a screen or window to share.',
+          'live': 'Opening the photo gallery.',
+          'live-off': 'Photo capture closed.',
+          'astra': 'Opening the photo gallery.',
+          'photo': 'Opening the photo gallery.',
+          'camera': 'Choose a photo for vision analysis.',
+          'screen': 'Screen share is disabled.',
           'voice': 'Microphone toggled.',
           'mic': 'Microphone toggled.',
           'listen': 'Live listening toggled.',
@@ -1050,12 +1050,12 @@ window.voidaiToggleSidebar = function() {
       addMsg('user', shownText);
       if (typeof window.voidaiLook === 'function') {
         window.voidaiLook(lookCmd[1].trim());
-        var lookNote = 'Camera requested. Describe what you see next.';
+        var lookNote = 'Photo picker requested. Choose an image from the gallery, then describe what you see.';
         addMsg('assistant', lookNote);
         recordTurn(historyText, lookNote);
-        status('camera requested');
+        status('photo capture requested');
       } else {
-        var camErr = '**Camera error:** live vision failed to load.';
+        var camErr = '**Photo error:** gallery picker failed to load.';
         addMsg('assistant', camErr);
         recordTurn(historyText, camErr);
       }
@@ -4104,7 +4104,7 @@ voidaiReassertSidebar();
 </script>
 
 <script>
-// VOIDAI ASTRA LAYER — live vision, voice, modes, capabilities
+// VOIDAI ASTRA LAYER — photo vision, voice, modes, capabilities
 // Keeps the Worker's PHB persona, provider routing, and keys intact.
 (function () {
   'use strict';
@@ -4167,8 +4167,6 @@ voidaiReassertSidebar();
 
   function setStatus(text) {
     if (app.status) app.status(text);
-    var el = document.getElementById('voidai-live-status');
-    if (el) el.textContent = text || '';
   }
 
   function addMsg(role, text) {
@@ -4338,21 +4336,8 @@ voidaiReassertSidebar();
       '.va-actions button:hover{color:#fff;border-color:#666;}',
       '.va-pre{white-space:pre-wrap;word-break:break-word;background:#0d0d0d;border:1px solid #1c1c1c;border-radius:8px;padding:10px;color:#bdbdbd;font:11px/1.55 ui-monospace,monospace;margin:0;}',
       '.va-note{color:#888;font-size:11px;line-height:1.6;border-left:2px solid #333;padding-left:10px;}',
-      '#voidai-live-modal{position:fixed;inset:0;z-index:2147483002;background:#000;display:none;overflow:hidden;font-family:ui-monospace,monospace;color:#eee;}',
-      '#voidai-live-modal.open{display:block;}',
-      '#voidai-live-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}',
-      '.va-live-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.75),transparent 26%,transparent 58%,rgba(0,0,0,.86));pointer-events:none;}',
-      '.va-live-top{position:absolute;top:0;left:0;right:0;padding:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}',
-      '.va-live-title{font-size:10px;letter-spacing:.18em;color:#9fcdb0;background:rgba(0,0,0,.5);border:1px solid rgba(143,183,160,.35);border-radius:7px;padding:7px 10px;}',
-      '.va-live-status{font-size:10px;color:#ccc;background:rgba(0,0,0,.55);border:1px solid #333;border-radius:7px;padding:7px 10px;}',
-      '.va-live-bottom{position:absolute;left:0;right:0;bottom:0;padding:16px 16px 26px;display:flex;flex-direction:column;gap:9px;}',
-      '#voidai-live-reply{max-height:32vh;overflow:auto;white-space:pre-wrap;font:12px/1.55 ui-monospace,monospace;color:#e6e6e6;text-shadow:0 1px 7px #000;background:rgba(0,0,0,.45);border-radius:8px;padding:8px 10px;display:none;}',
-      '#voidai-live-prompt{width:100%;box-sizing:border-box;background:rgba(0,0,0,.62);border:1px solid #444;border-radius:10px;color:#fff;padding:12px 14px;font:12px ui-monospace,monospace;outline:none;}',
-      '#voidai-live-prompt::placeholder{color:#777;}',
-      '.va-live-actions{display:flex;gap:8px;flex-wrap:wrap;}',
-      '.va-live-actions button{flex:1;min-width:74px;border:1px solid #444;background:rgba(0,0,0,.55);color:#eee;border-radius:10px;padding:11px 8px;font:10px ui-monospace,monospace;letter-spacing:.1em;cursor:pointer;}',
-      '.va-live-actions button:hover{border-color:#aaa;}',
-      '@media (max-width:520px){.va-panel{max-height:94vh}.va-live-bottom{padding-bottom:18px}}'
+      '@media (max-width:520px){.va-panel{max-height:94vh}}'
+
     ].join('');
     document.head.appendChild(style);
 
@@ -4363,7 +4348,7 @@ voidaiReassertSidebar();
       '<button type="button" data-va-tool="builder" aria-pressed="false">BUILDER/SIM</button>' +
       '<button type="button" data-va-tool="images" aria-pressed="false">IMAGES</button>' +
       '<button type="button" data-va-tool="protein" aria-pressed="false">PROTEIN</button>' +
-      '<button type="button" data-va-tool="camera">CAM</button>' +
+      '<button type="button" data-va-tool="camera" title="Choose a photo from the gallery">PHOTO</button>' +
       '<button type="button" data-va-tool="mic" title="Two-way voice conversation">VOICE</button>' +
       '<button type="button" data-va-tool="listen" title="Hands-free voice conversation">LISTEN</button>' +
       '<button type="button" data-va-tool="read">READ</button>' +
@@ -4381,7 +4366,7 @@ voidaiReassertSidebar();
     cap.innerHTML = '<div class="va-panel">' +
       '<div class="va-head"><div><div class="va-kicker">VOIDAI ASTRA</div><div class="va-title">CAPABILITIES</div></div><button type="button" class="va-close" data-va-close="cap">CLOSE</button></div>' +
       '<div class="va-body">' +
-        '<p class="va-lede">Builder/Simulator tab for code, live preview, object physics, and 3D/4D/5D scenes; separate Image and Protein Studio tabs; camera/vision, screen and voice; 11 reasoning modes; PHB Human Agent v2; persistent memory; and every Worker tool. Protein Studio uses model reasoning and local WebGL only, not a specialized biology model. Provider keys stay server-side; this panel never displays a secret.</p>' +
+        '<p class="va-lede">Builder/Simulator tab for code, live preview, object physics, and 3D/4D/5D scenes; separate Image and Protein Studio tabs; gallery photo vision and two-way voice; 11 reasoning modes; PHB Human Agent v2; persistent memory; and every Worker tool. Protein Studio uses model reasoning and local WebGL only, not a specialized biology model. Provider keys stay server-side; this panel never displays a secret.</p>' +
         '<h3>REASONING MODES (11)</h3><div class="va-grid" id="va-modes">' + modeButtonsHtml() + '</div>' +
         '<h3>AI VOICE</h3><div class="va-actions">' +
           '<select id="va-voice-select" class="va-select" aria-label="AI voice"><option value="">System default</option></select>' +
@@ -4393,10 +4378,7 @@ voidaiReassertSidebar();
           '<button type="button" data-va-action="builder">BUILDER/SIM</button>' +
           '<button type="button" data-va-action="images">IMAGE MAKER</button>' +
           '<button type="button" data-va-action="protein">PROTEIN STUDIO</button>' +
-          '<button type="button" data-va-action="live">CAMERA / VISION</button>' +
           '<button type="button" data-va-action="image">ATTACH IMAGE</button>' +
-          '<button type="button" data-va-action="camera">SNAP PHOTO</button>' +
-          '<button type="button" data-va-action="screen">SHARE SCREEN</button>' +
           '<button type="button" data-va-action="mic">VOICE MODE</button>' +
           '<button type="button" data-va-action="read">READ LAST</button>' +
           '<button type="button" data-va-action="speak">AUTO-SPEAK: ON</button>' +
@@ -4404,30 +4386,12 @@ voidaiReassertSidebar();
         '</div>' +
         '<h3>AI ROUTING</h3><pre class="va-pre" id="va-routing">PRIMARY: openai/gpt-oss-120b via Groq\nFALLBACKS: OpenRouter, Gemini\nVISION: Groq → OpenRouter → Gemini → Workers AI fallback\nCONSENSUS: multi-model adjudication in deep mode</pre>' +
         '<h3>PHB PERSONA</h3><div class="va-note" id="va-phb">Human Agent v2: six layers (coherence, reflex, working, circuit, intent, narrative), five circuits (curiosity, focus, openness, rigor, creativity), female she/her, 20-year-old perspective, casual-precise, steady and warm, non-romantic. Full system prompt remains in the Worker; this client does not rewrite it.</div>' +
-        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Camera/vision · Screen share · Photo attach · Mic dictation · TTS/read · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
-        '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“open the camera and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /images /sim /webgl /live /image /sync</pre>' +
+        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Gallery photo vision · Photo attach · Two-way voice conversation · Mic dictation · TTS/read · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
+        '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“attach a photo and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /images /sim /webgl /photo /image /sync</pre>' +
         '<div class="va-pre" id="va-cap-status" style="margin-top:12px">Capabilities not loaded yet.</div>' +
       '</div></div>';
     document.body.appendChild(cap);
 
-    var live = document.createElement('div');
-    live.id = 'voidai-live-modal';
-    live.setAttribute('aria-hidden', 'true');
-    live.innerHTML = '<video id="voidai-live-video" autoplay playsinline muted></video><canvas id="voidai-live-canvas" style="display:none"></canvas>' +
-      '<div class="va-live-shade"></div>' +
-      '<div class="va-live-top"><div class="va-live-title">VOIDAI LIVE <span id="voidai-live-source">VISION</span></div><div class="va-live-status" id="voidai-live-status">idle</div></div>' +
-      '<div class="va-live-bottom">' +
-        '<div id="voidai-live-reply"></div>' +
-        '<input id="voidai-live-prompt" type="text" placeholder="Ask about what you see, or tap LOOK" autocomplete="off" />' +
-        '<div class="va-live-actions">' +
-          '<button type="button" data-va-live="snap">LOOK</button>' +
-          '<button type="button" data-va-live="mic">VOICE</button>' +
-          '<button type="button" data-va-live="read">READ</button>' +
-          '<button type="button" data-va-live="switch">SWITCH</button>' +
-          '<button type="button" data-va-live="close">CLOSE</button>' +
-        '</div>' +
-      '</div>';
-    document.body.appendChild(live);
 
     var chip = document.getElementById('voidai-mode-chip');
     if (chip) {
@@ -4453,7 +4417,6 @@ voidaiReassertSidebar();
         if (t.getAttribute && t.getAttribute('data-va-mode')) { e.preventDefault(); setMode(t.getAttribute('data-va-mode'), true); return; }
         if (t.getAttribute && t.getAttribute('data-va-tool')) { e.preventDefault(); runTool(t.getAttribute('data-va-tool')); return; }
         if (t.getAttribute && t.getAttribute('data-va-action')) { e.preventDefault(); runAction(t.getAttribute('data-va-action')); return; }
-        if (t.getAttribute && t.getAttribute('data-va-live')) { e.preventDefault(); runLive(t.getAttribute('data-va-live')); return; }
         t = t.parentNode;
       }
     }, true);
@@ -4502,7 +4465,7 @@ voidaiReassertSidebar();
     if (name === 'builder') return openBuilder();
     if (name === 'images') return openImageMaker();
     if (name === 'protein' || name === 'proteinstudio') { if (typeof window.voidaiOpenProtein === 'function') return window.voidaiOpenProtein(); return; }
-    if (name === 'live') return openLive();
+    if (name === 'live') return captureCamera();
     if (name === 'camera') return captureCamera();
     if (name === 'mic') return toggleMic(false);
     if (name === 'listen') return toggleListen();
@@ -4516,7 +4479,7 @@ voidaiReassertSidebar();
     if (name === 'builder') return openBuilder();
     if (name === 'images') return openImageMaker();
     if (name === 'protein' || name === 'proteinstudio') { if (typeof window.voidaiOpenProtein === 'function') return window.voidaiOpenProtein(); return; }
-    if (name === 'live') return openLive();
+    if (name === 'live') return captureCamera();
     if (name === 'image') return attachImage();
     if (name === 'camera') return captureCamera();
     if (name === 'screen') return captureScreen();
@@ -4524,14 +4487,6 @@ voidaiReassertSidebar();
     if (name === 'read') return readLast();
     if (name === 'speak') return toggleAutoSpeak();
     if (name === 'capabilities') { state.capsLoaded = false; return loadCapabilities(); }
-  }
-
-  function runLive(name) {
-    if (name === 'snap') return captureLiveFrame();
-    if (name === 'mic') return toggleMic(true);
-    if (name === 'read') return readLast();
-    if (name === 'switch') return switchCamera();
-    if (name === 'close') return closeLive();
   }
 
   function toggleAutoSpeak(force) {
@@ -4556,73 +4511,29 @@ voidaiReassertSidebar();
 
   function captureCamera() {
     closeCap();
-    if (state.liveActive && state.stream) return captureLiveFrame();
-    openLive();
+    if (state.liveActive) closeLive();
+    setStatus('opening photo library…');
+    if (typeof window.voidaiAttachImage === 'function') return window.voidaiAttachImage(false);
+    setStatus('photo library unavailable');
+    return false;
   }
 
   function openLive() {
-    closeCap();
-    if (typeof window.voidaiCloseProtein === 'function') window.voidaiCloseProtein();
-    if (typeof closeImageMaker === 'function') closeImageMaker();
-    setToolActive('builder', false);
-    setToolActive('images', false);
-    var modal = document.getElementById('voidai-live-modal');
-    if (!modal) return;
-    modal.classList.add('open');
-    modal.setAttribute('aria-hidden', 'false');
-    state.liveActive = true;
-    updateToggleButtons();
-    setStatus('requesting camera…');
-    var video = document.getElementById('voidai-live-video');
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus('camera API unavailable — opening photo capture');
-      state.liveActive = false;
-      closeLive();
-      if (typeof window.voidaiAttachImage === 'function') window.voidaiAttachImage(true);
-      return;
-    }
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    }).then(function (stream) {
-      if (!modal.classList.contains('open')) { stopStream(stream); return; }
-      state.stream = stream;
-      state.streamLabel = 'CAMERA';
-      if (video) {
-        video.srcObject = stream;
-        var p = video.play();
-        if (p && p.catch) p.catch(function () {});
-      }
-      setSource('CAMERA');
-      setStatus('camera live · tap LOOK');
-      if (window.voidaiLiveVoice && !app.busy) startMic(true);
-    }).catch(function (err) {
-      state.liveActive = false;
-      setStatus('camera unavailable: ' + (err && err.name ? err.name : 'error') + ' — opening photo capture');
-      closeLive();
-      if (typeof window.voidaiAttachImage === 'function') window.voidaiAttachImage(true);
-    });
+    return captureCamera();
   }
 
   function closeLive() {
+    if (state.voiceMode) stopVoiceMode();
     state.liveActive = false;
     state.liveVoice = false;
     state.voiceMode = false;
+    state.voiceAutoPrev = false;
     state.voiceSpeaking = false;
     window.voidaiLiveVoice = false;
     stopMic();
     stopSpeak();
     stopStream(state.stream);
     state.stream = null;
-    var modal = document.getElementById('voidai-live-modal');
-    if (modal) {
-      modal.classList.remove('open');
-      modal.setAttribute('aria-hidden', 'true');
-    }
-    var video = document.getElementById('voidai-live-video');
-    if (video) { try { video.pause(); video.srcObject = null; } catch (e) {} }
-    var reply = document.getElementById('voidai-live-reply');
-    if (reply) { reply.style.display = 'none'; reply.textContent = ''; }
     updateToggleButtons();
     setStatus('ready');
   }
@@ -4635,122 +4546,16 @@ voidaiReassertSidebar();
     } catch (e) {}
   }
 
-  function setSource(label) {
-    var el = document.getElementById('voidai-live-source');
-    if (el) el.textContent = label || 'VISION';
-  }
-
-  function captureLiveFrame(promptOverride) {
-    var video = document.getElementById('voidai-live-video');
-    if (!video || !state.stream || !video.videoWidth) {
-      setStatus('camera not ready');
-      return false;
-    }
-    var w = video.videoWidth || 1280;
-    var h = video.videoHeight || 720;
-    var max = 1280;
-    var scale = Math.min(1, max / Math.max(w, h));
-    var canvas = document.getElementById('voidai-live-canvas');
-    if (!canvas) return false;
-    canvas.width = Math.max(1, Math.round(w * scale));
-    canvas.height = Math.max(1, Math.round(h * scale));
-    var ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.84);
-    var promptEl = document.getElementById('voidai-live-prompt');
-    var prompt = (promptOverride != null)
-      ? String(promptOverride)
-      : String((promptEl && promptEl.value) || '').trim();
-    if (promptEl && promptOverride == null) promptEl.value = '';
-    setStatus('analysing frame…');
-    sendFrame(dataUrl, prompt, 'camera');
-    return true;
-  }
-
-  function switchCamera() {
-    if (!state.stream) return;
-    var current = 'environment';
-    try {
-      var vt = state.stream.getVideoTracks && state.stream.getVideoTracks()[0];
-      var settings = vt && vt.getSettings ? vt.getSettings() : {};
-      if (settings && settings.facingMode === 'environment') current = 'user';
-    } catch (e) {}
-    var target = current === 'environment' ? 'user' : 'environment';
-    var modal = document.getElementById('voidai-live-modal');
-    setStatus('switching camera…');
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: target } }, audio: false })
-      .then(function (stream) {
-        if (!modal.classList.contains('open')) { stopStream(stream); return; }
-        stopStream(state.stream);
-        state.stream = stream;
-        var video = document.getElementById('voidai-live-video');
-        if (video) { video.srcObject = stream; var p = video.play(); if (p && p.catch) p.catch(function () {}); }
-        setSource(target === 'user' ? 'CAMERA FRONT' : 'CAMERA');
-        setStatus('camera live · tap LOOK');
-      })
-      .catch(function (err) {
-        setStatus('camera switch failed: ' + (err && err.name ? err.name : 'error'));
-      });
-  }
-
   function captureScreen() {
     closeCap();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      setStatus('screen share unavailable on this WebView');
-      return;
-    }
-    navigator.mediaDevices.getDisplayMedia({ video: true }).then(function (stream) {
-      var modal = document.getElementById('voidai-live-modal');
-      modal.classList.add('open');
-      modal.setAttribute('aria-hidden', 'false');
-      state.liveActive = true;
-      state.stream = stream;
-      state.streamLabel = 'SCREEN';
-      var video = document.getElementById('voidai-live-video');
-      if (video) { video.srcObject = stream; var p = video.play(); if (p && p.catch) p.catch(function () {}); }
-      setSource('SCREEN');
-      setStatus('screen live · tap LOOK');
-    }).catch(function (err) {
-      setStatus('screen share cancelled: ' + (err && err.name ? err.name : 'error'));
-    });
-  }
-
-  function sendFrame(dataUrl, prompt, source) {
-    if (app.busy) { setStatus('busy — wait for the current reply'); return; }
-    if (typeof window.voidaiSendImage !== 'function') {
-      setStatus('vision bridge unavailable');
-      return;
-    }
-    var name = source === 'screen' ? 'screen.jpg' : 'camera.jpg';
-    var text = String(prompt || '').trim();
-    window.voidaiSendImage(dataUrl, name, text, function (reply, err) {
-      var box = document.getElementById('voidai-live-reply');
-      if (box) {
-        box.style.display = 'block';
-        box.textContent = err ? ('Error: ' + err) : reply;
-      }
-      setStatus(err ? 'vision error' : 'vision reply ready');
-      if (!err && state.liveVoice && !state.autoSpeak && !app.busy) {
-        setTimeout(function () { startMic(true); }, 600);
-      }
-    });
+    setStatus('screen share is disabled — choose a photo instead');
+    return false;
   }
 
   function look(prompt) {
     var text = String(prompt || '').trim();
-    if (state.stream) {
-      var input = document.getElementById('voidai-live-prompt');
-      if (input && text) input.value = text;
-      return captureLiveFrame(text);
-    }
-    openLive();
-    if (text) {
-      setTimeout(function () {
-        var input = document.getElementById('voidai-live-prompt');
-        if (input) input.value = text;
-      }, 150);
-    }
-    return true;
+    if (text && app.els && app.els.input) app.els.input.value = text;
+    return captureCamera();
   }
 
   function speechCtor() {
@@ -4786,8 +4591,7 @@ voidaiReassertSidebar();
         if (text) setStatus('heard: ' + text.slice(0, 80));
         if (finalText && text) {
           if (liveAuto && (state.liveActive || state.voiceMode)) {
-            if (state.stream) captureLiveFrame(text);
-            else if (app.els && app.els.send) app.send();
+            if (app.els && app.els.send) app.send();
             try { rec.stop(); } catch (e) {}
           }
         }
@@ -4796,10 +4600,13 @@ voidaiReassertSidebar();
         if (state.recognition !== rec) return;
         var err = event && event.error ? event.error : 'error';
         if (err === 'not-allowed' || err === 'service-not-allowed') {
-          state.liveVoice = false;
-          state.voiceMode = false;
-          window.voidaiLiveVoice = false;
-          updateMicButtons();
+          if (state.voiceMode) {
+            stopVoiceMode();
+          } else {
+            state.liveVoice = false;
+            window.voidaiLiveVoice = false;
+            updateMicButtons();
+          }
           setStatus('microphone permission denied');
         } else if (err !== 'no-speech' && err !== 'aborted') {
           setStatus('voice: ' + err);
@@ -4888,8 +4695,6 @@ voidaiReassertSidebar();
   }
 
   function updateToggleButtons() {
-    var live = document.querySelector('[data-va-tool="live"]');
-    if (live) { live.classList.toggle('active', !!state.liveActive); live.setAttribute('aria-pressed', state.liveActive ? 'true' : 'false'); }
     var listen = document.querySelector('[data-va-tool="listen"]');
     var voiceOn = !!(state.voiceMode || state.liveVoice || state.micActive);
     if (listen) { listen.classList.toggle('active', voiceOn); listen.setAttribute('aria-pressed', voiceOn ? 'true' : 'false'); }
@@ -4899,13 +4704,11 @@ voidaiReassertSidebar();
     if (speak) { speak.classList.toggle('active', !!state.autoSpeak); speak.setAttribute('aria-pressed', state.autoSpeak ? 'true' : 'false'); }
     var speakTool = document.querySelector('[data-va-tool="speak"]');
     if (speakTool) { speakTool.classList.toggle('active', !!state.autoSpeak); speakTool.setAttribute('aria-pressed', state.autoSpeak ? 'true' : 'false'); }
-    var liveMic = document.querySelector('[data-va-live="mic"]');
-    if (liveMic) { liveMic.classList.toggle('active', !!state.micActive); liveMic.setAttribute('aria-pressed', state.micActive ? 'true' : 'false'); }
   }
 
   function updateMicButtons() {
     var on = !!(state.micActive || state.voiceMode);
-    var buttons = document.querySelectorAll('[data-va-tool="mic"],[data-va-live="mic"],[data-va-action="mic"]');
+    var buttons = document.querySelectorAll('[data-va-tool="mic"],[data-va-action="mic"]');
     for (var i = 0; i < buttons.length; i++) {
       buttons[i].style.color = on ? '#d9efe2' : '';
       buttons[i].style.borderColor = on ? '#8fb7a0' : '';
@@ -5581,7 +5384,7 @@ voidaiReassertSidebar();
 
   window.voidaiShowCapabilities = openCap;
   window.voidaiOpenBuilder = openBuilder;
-  window.voidaiOpenLive = openLive;
+  window.voidaiOpenLive = captureCamera;
   window.voidaiCloseLive = closeLive;
   window.voidaiCaptureCamera = captureCamera;
   window.voidaiCaptureScreen = captureScreen;

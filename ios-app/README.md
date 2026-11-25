@@ -24,10 +24,10 @@ required to produce the build.
 
 - WKWebView with the shared VOIDAI chat UI, JavaScript enabled, and local asset
   access for `index.html`.
-- Native image attachment through `PHPickerViewController`, plus a still-photo
-  `UIImagePickerController` camera path, wired to the WebView file input. The
-  camera is never used for live video on iOS. The web layer still downscales
-  before sending to `/vision`.
+- Native image attachment through `PHPickerViewController`, wired to the WebView
+  file input. The camera is never used for live video or still capture on iOS;
+  photos come from the gallery. The web layer still downscales before sending to
+  `/vision`.
 - GitHub sign-in through Supabase OAuth using `ASWebAuthenticationSession` and
   the `voidai://auth-callback` redirect scheme.
 - Native bridge exposed as `window.VoidAI`, alongside the existing
@@ -50,9 +50,9 @@ tables, or Cloudflare configuration.
 ## Camera and voice
 
 The shared `index.html` includes the Astra layer, but iOS deliberately blocks
-live `getUserMedia` video. The camera opens only for a still photo: the `PHOTO`
-control and `SNAP PHOTO` action show **Take Photo** and **Choose Photo**. The
-`CAMERA / VISION` live action is hidden on iOS.
+live `getUserMedia` video. The `PHOTO` control and `CHOOSE PHOTO` action open the
+system photo gallery only. There is no live camera, screen share, or still-camera
+path on iOS.
 
 `VOICE` and `LISTEN` start a two-way voice conversation when the iOS runtime
 exposes `SpeechRecognition`: the user speaks, the message is sent, the assistant
@@ -66,6 +66,6 @@ not expose those web APIs, the photo picker and typed chat still work.
 - `VOIDAI/AppDelegate.swift` — app entry point.
 - `VOIDAI/ViewController.swift` — WKWebView, file picker, JS bridge.
 - `VOIDAI/AuthManager.swift` — Supabase GitHub OAuth.
-- `VOIDAI/Info.plist` — URL scheme, camera/microphone/photo permissions, launch screen.
+- `VOIDAI/Info.plist` — URL scheme, microphone/photo permissions, launch screen.
 - `project.yml` — XcodeGen project definition.
 - `build-unsigned-ipa.sh` — build and package script.

@@ -86,7 +86,7 @@ final class ViewController: UIViewController {
               media.getUserMedia = function (constraints) {
                 if (constraints && constraints.video) {
                   return Promise.reject(new DOMException(
-                    'Live camera is disabled on iOS. Use Take Photo.',
+                    'Live camera is disabled on iOS. Choose a photo from the gallery.',
                     'NotAllowedError'
                   ));
                 }
@@ -100,7 +100,7 @@ final class ViewController: UIViewController {
             if (text && window.voidaiApp && window.voidaiApp.els && window.voidaiApp.els.input) {
               window.voidaiApp.els.input.value = text;
             }
-            window.voidaiAttachImage(true);
+            window.voidaiAttachImage(false);
             return true;
           }
           window.addEventListener('click', function (event) {
@@ -141,7 +141,7 @@ final class ViewController: UIViewController {
             var cam = document.querySelector('[data-va-tool="camera"]');
             if (cam && cam.textContent !== 'PHOTO') {
               cam.textContent = 'PHOTO';
-              cam.title = 'Take or choose a photo';
+              cam.title = 'Choose a photo from the gallery';
             }
             var live = document.querySelector('[data-va-action="live"]');
             if (live) live.style.display = 'none';
@@ -192,19 +192,6 @@ final class ViewController: UIViewController {
         config.selectionLimit = 1
         config.filter = .images
         let picker = PHPickerViewController(configuration: config)
-        picker.delegate = self
-        present(picker, animated: true)
-    }
-
-    private func presentCameraPicker() {
-        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            finishFilePicker(nil)
-            return
-        }
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.mediaTypes = ["public.image"]
-        picker.cameraCaptureMode = .photo
         picker.delegate = self
         present(picker, animated: true)
     }
@@ -275,23 +262,7 @@ extension ViewController: WKUIDelegate {
         completionHandler: @escaping ([URL]?) -> Void
     ) {
         filePickerCompletion = completionHandler
-        let chooser = UIAlertController(
-            title: "Add Image",
-            message: "Take a photo or choose one from your library.",
-            preferredStyle: .alert
-        )
-        let camera = UIAlertAction(title: "Take Photo", style: .default) { [weak self] _ in
-            self?.dismiss(animated: true) { self?.presentCameraPicker() }
-        }
-        camera.isEnabled = UIImagePickerController.isSourceTypeAvailable(.camera)
-        chooser.addAction(camera)
-        chooser.addAction(UIAlertAction(title: "Choose Photo", style: .default) { [weak self] _ in
-            self?.dismiss(animated: true) { self?.presentPhotoPicker() }
-        })
-        chooser.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.finishFilePicker(nil)
-        })
-        present(chooser, animated: true)
+        presentPhotoPicker()
     }
 }
 
@@ -314,23 +285,6 @@ extension ViewController: PHPickerViewControllerDelegate {
                 self.finishFilePicker(url.map { [$0] })
             }
         }
-    }
-}
-
-extension ViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-        picker.dismiss(animated: true) { [weak self] in
-            self?.finishFilePicker(nil)
-        }
-    }
-
-    func imagePickerController(
-        _ picker: UIImagePickerController,
-        didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
-    ) {
-        picker.dismiss(animated: true)
-        let image = info[.originalImage] as? UIImage
-        finishFilePicker(image.flatMap { writeTemporaryImage($0) }.map { [$0] })
     }
 }
 
