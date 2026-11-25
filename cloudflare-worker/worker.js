@@ -4,7 +4,7 @@
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
-const MAX_MESSAGES = 40;
+const MAX_MESSAGES = 80;
 const MAX_CHARS = 32000;
 const MAX_TOTAL_CHARS = 120000;
 const MAX_IMAGE_CHARS = 12 * 1024 * 1024;
@@ -675,6 +675,15 @@ function json(obj, status) {
       'Access-Control-Allow-Headers': 'Content-Type, X-VOID-KEY'
     }
   });
+}
+
+function safeUserId(value) {
+  // Memory rows are keyed by a stable client identity. Keep the key portable
+  // across Supabase/PostgREST and reject control characters or query syntax.
+  var id = String(value == null ? '' : value).trim().toLowerCase();
+  if (!id) return 'jacob';
+  id = id.replace(/[^a-z0-9@._:+-]/g, '').slice(0, 120);
+  return id || 'jacob';
 }
 
 function redactSecrets(value, env) {
@@ -2887,6 +2896,7 @@ export default {
     const userText = lastUser ? lastUser.content : '';
     const requestedMode = body.mode || null;
     const mode = detectMode(userText, requestedMode);
+    const memoryUserId = safeUserId(body.user_id || body.userId);
 
     try { BRAIN.stimulate('circuit', 0.7); } catch(e) {}
 
@@ -2919,11 +2929,11 @@ export default {
     }
 
     const [mindState, recent, intentState, narrative, workingMem] = await Promise.all([
-      loadMindState(env, 'jacob'),
-      loadRecentReflections(env, 'jacob'),
-      loadIntentState('jacob', env),
-      loadSelfNarrative(env, 'jacob'),
-      loadWorkingMemory(env, 'jacob')
+      loadMindState(env, memoryUserId),
+      loadRecentReflections(env, memoryUserId),
+      loadIntentState(memoryUserId, env),
+      loadSelfNarrative(env, memoryUserId),
+      loadWorkingMemory(env, memoryUserId)
     ]);
     try { BRAIN.stimulate('working', Math.min(1, ((recent && recent.length) || 0) / 5)); } catch(e) {}
     const stateBlock = describeState(mindState);
@@ -3008,14 +3018,14 @@ export default {
     }
 
     ctx.waitUntil(
-      runReflectionPass(userText, assistantText, 'jacob', env, mode)
+      runReflectionPass(userText, assistantText, memoryUserId, env, mode)
         .catch(function () {})
         .then(balanceBrainAfterTurn)
     );
 
     try {
       const updated = nudgeAxes(mindState, userText);
-      ctx.waitUntil(saveMindState(updated, env, 'jacob').catch(function () {}));
+      ctx.waitUntil(saveMindState(updated, env, memoryUserId).catch(function () {}));
     } catch (e) {}
 
     try {

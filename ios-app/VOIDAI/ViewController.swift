@@ -12,6 +12,7 @@ final class ViewController: UIViewController {
         view.backgroundColor = .black
 
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         config.userContentController.add(self, name: "voidai")
@@ -27,6 +28,12 @@ final class ViewController: UIViewController {
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         webView.uiDelegate = self
         webView.navigationDelegate = self
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
         webView.isOpaque = false
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
@@ -39,12 +46,17 @@ final class ViewController: UIViewController {
         webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     private func bridgeSource() -> String {
         """
         window.VoidAI = {
           platform: 'ios',
           getCurrentUser: function() { return \(jsString(AuthManager.shared.email)); },
           getUserName: function() { return \(jsString(AuthManager.shared.name)); },
+          getUserId: function() { return \(jsString(AuthManager.shared.userId)); },
           signInWithGitHub: function() {
             window.webkit.messageHandlers.voidai.postMessage({action: 'signIn'});
           },
@@ -64,6 +76,12 @@ final class ViewController: UIViewController {
         }
         // JSONSerialization wraps the string in an array: ["value"].
         return String(encoded.dropFirst().dropLast())
+    }
+
+    @objc private func appDidBecomeActive() {
+        // The web view can survive in the background while the app is suspended.
+        // Replay the persisted auth state when the user returns from the home screen.
+        sendSignedInState()
     }
 
     private func sendSignedInState() {
@@ -93,7 +111,8 @@ extension ViewController: WKScriptMessageHandler {
                 if ok {
                     self.sendSignedInState()
                 } else {
-                    let message = self.jsString("sign-in cancelled or failed")
+                    let detail = AuthManager.shared.lastError ?? "sign-in cancelled or failed"
+                    let message = self.jsString(detail)
                     self.webView.evaluateJavaScript(
                         "window.onAuthError && window.onAuthError(\(message));",
                         completionHandler: nil

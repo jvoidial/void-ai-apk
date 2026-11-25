@@ -35,7 +35,9 @@ import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.storage.storage
 import java.io.PrintWriter
 import java.io.StringWriter
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 class MainActivity : AppCompatActivity() {
 
@@ -48,6 +50,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var webView: WebView
+    private var webPageReady = false
+    private var pendingAuthError: String? = null
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var pendingWebPermission: PermissionRequest? = null
 
@@ -200,6 +204,12 @@ class MainActivity : AppCompatActivity() {
             }
 
             @JavascriptInterface
+            fun getUserId(): String {
+                val sb = supabase ?: return ""
+                return sb.auth.currentUserOrNull()?.id ?: ""
+            }
+
+            @JavascriptInterface
             fun uploadFile(fileName: String, base64Data: String) {
                 runOnUiThread {
                     val sb = supabase ?: return@runOnUiThread
@@ -261,12 +271,12 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
-                val sb = supabase ?: return
-                val u = sb.auth.currentUserOrNull() ?: return
-                val email = u.email ?: u.id ?: ""
-                val m = u.userMetadata
-                val name = m?.get("user_name")?.toString()?.trim('"') ?: m?.get("name")?.toString()?.trim('"') ?: ""
-                if (email.isNotEmpty()) fireSignedIn(email, name)
+                webPageReady = true
+                pendingAuthError?.let { message ->
+                    pendingAuthError = null
+                    sendAuthError(message)
+                }
+                restoreSignedInState()
             }
         }
 
@@ -283,10 +293,47 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("file:///android_asset/index.html")
     }
 
+    override fun onResume() {
+        super.onResume()
+        // A Custom Tab or a process restart can finish after the page is ready.
+        // Re-check the persisted Supabase session so the signed-in state survives
+        // home/launcher round trips and cold starts.
+        restoreSignedInState()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun restoreSignedInState() {
+        if (!webPageReady) return
+        val sb = supabase ?: return
+        lifecycleScope.launch {
+            // Auth storage loading is asynchronous in supabase-kt. Waiting for
+            // initialization avoids showing the signed-out state on a cold start.
+            try {
+                withTimeoutOrNull(5000) { sb.auth.awaitInitialization() }
+            } catch (e: Exception) {
+                Log.w("VOIDAI", "auth initialization failed: ${redact(e.message)}")
+            }
+            repeat(3) { attempt ->
+                val user = sb.auth.currentUserOrNull()
+                if (user != null) {
+                    val email = user.email ?: user.id ?: ""
+                    if (email.isNotEmpty()) {
+                        val meta = user.userMetadata
+                        val name = meta?.get("user_name")?.toString()?.trim('"')
+                            ?: meta?.get("name")?.toString()?.trim('"')
+                            ?: ""
+                        fireSignedIn(email, name)
+                        return@launch
+                    }
+                }
+                if (attempt < 2) delay(100L)
+            }
+        }
     }
 
     private fun handleIntent(intent: Intent) {
@@ -390,6 +437,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun fireSignedIn(email: String, name: String) {
+        if (!webPageReady) return
         val emailJs = JSONObject.quote(email)
         val nameJs = JSONObject.quote(name)
         webView.evaluateJavascript(
@@ -399,6 +447,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendAuthError(message: String) {
+        if (!webPageReady) {
+            pendingAuthError = message
+            return
+        }
         val safe = JSONObject.quote(redact(message.replace("\n", " ")))
         webView.evaluateJavascript(
             "window.onAuthError && window.onAuthError($safe)", null

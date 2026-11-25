@@ -582,8 +582,11 @@ window.voidaiToggleSidebar = function() {
 
   var PROXY_URL = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
   var MEMORY_KEY = 'voidai_chat_v3';
-  var MAX_MSGS = 40;
-  var HISTORY_TURNS = 40;
+  var USER_KEY = 'voidai_user_id';
+  var DEVICE_KEY = 'voidai_device_id';
+  var MAX_MSGS = 120;
+  var HISTORY_TURNS = 80;
+  var MAX_RESTORE_MSGS = 40;
   var FUTURE_TOPIC = 'the future of AI, AGI, agentic software, robotics, brain-computer interfaces, synthetic biology, energy, and quantum computing over the next one to ten years';
   var MAX_SEND_CHARS = 32000;
   var REPLY_TIMEOUT_MS = 120000;
@@ -706,7 +709,7 @@ window.voidaiToggleSidebar = function() {
       if (!history[0] || history[0].role !== 'system') {
         history.unshift({ role: 'system', content: SYSTEM });
       }
-      var recent = history.slice(-20);
+      var recent = history.slice(-MAX_RESTORE_MSGS);
       for (var i = 0; i < recent.length; i++) {
         var m = recent[i];
         if (m.role === 'user' || m.role === 'assistant') {
@@ -1362,6 +1365,10 @@ window.voidaiToggleSidebar = function() {
 
     addMsg('user', shownText);
     history.push({ role: 'user', content: outboundText });
+    // Persist the user turn before the network call so a home-screen round
+    // trip or process kill cannot drop it while the reply is in flight.
+    saveMemory();
+    if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
     updateHero();
     showThinking();
     status('thinking…');
@@ -1393,7 +1400,8 @@ window.voidaiToggleSidebar = function() {
           }).slice(-HISTORY_TURNS)),
           max_tokens: effectiveMode === 'mini' ? 2048 : 8192,
           temperature: effectiveMode === 'predict' ? 0.4 : 0.6,
-          mode: effectiveMode || undefined
+          mode: effectiveMode || undefined,
+          user_id: currentUserId()
         })
       }).then(function(res) {
         return res.text().then(function(raw) {
@@ -1543,6 +1551,46 @@ window.voidaiToggleSidebar = function() {
     return nativeBridge() !== null;
   }
 
+  function rememberUser(email) {
+    var id = String(email || '').trim().toLowerCase();
+    if (!id) return;
+    try { localStorage.setItem(USER_KEY, id); } catch(e) {}
+  }
+
+  function currentUserId() {
+    var nativeId = '';
+    var email = '';
+    try {
+      var bridge = nativeBridge();
+      if (bridge && typeof bridge.getUserId === 'function') {
+        nativeId = String(bridge.getUserId() || '').trim();
+      }
+      if (bridge && typeof bridge.getCurrentUser === 'function') {
+        email = String(bridge.getCurrentUser() || '').trim();
+      }
+    } catch(e) {}
+    if (nativeId) {
+      try { localStorage.setItem(USER_KEY, nativeId.toLowerCase()); } catch(e) {}
+      return nativeId.toLowerCase();
+    }
+    if (email) {
+      try { localStorage.setItem(USER_KEY, email.toLowerCase()); } catch(e) {}
+      return email.toLowerCase();
+    }
+    try {
+      var saved = localStorage.getItem(USER_KEY);
+      if (saved) return saved;
+      var device = localStorage.getItem(DEVICE_KEY);
+      if (!device) {
+        device = 'device-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem(DEVICE_KEY, device);
+      }
+      return device;
+    } catch(e) {
+      return 'anonymous';
+    }
+  }
+
   function updateAuthUI(email, name) {
     var sb = document.getElementById('signin-bar');
     var ab = document.getElementById('auth-bar');
@@ -1576,11 +1624,16 @@ window.voidaiToggleSidebar = function() {
   };
 
   window.onSignedIn = function(email, name) {
+    rememberUser(email);
+    if (typeof window.voidaiAdoptAccount === 'function') {
+      try { window.voidaiAdoptAccount(email); } catch(e) {}
+    }
     updateAuthUI(email, name);
     status('signed in');
   };
 
   window.onSignedOut = function() {
+    try { localStorage.removeItem(USER_KEY); } catch(e) {}
     updateAuthUI('', '');
     status('signed out');
     addMsg('assistant', 'Signed out.');
@@ -1620,6 +1673,10 @@ window.voidaiToggleSidebar = function() {
       try {
         var e = typeof bridge.getCurrentUser === 'function' ? bridge.getCurrentUser() : '';
         var n = typeof bridge.getUserName === 'function' ? bridge.getUserName() : '';
+        rememberUser(e || '');
+        if (e && typeof window.voidaiAdoptAccount === 'function') {
+          try { window.voidaiAdoptAccount(e); } catch(err2) {}
+        }
         updateAuthUI(e || '', n || '');
       } catch(err) { updateAuthUI('', ''); }
     } else {
@@ -3059,6 +3116,40 @@ var voidaiConvs = [];
 var voidaiActiveConv = null;
 try { voidaiConvs = JSON.parse(localStorage.getItem('voidai_convs') || '[]'); } catch(e) {}
 try { voidaiActiveConv = localStorage.getItem('voidai_active_conv'); } catch(e) {}
+
+// Keep local conversations scoped to the signed-in account. If a different
+// account signs in on this device, drop the previous account's cached thread
+// instead of showing it to the new user.
+window.voidaiAdoptAccount = function(email) {
+  var id = String(email || '').trim().toLowerCase();
+  if (!id) return false;
+  var previous = '';
+  try { previous = String(localStorage.getItem('voidai_owner') || '').toLowerCase(); } catch(e) {}
+  var changed = !!previous && previous !== id;
+  if (changed) {
+    try {
+      localStorage.removeItem('voidai_convs');
+      localStorage.removeItem('voidai_active_conv');
+      localStorage.removeItem('voidai_chat_v3');
+    } catch(e) {}
+    voidaiConvs = [];
+    voidaiActiveConv = null;
+    var app = window.voidaiApp;
+    var h = app ? app.history : null;
+    if (h) {
+      h.length = 0;
+      if (app.SYSTEM) h.push({ role: 'system', content: app.SYSTEM });
+    }
+    var msgs = document.getElementById('messages') || document.getElementById('chat');
+    if (msgs) msgs.innerHTML = '';
+    if (typeof voidaiRenderConvs === 'function') voidaiRenderConvs();
+  }
+  try {
+    localStorage.setItem('voidai_owner', id);
+    localStorage.setItem('voidai_user_id', id);
+  } catch(e) {}
+  return changed;
+};
 
 function voidaiPersist() {
   voidaiConvs = voidaiConvs.slice(0, 50);

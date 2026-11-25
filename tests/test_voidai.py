@@ -565,6 +565,41 @@ class ServerTests(BaseCase):
             self.assertEqual(FakeOpenAI.auth_headers[-1], "Bearer k")
 
 
+class MemoryIdentityTests(unittest.TestCase):
+    """Guard the client identity and restore paths that keep memory per user."""
+
+    def test_worker_scopes_phb_memory_to_request_user(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        self.assertIn("const memoryUserId = safeUserId(body.user_id || body.userId);", worker)
+        self.assertIn("runReflectionPass(userText, assistantText, memoryUserId", worker)
+        self.assertIn("saveMindState(updated, env, memoryUserId)", worker)
+        for hardcoded in ("loadMindState(env, 'jacob')", "loadRecentReflections(env, 'jacob')",
+                          "loadIntentState('jacob', env)", "loadSelfNarrative(env, 'jacob')",
+                          "loadWorkingMemory(env, 'jacob')"):
+            self.assertNotIn(hardcoded, worker)
+
+    def test_web_client_sends_user_and_restores_session(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        self.assertIn("user_id: currentUserId()", html)
+        self.assertIn("window.voidaiAdoptAccount", html)
+        android = open(os.path.join(ROOT, "android-app", "app", "src", "main", "java",
+                                    "com", "voidai", "app", "MainActivity.kt"),
+                       encoding="utf-8").read()
+        self.assertIn("private fun restoreSignedInState()", android)
+        self.assertIn("override fun onResume()", android)
+
+    def test_ios_keeps_session_and_web_storage(self):
+        root = os.path.join(ROOT, "ios-app", "VOIDAI")
+        auth = open(os.path.join(root, "AuthManager.swift"), encoding="utf-8").read()
+        view = open(os.path.join(root, "ViewController.swift"), encoding="utf-8").read()
+        self.assertIn("grant_type=pkce", auth)
+        self.assertIn("kSecClassGenericPassword", auth)
+        self.assertIn("config.websiteDataStore = .default()", view)
+        self.assertIn("appDidBecomeActive", view)
+
+
 class BackendTests(BaseCase):
     def setUp(self):
         self.env = patched_env(
