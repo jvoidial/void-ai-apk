@@ -46,6 +46,9 @@ VOIDAI has four runtime surfaces:
 ## CI notes
 
 - Android CI (`build.yml`) runs `./gradlew assembleDebug` and uploads `void-ai-debug`.
+- Release signing material is kept outside the repo at
+  `/workspace/voidai-signing/`; never copy the keystore or password file into
+  `downloads/` because that directory is web-served.
 - iOS CI (`.github/workflows/ios-unsigned.yml`) needs an Intel macOS runner in this
   repo. `macos-14` resolves to an unsupported arm64 configuration; use
   `macos-15-intel` (or another Intel label that the account supports).
