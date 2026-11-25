@@ -4132,6 +4132,7 @@ voidaiReassertSidebar();
     liveVoice: false,
     voiceMode: false,
     voiceSpeaking: false,
+    voiceAutoPrev: false,
     voiceURI: '',
     voiceRate: 1.0,
     autoSpeak: false,
@@ -4265,7 +4266,15 @@ voidaiReassertSidebar();
   function populateVoiceSelects() {
     var voices = voiceList();
     var chosen = selectedVoice();
-    var current = state.voiceURI || (chosen ? (chosen.voiceURI || chosen.name) : '');
+    var current = '';
+    if (state.voiceURI) {
+      for (var k = 0; k < voices.length; k++) {
+        if (state.voiceURI === voices[k].voiceURI || state.voiceURI === voices[k].name) {
+          current = voices[k].voiceURI || voices[k].name;
+          break;
+        }
+      }
+    }
     var selects = [document.getElementById('voidai-voice-chip'), document.getElementById('va-voice-select')];
     for (var i = 0; i < selects.length; i++) {
       var sel = selects[i];
@@ -4533,8 +4542,9 @@ voidaiReassertSidebar();
     if (btn) btn.textContent = 'AUTO-SPEAK: ' + (state.autoSpeak ? 'ON' : 'OFF');
     updateToggleButtons();
     setStatus(state.autoSpeak ? 'auto-speak on' : 'auto-speak off');
-    if (!state.autoSpeak && window.speechSynthesis) {
-      try { window.speechSynthesis.cancel(); } catch (e) {}
+    if (!state.autoSpeak) {
+      state.voiceSpeaking = false;
+      stopSpeak();
     }
     if (!state.autoSpeak && state.voiceMode) stopVoiceMode();
   }
@@ -4836,7 +4846,8 @@ voidaiReassertSidebar();
     closeCap();
     state.voiceMode = true;
     state.voiceSpeaking = false;
-    if (!state.autoSpeak) toggleAutoSpeak(true);
+    state.voiceAutoPrev = state.autoSpeak;
+    toggleAutoSpeak(true);
     startMic(true);
     updateMicButtons();
     setStatus('voice mode · listening');
@@ -4844,12 +4855,15 @@ voidaiReassertSidebar();
   }
 
   function stopVoiceMode() {
+    var restoreAuto = state.voiceAutoPrev;
+    state.voiceAutoPrev = false;
     state.voiceMode = false;
     state.voiceSpeaking = false;
     stopMic();
     stopSpeak();
     updateMicButtons();
     setStatus('voice off');
+    if (!restoreAuto && state.autoSpeak) toggleAutoSpeak(false);
   }
 
   function toggleMic(fromLive) {
