@@ -358,6 +358,21 @@ extension ViewController: WKScriptMessageHandler {
 }
 
 extension ViewController: WKUIDelegate {
+    @available(iOS 15.0, *)
+    func webView(
+        _ webView: WKWebView,
+        requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo,
+        type: WKMediaCaptureType,
+        decisionHandler: @escaping (WKPermissionDecision) -> Void
+    ) {
+        if type == .microphone {
+            decisionHandler(.grant)
+        } else {
+            decisionHandler(.deny)
+        }
+    }
+
     @available(iOS 18.4, *)
     func webView(
         _ webView: WKWebView,

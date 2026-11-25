@@ -880,6 +880,10 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("whisper.load_model", server)
         self.assertIn('android:usesCleartextTraffic="true"', manifest)
         self.assertIn("NSAllowsLocalNetworking", info)
+        ios = open(os.path.join(ROOT, "ios-app", "VOIDAI", "ViewController.swift"),
+                   encoding="utf-8").read()
+        self.assertIn("requestMediaCapturePermissionFor", ios)
+        self.assertIn("type == .microphone", ios)
 
     def test_voice_has_native_tts_fallback(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
