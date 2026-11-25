@@ -57,6 +57,7 @@ MODES = {
     "github": "Work from repository context. Name files and paths; keep patches minimal and reviewable.",
     "predict": "Produce a falsifiable technology forecast. Separate known signals, inference, and speculation.",
     "protein": "Help with benign, non-pathogenic protein engineering. Separate predictions from lab facts.",
+    "builder": "Design simulations and buildable scenes: spec the objects, physics, budgets, then give runnable bounded code.",
 }
 
 MODE_CIRCUITS = {
@@ -70,6 +71,7 @@ MODE_CIRCUITS = {
     "github": ("rigor", "focus"),
     "predict": ("rigor", "curiosity"),
     "protein": ("rigor", "curiosity"),
+    "builder": ("creativity", "rigor"),
 }
 
 PREDICTION_RULES = """PREDICTION MODE:
@@ -80,6 +82,13 @@ PREDICTION_RULES = """PREDICTION MODE:
 - Label confidence low, medium, or high.
 - Do not invent citations, exact dates, prices, or regulatory decisions.
 - End with the single most useful thing to watch next."""
+
+BUILDER_RULES = """BUILDER MODE:
+- Start with a compact spec: objects/components, dimensions, forces or constraints, timestep, camera, and success criteria.
+- Then give runnable code in language-tagged fences, with a deterministic seed where possible, explicit units, and a bounded object/particle/time budget.
+- Include a short validation checklist and a low-end-device fallback.
+- For 4D/5D scenes, state that the view is an N-dimensional mathematical projection, not physical spacetime.
+- Never propose unbounded loops, unlimited particles, or device-exhausting simulations."""
 
 PROTEIN_RULES = """PROTEIN MODE:
 - Work only on benign, non-pathogenic protein engineering.
@@ -185,6 +194,8 @@ def system_prompt(mode="fast", state=None, extra="") -> str:
         lines += ["", PREDICTION_RULES]
     if mode == "protein":
         lines += ["", PROTEIN_RULES]
+    if mode == "builder":
+        lines += ["", BUILDER_RULES]
     if _value(layers, "intent") < 0.5:
         lines += [
             "",

@@ -1923,6 +1923,16 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
       '- End with the single most useful thing to watch next.',
       ''
     ] : []),
+    ...(mode === 'builder' ? [
+      '',
+      'BUILDER MODE:',
+      '- Start with a compact spec: objects/components, dimensions, forces or constraints, timestep, camera, and success criteria.',
+      '- Then give runnable code in language-tagged fences, with a deterministic seed where possible, explicit units, and a bounded object/particle/time budget.',
+      '- Include a short validation checklist and a low-end-device fallback.',
+      '- For 4D/5D scenes, state that the view is an N-dimensional mathematical projection, not physical spacetime.',
+      '- Never propose unbounded loops, unlimited particles, or device-exhausting simulations.',
+      ''
+    ] : []),
     '',
     'FORMAT:',
     '- Code in markdown fences with language tags.',
@@ -1972,6 +1982,161 @@ async function callGemini(messages, env) {
     choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }]
   };
   return { ok: true, status: 200, text: JSON.stringify(wrapped) };
+}
+
+function visionModelCandidates(primary, fallbacks) {
+  const out = [];
+  [primary].concat(fallbacks || []).forEach(function (m) {
+    if (m && out.indexOf(m) === -1) out.push(m);
+  });
+  return out;
+}
+
+function briefProviderError(text, status) {
+  let message = '';
+  try {
+    const parsed = JSON.parse(text || '{}');
+    message = (parsed.error && (parsed.error.message || parsed.error)) || parsed.message || '';
+  } catch (e) {}
+  if (!message) message = text || ('HTTP ' + status);
+  return String(message).replace(/\s+/g, ' ').slice(0, 220);
+}
+
+function visionResponse(text, model) {
+  return new Response(text, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'X-Vision-Model': model || 'unknown'
+    }
+  });
+}
+
+async function callGroqVision(visionBody, env) {
+  if (!env.GROQ_API_KEY) return { ok: false, error: 'no groq key' };
+  const models = visionModelCandidates(env.VISION_MODEL, [
+    'meta-llama/llama-4-maverick-17b-128e-instruct',
+    'meta-llama/llama-4-scout-17b-16e-instruct'
+  ]);
+  const errors = [];
+  for (const model of models) {
+    try {
+      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
+        body: JSON.stringify(Object.assign({}, visionBody, { model: model }))
+      });
+      const text = await r.text();
+      if (r.ok && text) return { ok: true, text: text, model: model };
+      errors.push('groq/' + model + ': ' + briefProviderError(text, r.status));
+      if (r.status === 401 || r.status === 403) break;
+    } catch (e) {
+      errors.push('groq/' + model + ': ' + (e.message || String(e)));
+    }
+  }
+  return { ok: false, error: errors.join(' | ') };
+}
+
+async function callOpenRouterVision(visionBody, env) {
+  const models = visionModelCandidates(env.VISION_FALLBACK_MODEL, [
+    'google/gemini-2.5-flash',
+    'openai/gpt-4o-mini',
+    'qwen/qwen2.5-vl-72b-instruct',
+    'anthropic/claude-3.5-sonnet'
+  ]);
+  const errors = [];
+  for (const model of models) {
+    try {
+      const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY,
+          'HTTP-Referer': 'https://voidai.app',
+          'X-Title': 'VOIDAI'
+        },
+        body: JSON.stringify(Object.assign({}, visionBody, { model: model }))
+      });
+      const text = await r.text();
+      if (r.ok && text) return { ok: true, text: text, model: model };
+      errors.push('openrouter/' + model + ': ' + briefProviderError(text, r.status));
+      if (r.status === 401 || r.status === 403) break;
+    } catch (e) {
+      errors.push('openrouter/' + model + ': ' + (e.message || String(e)));
+    }
+  }
+  return { ok: false, error: errors.join(' | ') };
+}
+
+async function callGeminiVision(prompt, dataUrl, env) {
+  const match = dataUrl.match(/^data:([^;]+);base64,(.*)$/s);
+  if (!match) return { ok: false, error: 'invalid image data URL' };
+  const mime = match[1];
+  const b64 = match[2];
+  const models = visionModelCandidates(env.GEMINI_VISION_MODEL, [
+    'gemini-2.5-flash',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash'
+  ]);
+  const errors = [];
+  for (const model of models) {
+    try {
+      const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + env.GEMINI_API_KEY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: mime, data: b64 } }
+            ]
+          }],
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.3 }
+        })
+      });
+      const raw = await r.text();
+      if (!r.ok) {
+        errors.push('gemini/' + model + ': ' + briefProviderError(raw, r.status));
+        continue;
+      }
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch (e) {}
+      const text = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
+        data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
+        data.candidates[0].content.parts[0].text;
+      if (!text) {
+        errors.push('gemini/' + model + ': empty response');
+        continue;
+      }
+      return { ok: true, model: model, text: JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }) };
+    } catch (e) {
+      errors.push('gemini/' + model + ': ' + (e.message || String(e)));
+    }
+  }
+  return { ok: false, error: errors.join(' | ') };
+}
+
+async function callWorkersVision(prompt, dataUrl, env) {
+  const match = dataUrl.match(/^data:[^;]+;base64,(.*)$/s);
+  if (!match) return { ok: false, error: 'invalid image data URL' };
+  const binary = atob(match[1]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const models = ['@cf/meta/llama-3.2-11b-vision-instruct', '@cf/llava-hf/llava-1.5-7b-hf'];
+  const errors = [];
+  for (const model of models) {
+    try {
+      const result = await env.AI.run(model, { image: Array.from(bytes), prompt: prompt, max_tokens: 1024 });
+      const text = result && (result.response || result.description || result.text || result.result);
+      if (text) return { ok: true, model: model, text: JSON.stringify({ choices: [{ message: { role: 'assistant', content: text } }] }) };
+      errors.push('workers-ai/' + model + ': empty response');
+    } catch (e) {
+      errors.push('workers-ai/' + model + ': ' + (e.message || String(e)));
+    }
+  }
+  return { ok: false, error: errors.join(' | ') };
 }
 
 async function callGroq(messages, env, opts) {
@@ -2181,7 +2346,7 @@ function describeState(s) {
 // ════════════════════════════════════════════════════════════
 
 function detectMode(userText, requestedMode) {
-  if (requestedMode && ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'].includes(requestedMode)) {
+  if (requestedMode && ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein', 'builder'].includes(requestedMode)) {
     return requestedMode;
   }
 
@@ -2191,6 +2356,7 @@ function detectMode(userText, requestedMode) {
   if (/^\s*\/ultra\b/i.test(userText)) return 'ultra';
   if (/^\s*\/coder\b/i.test(userText)) return 'coder';
   if (/^\s*\/mini\b/i.test(userText)) return 'mini';
+  if (/^\s*\/builder\b/i.test(userText)) return 'builder';
   if (/^\s*[\/@]protein\b/i.test(userText)) return 'protein';
   if (/^\s*[\/@](predict|future)\b/i.test(userText)) return 'predict';
   if (predictRe.test(userText)) return 'predict';
@@ -2265,7 +2431,7 @@ export default {
         fallback: 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast','deep','research','companion','ultra','coder','mini','github','predict','protein'],
+        modes: ['fast','deep','research','companion','ultra','coder','mini','github','predict','protein','builder'],
         consciousness: true,
         brain_module: true,
         resonance_layers: 6,
@@ -2418,7 +2584,7 @@ export default {
         fallback: env.GEMINI_API_KEY ? 'gemini-2.0-flash' : 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein', 'builder'],
         version: '3.3.0',
         source_route: true,
         consciousness: true,
@@ -2494,7 +2660,7 @@ export default {
         fallbacks: ['openrouter', 'gemini'],
         persona: 'phb-human-agent-v2',
         circuits: ['curiosity', 'focus', 'openness', 'rigor', 'creativity'],
-        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein'],
+        modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein', 'builder'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
         tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_external', 'image_generate'],
@@ -2626,57 +2792,35 @@ export default {
         temperature: 0.3
       };
 
-      let groqError = 'no groq key';
-      if (env.GROQ_API_KEY) {
-        try {
-          const vr = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-            body: JSON.stringify(Object.assign({}, visionBody, {
-              model: env.VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct'
-            }))
-          });
-          const vtext = await vr.text();
-          if (vr.ok && vtext) {
-            return new Response(vtext, {
-              status: 200,
-              headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
-          }
-          groqError = vtext ? vtext.slice(0, 400) : ('HTTP ' + vr.status);
-        } catch (e) {
-          groqError = e.message || String(e);
-        }
-      }
+      const promptText = prompt;
+      const groqVision = await callGroqVision(visionBody, env);
+      if (groqVision.ok) return visionResponse(groqVision.text, groqVision.model);
 
+      let openrouterError = env.OPENROUTER_API_KEY ? '' : 'no openrouter key';
       if (env.OPENROUTER_API_KEY) {
-        try {
-          const or = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + env.OPENROUTER_API_KEY,
-              'HTTP-Referer': 'https://voidai.app',
-              'X-Title': 'VOIDAI'
-            },
-            body: JSON.stringify(Object.assign({}, visionBody, {
-              model: env.VISION_FALLBACK_MODEL || 'google/gemini-2.0-flash-001'
-            }))
-          });
-          const otext = await or.text();
-          if (or.ok && otext) {
-            return new Response(otext, {
-              status: 200,
-              headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
-          }
-          return json({ error: { message: 'vision failed (groq: ' + groqError.slice(0, 200) + '; openrouter: ' + (otext ? otext.slice(0, 200) : 'HTTP ' + or.status) + ')' } }, 502);
-        } catch (e) {
-          return json({ error: { message: 'vision failed (groq: ' + groqError.slice(0, 200) + '; openrouter: ' + (e.message || String(e)) + ')' } }, 502);
-        }
+        const orVision = await callOpenRouterVision(visionBody, env);
+        if (orVision.ok) return visionResponse(orVision.text, orVision.model);
+        openrouterError = orVision.error;
       }
 
-      return json({ error: { message: 'vision failed: ' + groqError } }, 502);
+      let geminiError = env.GEMINI_API_KEY ? '' : 'no gemini key';
+      if (env.GEMINI_API_KEY) {
+        const geminiVision = await callGeminiVision(promptText, dataUrl, env);
+        if (geminiVision.ok) return visionResponse(geminiVision.text, geminiVision.model);
+        geminiError = geminiVision.error;
+      }
+
+      let workersError = env.AI ? '' : 'no workers-ai binding';
+      if (env.AI) {
+        const workersVision = await callWorkersVision(promptText, dataUrl, env);
+        if (workersVision.ok) return visionResponse(workersVision.text, workersVision.model);
+        workersError = workersVision.error;
+      }
+
+      return json({ error: { message: 'vision failed (groq: ' + groqVision.error.slice(0, 220) +
+        '; openrouter: ' + openrouterError.slice(0, 220) +
+        '; gemini: ' + geminiError.slice(0, 220) +
+        '; workers-ai: ' + workersError.slice(0, 220) + ')' } }, 502);
     }
 
     if (request.method !== 'POST') return json({ error: { message: 'method not allowed' } }, 405);
@@ -2788,10 +2932,13 @@ export default {
       result = await callGroq(finalMessages, env, callOpts);
     } else if (mode === 'ultra') {
       result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3-ultra-550b-a55b:free', callOpts);
+      if (!result || !result.ok) result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else if (mode === 'coder') {
       result = await callOpenRouter(finalMessages, env, 'cohere/north-mini-code:free', callOpts);
+      if (!result || !result.ok) result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else if (mode === 'mini') {
       result = await callOpenRouter(finalMessages, env, 'nvidia/nemotron-3.5-lightning:free', callOpts);
+      if (!result || !result.ok) result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
     } else if (mode === 'github') {
       if (env.GITHUB_TOKEN) {
         result = await callOpenRouter(finalMessages, env, 'openai/gpt-oss-120b', callOpts);
