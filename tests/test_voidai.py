@@ -656,6 +656,10 @@ class SecurityHardeningTests(unittest.TestCase):
                  "mini", "github", "predict", "protein", "builder"]
         for mode in modes:
             self.assertIn("'%s'" % mode, worker)
+        self.assertIn("Modes (11)", worker)
+        self.assertIn("MODE: Builder", worker)
+        self.assertIn("X-Image-Fallback", worker)
+        self.assertIn("useWorkersFlux", worker)
         for marker in ["voidaiOpenBuilder", "voidaiOpenLive", "voidaiOpenImage",
                        "voidaiGenerateWebGLScene", "downloadImageMaker",
                        "voidaiToggleMic", "voidaiToggleListen", "voidaiReadLast",
@@ -735,6 +739,43 @@ process.stdout.write(JSON.stringify(out));
         for repair in repairs:
             self.assertEqual(repair["key"], repair["expectedKey"])
             self.assertEqual(repair["dim"], repair["expectedDim"])
+
+    def test_builder_normalizer_strips_imports_and_global_redeclarations(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        start = html.index("  function sceneSyntaxError(code)")
+        end = html.index("  function generateScene(prompt)", start)
+        sample = """```javascript
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js';
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const mesh = new THREE.Mesh(new THREE.SphereGeometry(1), new THREE.MeshBasicMaterial());
+scene.add(mesh);
+window.update = function(t) { mesh.rotation.y = t; };
+```"""
+        harness = html[start:end] + "\nvar c = normalizeSceneCode(extractSceneCode(" + json.dumps(sample) + "));\nprocess.stdout.write(JSON.stringify({code: c, error: sceneSyntaxError(c)}));\n"
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+            fh.write(harness)
+            path = fh.name
+        try:
+            result = subprocess.run([node, path], check=True, text=True,
+                                    capture_output=True)
+            normalized = json.loads(result.stdout)
+        finally:
+            os.unlink(path)
+        self.assertEqual(normalized["error"], "")
+        self.assertNotIn("import ", normalized["code"])
+        self.assertNotIn("const scene", normalized["code"])
+        self.assertNotIn("const camera", normalized["code"])
+        self.assertNotIn("const renderer", normalized["code"])
+        self.assertIn("scene.add", normalized["code"])
+        self.assertIn("window.update", normalized["code"])
 
     def test_python_rejects_untrusted_llm_base_url(self):
         sys.path.insert(0, PY_SRC)

@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.4.1';
+const WORKER_VERSION = '3.4.2';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -1765,7 +1765,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     mini: 'MODE: Mini — Compress to the smallest correct answer. Prefer one sentence or a compact list.',
     github: 'MODE: GitHub — Work from repository context. Name files and paths; keep patches minimal and reviewable.',
     predict: 'MODE: Predict — Produce a falsifiable technology forecast. State horizons, separate known signals from inference, give base/accelerated/slow scenarios, leading indicators, falsifiers, and confidence. Do not invent dates or citations.',
-    protein: 'MODE: Protein / Bio — Help with benign, non-pathogenic protein engineering. Separate computational predictions from wet-lab facts. Never claim binding or lab validation without an assay. Refuse pathogen, toxin, virulence, or weaponization work. /protein/fold predicts structures. /protein/design runs a CPU-only heuristic sequence search; it cannot prove foldability. ESMFold filtering is optional. Never claim parity with GPT-6.2, Astra, or a wet-lab result.'
+    protein: 'MODE: Protein / Bio — Help with benign, non-pathogenic protein engineering. Separate computational predictions from wet-lab facts. Never claim binding or lab validation without an assay. Refuse pathogen, toxin, virulence, or weaponization work. /protein/fold predicts structures. /protein/design runs a CPU-only heuristic sequence search; it cannot prove foldability. ESMFold filtering is optional. Never claim parity with GPT-6.2, Astra, or a wet-lab result.',
+    builder: 'MODE: Builder — Produce runnable, self-contained code for the requested artifact. In the Three.js sandbox use the provided THREE, scene, camera, and renderer globals; never import from a CDN, redeclare those globals, or append a canvas. Define window.update for animation. Outside the sandbox, give a complete file with no placeholders and state how to run it.'
   };
 
   const modeCircuits = {
@@ -1778,7 +1779,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     mini: 'focus + rigor',
     github: 'rigor + focus',
     predict: 'rigor + curiosity',
-    protein: 'rigor + curiosity'
+    protein: 'rigor + curiosity',
+    builder: 'rigor + creativity'
   };
 
   const _amps = (function () {
@@ -1816,8 +1818,9 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
     'Models: Groq (openai/gpt-oss-120b primary), OpenRouter fallback,',
     'Gemini fallback. You route automatically.',
     '',
-    'Modes (9): fast, deep, research, companion, ultra, coder, mini,',
-    'github, predict. Mode is chosen per request or defaults to fast.',
+    'Modes (11): fast, deep, research, companion, ultra, coder, mini,',
+    'github, predict, protein, builder. Mode is chosen per request or',
+    'defaults to fast.',
     '',
     'Persona: phb-human-agent-v2 — six PHB layers (coherence, reflex,',
     'working, circuit, intent, narrative) and five reasoning circuits',
@@ -2744,33 +2747,47 @@ export default {
       const height = clampDimension(ibody && ibody.height, 1024);
       const requestedSeed = Number(ibody && ibody.seed);
       const seed = Number.isFinite(requestedSeed) ? Math.max(0, Math.floor(requestedSeed)) : Math.floor(Math.random() * 2147483647);
+      const model = ['flux', 'turbo', 'kontext'].includes(ibody && ibody.model) ? ibody.model : 'flux';
       let aiError = '';
-      if (env.AI) {
+      const exposeImageHeaders = 'X-Image-Provider, X-Image-Model, X-Image-Width, X-Image-Height, X-Image-Seed, X-Image-Fallback';
+      const workersFlux = async function (fallbackReason) {
+        if (!env.AI) return null;
         try {
           const result = await env.AI.run('@cf/black-forest-labs/flux-1-schnell', { prompt: prompt });
-          if (result && typeof result.image === 'string' && result.image.length > 1000) {
-            const binary = atob(result.image);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            return new Response(bytes, {
-              status: 200,
-              headers: {
-                'Content-Type': 'image/jpeg',
-                'Cache-Control': 'public, max-age=86400',
-                'Access-Control-Allow-Origin': '*',
-                'X-Image-Provider': 'cloudflare-workers-ai',
-                'X-Image-Model': 'flux-1-schnell',
-                'X-Image-Seed': String(seed)
-              }
-            });
+          if (!result || typeof result.image !== 'string' || result.image.length <= 1000) {
+            aiError = 'Workers AI returned no image';
+            return null;
           }
-          aiError = 'Workers AI returned no image';
+          const binary = atob(result.image);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          const headers = {
+            'Content-Type': 'image/jpeg',
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*',
+            'X-Image-Provider': 'cloudflare-workers-ai',
+            'X-Image-Model': 'flux-1-schnell',
+            'X-Image-Width': '1024',
+            'X-Image-Height': '1024',
+            'X-Image-Seed': String(seed),
+            'Access-Control-Expose-Headers': exposeImageHeaders
+          };
+          if (fallbackReason) headers['X-Image-Fallback'] = fallbackReason;
+          return new Response(bytes, { status: 200, headers: headers });
         } catch (e) {
           aiError = redactSecrets(e.message || String(e), env);
+          return null;
         }
+      };
+
+      // FLUX on Workers AI ignores the size/model/seed controls. Use it only
+      // for the default fast path; custom requests go to Pollinations first.
+      const useWorkersFlux = env.AI && model === 'flux' && width === 1024 && height === 1024 && !Number.isFinite(requestedSeed);
+      if (useWorkersFlux) {
+        const fast = await workersFlux('');
+        if (fast) return fast;
       }
 
-      const model = ['flux', 'turbo', 'kontext'].includes(ibody && ibody.model) ? ibody.model : 'flux';
       const imageUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(prompt)
         + '?width=' + width + '&height=' + height + '&model=' + model
         + '&nologo=true&seed=' + seed;
@@ -2784,10 +2801,14 @@ export default {
         });
         if (!upstream.ok) {
           const detail = await upstream.text();
+          const fallback = await workersFlux('pollinations-http-' + upstream.status);
+          if (fallback) return fallback;
           return json({ error: { message: 'image provider failed: HTTP ' + upstream.status, detail: redactSecrets((aiError ? ('workers-ai: ' + aiError + '; ') : '') + detail.slice(0, 300), env) } }, 502);
         }
         const contentType = upstream.headers.get('Content-Type') || 'image/jpeg';
         if (!/^image\//i.test(contentType)) {
+          const fallback = await workersFlux('pollinations-non-image');
+          if (fallback) return fallback;
           return json({ error: { message: 'image provider returned a non-image payload', detail: aiError || undefined } }, 502);
         }
         return new Response(upstream.body, {
@@ -2798,10 +2819,15 @@ export default {
             'Access-Control-Allow-Origin': '*',
             'X-Image-Provider': 'pollinations',
             'X-Image-Model': model,
-            'X-Image-Seed': String(seed)
+            'X-Image-Width': String(width),
+            'X-Image-Height': String(height),
+            'X-Image-Seed': String(seed),
+            'Access-Control-Expose-Headers': exposeImageHeaders
           }
         });
       } catch (e) {
+        const fallback = await workersFlux('pollinations-error');
+        if (fallback) return fallback;
         return json({ error: { message: redactSecrets('image generation failed: ' + (aiError ? ('workers-ai: ' + aiError + '; ') : '') + (e.message || String(e)), env) } }, 504);
       } finally {
         clearTimeout(timer);

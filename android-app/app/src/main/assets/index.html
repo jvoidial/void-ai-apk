@@ -2979,6 +2979,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     run();
   }
 
+  function normalizeSceneCode(code) {
+    var s = String(code || '');
+    // Models still occasionally emit ES-module imports or redeclare the
+    // sandbox globals. Strip those so the scene uses the provided runtime.
+    s = s.replace(/^\s*import\b[^\n]*\n?/gm, '');
+    s = s.replace(/^\s*export\s+default\s+/gm, '');
+    s = s.replace(/^\s*export\s*\{[^}]*\};?[ \t]*$/gm, '');
+    s = s.replace(/^\s*(?:const|let|var)\s+scene\s*=\s*new\s+THREE\.Scene\([\s\S]*?\)\s*;?\s*$/gm, '');
+    s = s.replace(/^\s*(?:const|let|var)\s+camera\s*=\s*new\s+THREE\.PerspectiveCamera\([\s\S]*?\)\s*;?\s*$/gm, '');
+    s = s.replace(/^\s*(?:const|let|var)\s+renderer\s*=\s*new\s+THREE\.WebGLRenderer\([\s\S]*?\)\s*;?\s*$/gm, '');
+    s = s.replace(/^\s*document\.body\.appendChild\(\s*renderer\.domElement\s*\);?[ \t]*$/gm, '');
+    return s.trim();
+  }
+
   function extractSceneCode(text) {
     var s = String(text || '').trim();
     var re = /```(?:js|javascript)?\s*([\s\S]*?)```/gi, m, best = '';
@@ -3028,7 +3042,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         temperature: 0.35,
         messages: [{
           role: 'user',
-          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. The requested dimension is 3D (three spatial axes). Globals: THREE, scene, camera, renderer. Define window.update = function(t) { ... } for animation. Build visible objects and a bounded simulation: give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
+          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. The requested dimension is 3D (three spatial axes). Globals already exist: THREE, scene, camera, renderer, window.update. Do NOT import Three.js, do NOT create scene/camera/renderer, and do NOT append a canvas. Define window.update = function(t) { ... } for animation. Build visible objects and a bounded simulation: give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
         }]
       })
     }).then(function(r) {
@@ -3039,7 +3053,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         return (d && d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) || '';
       });
     }).then(function(content) {
-      var code = extractSceneCode(content);
+      var code = normalizeSceneCode(extractSceneCode(content));
       if (!code || code.length > 30000) throw new Error('the model did not return usable scene code');
       var policyError = validateSceneCode(code);
       if (policyError) throw new Error(policyError);
@@ -3660,7 +3674,8 @@ voidaiReassertSidebar();
     micActive: false,
     capsLoaded: false,
     imgObjectUrl: '',
-    imgBusy: false
+    imgBusy: false,
+    imgMeta: null
   };
 
   try {
@@ -4458,6 +4473,15 @@ voidaiReassertSidebar();
           throw new Error(message);
         });
       }
+      state.imgMeta = {
+        provider: r.headers.get('X-Image-Provider') || 'worker',
+        model: r.headers.get('X-Image-Model') || body.model,
+        width: r.headers.get('X-Image-Width') || String(width),
+        height: r.headers.get('X-Image-Height') || String(height),
+        seed: r.headers.get('X-Image-Seed') || '',
+        fallback: r.headers.get('X-Image-Fallback') || '',
+        type: r.headers.get('Content-Type') || 'image/jpeg'
+      };
       return r.blob();
     }).then(function (blob) {
       if (!blob || !blob.size) throw new Error('empty image');
@@ -4467,7 +4491,8 @@ voidaiReassertSidebar();
       if (img) { img.src = state.imgObjectUrl; img.style.display = 'block'; }
       var empty = document.getElementById('img-empty');
       if (empty) empty.style.display = 'none';
-      imgStatus('Image ready. DOWNLOAD saves it locally.', false);
+      var meta = state.imgMeta || {};
+      imgStatus('Image ready · ' + (meta.provider || 'worker') + ' · ' + (meta.model || body.model) + ' · ' + (meta.width || width) + '×' + (meta.height || height) + (meta.seed ? ' · seed ' + meta.seed : '') + (meta.fallback ? ' · fallback ' + meta.fallback : '') + '. DOWNLOAD saves it locally.', false);
     }).catch(function (e) {
       imgStatus('Image generation failed: ' + (e.message || e), true);
     }).then(function () {
@@ -4479,8 +4504,10 @@ voidaiReassertSidebar();
   function downloadImageMaker() {
     if (!state.imgObjectUrl) { imgStatus('Generate an image first.', true); return; }
     var a = document.createElement('a');
+    var meta = state.imgMeta || {};
+    var ext = /png/i.test(meta.type || '') ? 'png' : 'jpg';
     a.href = state.imgObjectUrl;
-    a.download = 'voidai-image.jpg';
+    a.download = 'voidai-image-' + (meta.seed || 'auto') + '.' + ext;
     document.body.appendChild(a); a.click();
     setTimeout(function () { a.remove(); }, 600);
     imgStatus('Download started.', false);
