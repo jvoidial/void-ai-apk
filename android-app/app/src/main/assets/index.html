@@ -510,7 +510,7 @@ window.voidaiToggleSidebar = function() {
         </select>
       </div>
       <div class="sim-row">
-        <input id="sim-prompt" type="text" placeholder="try: 4d tesseract, 5d state, lorenz, 300 particles" autocomplete="off">
+        <input id="sim-prompt" type="text" placeholder="try: build a human, 4d tesseract, 5d state, lorenz, 300 particles" autocomplete="off">
         <button id="sim-build" class="sim-btn" type="button">BUILD</button>
       </div>
       <div class="sim-row">
@@ -549,7 +549,7 @@ window.voidaiToggleSidebar = function() {
     </div>
     <div id="gl-controls">
       <div class="sim-row">
-        <input id="gl-prompt" type="text" placeholder="build an object or simulation: 60 bouncing objects, neon city, wave, 5d penteract" autocomplete="off">
+        <input id="gl-prompt" type="text" placeholder="build anything: human, neon city, 60 bouncing objects, 4d tesseract, 5d penteract" autocomplete="off">
         <button id="gl-build" class="sim-btn" type="button">BUILD</button>
         <button id="gl-ai" class="sim-btn" type="button">AI BUILD</button>
       </div>
@@ -959,7 +959,7 @@ window.voidaiToggleSidebar = function() {
         '- `/proteinstudio TARGET` — GPT-only protein blueprint with local WebGL schematic',
         '- `/protein` — benign protein-engineering mode',
         '- `/predict` or `/future` — technology forecast',
-        '- `/builder` — AI code + live preview builder',
+        '- `/builder` or `/build` — AI code + live preview builder',
         '- `/sim` — Canvas N-D workbench',
         '- `/webgl` or `/three` — sandboxed Three.js lab',
         '- `/sync` — refresh the PHB six-layer state',
@@ -998,7 +998,7 @@ window.voidaiToggleSidebar = function() {
     }
 
     var simpleTools = {
-      'builder': 'voidaiOpenBuilder',
+      'builder': 'voidaiOpenBuilder', 'build': 'voidaiOpenBuilder',
       'images': 'voidaiOpenImageMaker',
       'image-maker': 'voidaiOpenImageMaker',
       'live': 'voidaiOpenLive', 'live-off': 'voidaiCloseLive',
@@ -1015,6 +1015,7 @@ window.voidaiToggleSidebar = function() {
       if (typeof fn === 'function') {
         var notes = {
           'builder': 'Builder/SIM opened. Edit code, run the preview, or open SIM LAB.',
+          'build': 'Builder/SIM opened. Edit code, run the preview, or open SIM LAB.',
           'images': 'Image Maker opened as a separate tab.',
           'live': 'Opening the photo gallery.',
           'live-off': 'Photo capture closed.',
@@ -1389,7 +1390,7 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
-    var builderMatch = text.match(/^[@\/]builder\b\s*([\s\S]*)$/i);
+    var builderMatch = text.match(/^[@\/](?:builder|build)\b\s*([\s\S]*)$/i);
     if (builderMatch) {
       if (typeof window.voidaiOpenBuilder !== 'function') {
         addMsg('assistant', '**Builder error:** builder lab failed to load.');
@@ -2067,6 +2068,10 @@ window.voidaiToggleSidebar = function() {
     syncUI();
   }
 
+  function isSimSceneRequest(input) {
+    return /orbit|solar|planet|gravity|n-body|lorenz|chaos|attractor|wave|surface|field|particle|swarm|cloud|points|polytope|hypercube|tesseract|penteract|cube|lattice|state|trajectory|oscillator|harmonic|simulate|simulation|physics|bounce|ball|object/.test(String(input || '').toLowerCase());
+  }
+
   function parsePrompt(input) {
     var low = String(input || '').toLowerCase();
     var dim = 3, scene = '';
@@ -2425,6 +2430,10 @@ window.voidaiToggleSidebar = function() {
   }
 
   function openSim(input) {
+    var request = String(input || '').trim();
+    if (request && !isSimSceneRequest(request) && typeof window.voidaiOpenWebGL === 'function') {
+      return window.voidaiOpenWebGL('ai ' + request + ' ' + S.dim + 'd');
+    }
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
     S.open = true;
@@ -2498,12 +2507,22 @@ window.voidaiToggleSidebar = function() {
 
     el('sim-snap').addEventListener('click', snapshot);
     el('sim-gl').addEventListener('click', function() {
+      var prompt = el('sim-prompt').value.trim();
+      var dim = S.dim;
       closeSim();
-      if (typeof window.voidaiOpenWebGL === 'function') window.voidaiOpenWebGL('');
+      if (typeof window.voidaiOpenWebGL === 'function') {
+        window.voidaiOpenWebGL(prompt ? ('ai ' + prompt + ' ' + dim + 'd') : ('objects ' + dim + 'd'));
+      }
     });
 
     function buildFromInput() {
       var prompt = el('sim-prompt').value.trim();
+      if (prompt && !isSimSceneRequest(prompt) && typeof window.voidaiOpenWebGL === 'function') {
+        var dim = S.dim;
+        closeSim();
+        window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd');
+        return;
+      }
       var cfg = parsePrompt(prompt);
       applyConfig(cfg);
       start();
@@ -2863,11 +2882,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function chooseGLDim(dim) {
+    var request = el('gl-prompt').value.trim();
+    setGLDimActive(dim);
+    if (request && !isExplicitNDTemplate(request)) {
+      generateScene(request);
+      return;
+    }
     var key = dim === 5 ? 'penteract' : (dim === 4 ? 'tesseract' : 'orbit');
     GL.template = key;
     el('gl-template').value = key;
     el('gl-code').value = codeFor(key, 0);
-    setGLDimActive(dim);
     run();
   }
 
@@ -2971,6 +2995,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var key = dim === 5 ? 'penteract' : (dim === 4 ? 'tesseract' : cfg.key);
     if (dim < 4 && (key === 'tesseract' || key === 'penteract')) key = 'orbit';
     return { key: key, count: cfg.count, dim: dim };
+  }
+
+  function isKnownSceneRequest(input) {
+    return /orbit|solar|planet|gravity|n-body|lorenz|chaos|attractor|wave|surface|field|particle|swarm|cloud|points|object|bounce|ball|physics|collision|stack|polytope|hypercube|tesseract|penteract|cube|lattice|state|trajectory|oscillator|harmonic/.test(String(input || '').toLowerCase());
+  }
+
+  function isExplicitNDTemplate(input) {
+    return /tesseract|penteract|polytope|hypercube|4-cube|5-cube/.test(String(input || '').toLowerCase());
   }
 
   function codeFor(key, count) {
@@ -3085,7 +3117,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var aiMatch = String(input || '').match(/^ai\b[::\s]*(.*)$/i);
     var aiPrompt = aiMatch ? (aiMatch[1] || '').trim() : '';
     if (aiPrompt) input = aiPrompt;
-    var cfg = sceneConfigFor(input, 3);
+    if (input) el('gl-prompt').value = input;
+    var cfg = sceneConfigFor(input, GL.dim || 3);
     GL.template = cfg.key;
     el('gl-template').value = cfg.key;
     el('gl-code').value = codeFor(cfg.key, cfg.count);
@@ -3122,11 +3155,17 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function buildFromPrompt() {
-    var cfg = sceneConfigFor(el('gl-prompt').value, GL.dim);
+    var request = el('gl-prompt').value.trim();
+    if (request && (!isKnownSceneRequest(request) || (GL.dim >= 4 && !isExplicitNDTemplate(request)))) {
+      generateScene(request);
+      return;
+    }
+    var cfg = sceneConfigFor(request, GL.dim);
     GL.template = cfg.key;
     el('gl-template').value = cfg.key;
     el('gl-code').value = codeFor(cfg.key, cfg.count);
     setGLDimActive(cfg.dim);
+    setStatus('Building ' + (request ? '“' + request + '” ' : '') + 'in ' + cfg.dim + 'D…', false);
     run();
   }
 
@@ -3169,21 +3208,25 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var app = window.voidaiApp;
     var request = String(prompt || el('gl-prompt').value || '').trim();
     if (!request) { setStatus('Describe the scene you want first, for example: neon city at night.', true); return; }
+    el('gl-prompt').value = request;
     var cfg = sceneConfigFor(request, GL.dim);
-    if (cfg.dim >= 4) {
-      // 4D/5D are mathematical projections; the local templates keep the
-      // selected dimension and the preview exactly in sync.
+    var dim = cfg.dim;
+    var dimRule = dim === 3
+      ? 'The requested dimension is 3D (three spatial axes). Build the requested object as visible Three.js meshes.'
+      : 'The requested dimension is ' + dim + 'D. Build the requested object itself, not a generic tesseract or penteract. Represent it with ' + dim + '-dimensional points and edges, rotate it in the extra planes, project it to 3D, and render the projected wireframe and points. Keep the requested object recognizable in the projection.';
+    if (!app || !app.PROXY_URL || !app.VOIDAI_KEY) {
       GL.template = cfg.key;
       el('gl-template').value = cfg.key;
       el('gl-code').value = codeFor(cfg.key, 0);
-      setGLDimActive(cfg.dim);
-      setStatus(cfg.dim + 'D projection loaded from the ' + templateLabel(cfg.key) + ' template.', false);
+      setGLDimActive(dim);
+      setStatus('VOIDAI bridge unavailable; showing a local ' + dim + 'D projection.', true);
       run();
       return;
     }
-    if (!app || !app.PROXY_URL || !app.VOIDAI_KEY) { setStatus('VOIDAI app bridge is unavailable.', true); return; }
-    setGLDimActive(3);
-    setStatus('VOIDAI is writing the scene…', true);
+    GL.template = cfg.key;
+    el('gl-template').value = cfg.key;
+    setGLDimActive(dim);
+    setStatus('VOIDAI is building “' + request + '” in ' + dim + 'D…', true);
     fetch(app.PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
@@ -3193,7 +3236,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         temperature: 0.35,
         messages: [{
           role: 'user',
-          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. The requested dimension is 3D (three spatial axes). Globals already exist: THREE, scene, camera, renderer, window.update. Do NOT import Three.js, do NOT create scene/camera/renderer, and do NOT append a canvas. Define window.update = function(t) { ... } for animation. Build visible objects and a bounded simulation: give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
+          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. ' + dimRule + ' Globals already exist: THREE, scene, camera, renderer, window.update. Do NOT import Three.js, do NOT create scene/camera/renderer, and do NOT append a canvas. Define window.update = function(t) { ... } for animation. Give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
         }]
       })
     }).then(function(r) {
@@ -3213,11 +3256,16 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       el('gl-code').value = code;
       el('gl-template').value = cfg.key;
       GL.template = cfg.key;
-      setGLDimActive(3);
-      setStatus('AI scene ready. Running in the sandbox…', true);
+      setGLDimActive(dim);
+      setStatus(dim + 'D scene ready. Running in the sandbox…', true);
       run();
     }).catch(function(e) {
-      setStatus('AI scene error: ' + (e.message || 'unknown'), true);
+      GL.template = cfg.key;
+      el('gl-template').value = cfg.key;
+      el('gl-code').value = codeFor(cfg.key, 0);
+      setGLDimActive(dim);
+      run();
+      setStatus('AI scene error: ' + (e.message || 'unknown') + '. Showing a local ' + dim + 'D projection instead.', true);
     });
   }
 
@@ -4387,7 +4435,7 @@ voidaiReassertSidebar();
         '<h3>AI ROUTING</h3><pre class="va-pre" id="va-routing">PRIMARY: openai/gpt-oss-120b via Groq\nFALLBACKS: OpenRouter, Gemini\nVISION: Groq → OpenRouter → Gemini → Workers AI fallback\nCONSENSUS: multi-model adjudication in deep mode</pre>' +
         '<h3>PHB PERSONA</h3><div class="va-note" id="va-phb">Human Agent v2: six layers (coherence, reflex, working, circuit, intent, narrative), five circuits (curiosity, focus, openness, rigor, creativity), female she/her, 20-year-old perspective, casual-precise, steady and warm, non-romantic. Full system prompt remains in the Worker; this client does not rewrite it.</div>' +
         '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Gallery photo vision · Photo attach · Two-way voice conversation · Mic dictation · TTS/read · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
-        '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“attach a photo and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /images /sim /webgl /photo /image /sync</pre>' +
+        '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“attach a photo and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /build /images /sim /webgl /photo /image /sync</pre>' +
         '<div class="va-pre" id="va-cap-status" style="margin-top:12px">Capabilities not loaded yet.</div>' +
       '</div></div>';
     document.body.appendChild(cap);

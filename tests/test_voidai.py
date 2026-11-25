@@ -851,6 +851,16 @@ process.stdout.write(JSON.stringify(out));
             self.assertEqual(repair["key"], repair["expectedKey"])
             self.assertEqual(repair["dim"], repair["expectedDim"])
 
+    def test_builder_uses_prompt_in_3d_4d_and_5d(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        self.assertIn("Build the requested object itself, not a generic tesseract or penteract", html)
+        self.assertIn("function isKnownSceneRequest(input)", html)
+        self.assertIn("function isSimSceneRequest(input)", html)
+        self.assertIn("generateScene(request);", html)
+        self.assertIn("window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd')", html)
+        self.assertNotIn("if (cfg.dim >= 4) {\n      // 4D/5D are mathematical projections", html)
+
     def test_builder_normalizer_strips_imports_and_global_redeclarations(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()
