@@ -4,9 +4,9 @@
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
-const MAX_MESSAGES = 60;
-const MAX_CHARS = 20000;
-const MAX_TOTAL_CHARS = 72000;
+const MAX_MESSAGES = 200;
+const MAX_CHARS = 40000;
+const MAX_TOTAL_CHARS = 180000;
 const MAX_IMAGE_CHARS = 12 * 1024 * 1024;
 const DEFAULT_MAX_TOKENS = 4096;
 const MAX_MAX_TOKENS = 8192;
@@ -42,7 +42,13 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.4.4';
+const WORKER_VERSION = '3.5.0';
+const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
+const CONVERSATION_KIND_PREFIX = 'conversation:';
+const MAX_ARCHIVE_CONVERSATIONS = 60;
+const MAX_ARCHIVE_MESSAGES = 400;
+const MAX_ARCHIVE_MESSAGE_CHARS = 40000;
+const MAX_ARCHIVE_BYTES = 2 * 1024 * 1024;
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -331,6 +337,100 @@ async function initConsciousnessTables(env) {
   } catch (e) {}
 }
 
+// Full conversation threads are archived in the existing Supabase reflections
+// table under a reserved user_id namespace. This avoids a schema migration
+// while keeping chat rows out of the normal reflection/memory queries.
+function conversationArchiveScope(userId) {
+  return String(userId || 'guest').slice(0, 96) + CONVERSATION_ARCHIVE_SUFFIX;
+}
+
+function normalizeArchivedConversation(raw) {
+  if (!raw || typeof raw !== 'object') return { error: 'conversation is required' };
+  var id = String(raw.id || '').trim();
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return { error: 'invalid conversation id' };
+  var messages = [];
+  var total = 0;
+  var source = Array.isArray(raw.messages) ? raw.messages : [];
+  for (var i = 0; i < source.length && messages.length < MAX_ARCHIVE_MESSAGES; i++) {
+    var m = source[i];
+    if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string') continue;
+    var content = m.content.slice(0, MAX_ARCHIVE_MESSAGE_CHARS);
+    if (!content) continue;
+    total += content.length;
+    if (total > MAX_ARCHIVE_BYTES) return { error: 'conversation is too large' };
+    messages.push({ role: m.role, content: content });
+  }
+  if (!messages.length) return { error: 'conversation has no messages' };
+  var created = Number(raw.created);
+  var updated = Number(raw.updated);
+  return {
+    id: id,
+    title: String(raw.title || 'Untitled').slice(0, 160),
+    messages: messages,
+    created: Number.isFinite(created) ? created : 0,
+    updated: Number.isFinite(updated) ? updated : (Number.isFinite(created) ? created : Date.now())
+  };
+}
+
+async function upsertArchivedConversation(env, userId, conversation) {
+  var scope = conversationArchiveScope(userId);
+  var kind = CONVERSATION_KIND_PREFIX + conversation.id;
+  var value = JSON.stringify(conversation);
+  if (value.length > MAX_ARCHIVE_BYTES) return false;
+  var query = '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+    '&kind=eq.' + encodeURIComponent(kind);
+  var patched = await sbFetch(env, query, {
+    method: 'PATCH',
+    headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify({ content: value, weight: conversation.updated })
+  });
+  var rows = await readJsonSafe(patched, null);
+  if (Array.isArray(rows) && rows.length) return true;
+  if (!patched.ok) return false;
+  var inserted = await sbFetch(env, '/rest/v1/voidai_reflections', {
+    method: 'POST',
+    headers: { 'Prefer': 'return=minimal' },
+    body: JSON.stringify({
+      user_id: scope,
+      kind: kind,
+      content: value,
+      weight: conversation.updated
+    })
+  });
+  return inserted.ok;
+}
+
+async function listArchivedConversations(env, userId) {
+  var scope = conversationArchiveScope(userId);
+  var res = await sbFetch(env,
+    '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+    '&kind=like.' + encodeURIComponent(CONVERSATION_KIND_PREFIX + '*') +
+    '&order=weight.desc&limit=' + MAX_ARCHIVE_CONVERSATIONS +
+    '&select=kind,content,weight', { method: 'GET' });
+  var rows = await readJsonSafe(res, []);
+  if (!Array.isArray(rows)) return [];
+  var out = [];
+  rows.forEach(function (row) {
+    try {
+      var parsed = JSON.parse(row.content || '{}');
+      var normalized = normalizeArchivedConversation(parsed);
+      if (!normalized.error) out.push(normalized);
+    } catch (e) {}
+  });
+  out.sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
+  return out.slice(0, MAX_ARCHIVE_CONVERSATIONS);
+}
+
+async function deleteArchivedConversation(env, userId, conversationId) {
+  var scope = conversationArchiveScope(userId);
+  var kind = CONVERSATION_KIND_PREFIX + conversationId;
+  var res = await sbFetch(env,
+    '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+    '&kind=eq.' + encodeURIComponent(kind),
+    { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+  return res.ok;
+}
+
 async function loadRecentReflections(env, userId) {
   try {
     var uid = userId || 'guest';
@@ -579,8 +679,8 @@ async function runReflectionPass(userText, assistantText, userId, env, mode) {
   }
 }
 
-const VOIDAI_CHUNK_THRESHOLD = 24000;
-const VOIDAI_CHUNK_MAX = 500000;
+const VOIDAI_CHUNK_THRESHOLD = 180000;
+const VOIDAI_CHUNK_MAX = 260000;
 
 async function callGroqChunked(env, messages, model, options) {
   var opts = options || {};
@@ -2547,6 +2647,7 @@ export default {
         activation_bits: 64,
         topology_mapped: true,
         protein_design_llm: true,
+        conversation_sync: true,
         source_route: true,
         capabilities_route: true,
         self_knowledge: true
@@ -2683,6 +2784,73 @@ export default {
         no_specialized_biology_models: true,
         disclaimer: 'Model-proposed sequence and topology only. The 3D view is a schematic built from that topology, not a predicted atomic structure. No ESMFold, docking, ipSAE, pLDDT, binding measurement, or wet-lab validation is implied.'
       });
+    }
+
+    if (new URL(request.url).pathname === '/conversations/list' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let cbody;
+      try { cbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+      const uid = safeUserId(cbody && cbody.user_id);
+      if (!cbody || !cbody.user_id || uid === 'guest') {
+        return json({ ok: true, guest: true, conversations: [] });
+      }
+      const conversations = await listArchivedConversations(env, uid);
+      return json({ ok: true, user_id: uid, conversations: conversations });
+    }
+
+    if (new URL(request.url).pathname === '/conversations/save' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let cbody;
+      try { cbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+      const uid = safeUserId(cbody && cbody.user_id);
+      if (!cbody || !cbody.user_id || uid === 'guest') {
+        return json({ error: { message: 'signed-in user_id is required' } }, 400);
+      }
+      const normalized = normalizeArchivedConversation(cbody.conversation);
+      if (normalized.error) {
+        return json({ error: { message: normalized.error } }, normalized.error.indexOf('too large') >= 0 ? 413 : 400);
+      }
+      const saved = await upsertArchivedConversation(env, uid, normalized);
+      if (!saved) return json({ error: { message: 'conversation archive failed' } }, 502);
+      return json({ ok: true, user_id: uid, id: normalized.id, updated: normalized.updated });
+    }
+
+    if (new URL(request.url).pathname === '/conversations/save-all' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let cbody;
+      try { cbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+      const uid = safeUserId(cbody && cbody.user_id);
+      if (!cbody || !cbody.user_id || uid === 'guest') {
+        return json({ error: { message: 'signed-in user_id is required' } }, 400);
+      }
+      const source = Array.isArray(cbody.conversations) ? cbody.conversations.slice(0, MAX_ARCHIVE_CONVERSATIONS) : [];
+      var saved = 0;
+      var skipped = 0;
+      for (var ci = 0; ci < source.length; ci++) {
+        var normalized = normalizeArchivedConversation(source[ci]);
+        if (normalized.error) { skipped++; continue; }
+        if (await upsertArchivedConversation(env, uid, normalized)) saved++;
+        else skipped++;
+      }
+      return json({ ok: true, user_id: uid, saved: saved, skipped: skipped });
+    }
+
+    if (new URL(request.url).pathname === '/conversations/delete' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let cbody;
+      try { cbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+      const uid = safeUserId(cbody && cbody.user_id);
+      const id = String((cbody && cbody.id) || '').trim();
+      if (!cbody || !cbody.user_id || uid === 'guest' || !/^[a-zA-Z0-9_-]{1,80}$/.test(id)) {
+        return json({ error: { message: 'signed-in user_id and conversation id are required' } }, 400);
+      }
+      const deleted = await deleteArchivedConversation(env, uid, id);
+      if (!deleted) return json({ error: { message: 'conversation delete failed' } }, 502);
+      return json({ ok: true, user_id: uid, id: id });
     }
 
     if (new URL(request.url).pathname === '/source') {

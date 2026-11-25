@@ -454,7 +454,7 @@ window.voidaiToggleSidebar = function() {
   }
 };
 </script>
-<div id="voidai-sidebar" style="position:fixed;top:0;left:-320px;bottom:0;width:300px;max-width:85vw;background:#0b0b0b;border-right:1px solid #222;z-index:999998;transition:left 0.22s ease;padding:16px;overflow-y:auto;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ccc;"><div style="font-size:11px;letter-spacing:2px;color:#666;font-weight:600;margin-bottom:12px;">CONVERSATIONS</div><button id="voidai-new-btn" type="button" style="display:block;width:100%;background:#1a1a1a;border:1px solid #333;color:#fff;padding:9px;border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:14px;font-family:inherit;">+ New conversation</button><div id="voidai-conv-list"></div></div>
+<div id="voidai-sidebar" style="position:fixed;top:0;left:-320px;bottom:0;width:300px;max-width:85vw;background:#0b0b0b;border-right:1px solid #222;z-index:999998;transition:left 0.22s ease;padding:16px;overflow-y:auto;box-sizing:border-box;font-family:ui-monospace,monospace;color:#ccc;"><div style="font-size:11px;letter-spacing:2px;color:#666;font-weight:600;margin-bottom:12px;">CONVERSATIONS</div><button id="voidai-new-btn" type="button" style="display:block;width:100%;background:#1a1a1a;border:1px solid #333;color:#fff;padding:9px;border-radius:6px;font-size:11px;cursor:pointer;margin-bottom:10px;font-family:inherit;">+ New conversation</button><div id="voidai-sync-status" style="font-size:9px;letter-spacing:1px;color:#555;margin:0 0 12px;min-height:12px;">LOCAL ONLY · SIGN IN TO SYNC</div><div id="voidai-conv-list"></div></div>
 <div id="app">
   <div id="hero">VOIDAI</div>
     <div id="voidai-menu-wrapper" style="position:absolute;top:12px;left:16px;z-index:10;">
@@ -689,11 +689,11 @@ window.voidaiToggleSidebar = function() {
   var MEMORY_KEY = 'voidai_chat_v3';
   var USER_KEY = 'voidai_user_id';
   var DEVICE_KEY = 'voidai_device_id';
-  var MAX_MSGS = 100;
-  var HISTORY_TURNS = 50;
-  var MAX_RESTORE_MSGS = 40;
+  var MAX_MSGS = 500;
+  var HISTORY_TURNS = 200;
+  var MAX_RESTORE_MSGS = 400;
   var FUTURE_TOPIC = 'the future of AI, AGI, agentic software, robotics, brain-computer interfaces, synthetic biology, energy, and quantum computing over the next one to ten years';
-  var MAX_SEND_CHARS = 32000;
+  var MAX_SEND_CHARS = 40000;
   var REPLY_TIMEOUT_MS = 120000;
 
   var SYSTEM = SYSTEM_PROMPT;
@@ -1474,6 +1474,7 @@ window.voidaiToggleSidebar = function() {
           els.input.disabled = false;
           els.send.disabled = false;
           try { els.input.focus(); } catch(e) {}
+          if (typeof window.voidaiPullCloud === 'function') window.voidaiPullCloud();
         });
       return;
     }
@@ -1756,12 +1757,18 @@ window.voidaiToggleSidebar = function() {
     }
     updateAuthUI(email, name);
     status('signed in');
+    if (typeof window.voidaiPullCloud === 'function') {
+      setTimeout(function() { window.voidaiPullCloud(); }, 500);
+    }
   };
 
   window.onSignedOut = function() {
     try { localStorage.removeItem(USER_KEY); } catch(e) {}
     updateAuthUI('', '');
     status('signed out');
+    if (typeof window.voidaiCloudSignOut === 'function') {
+      try { window.voidaiCloudSignOut(); } catch(e) {}
+    }
     addMsg('assistant', 'Signed out.');
   };
 
@@ -1783,13 +1790,15 @@ window.voidaiToggleSidebar = function() {
     get busy() { return busy; },
     set busy(v) { busy = v; },
     addMsg: addMsg,
+    updateHero: updateHero,
     status: status,
     saveMemory: saveMemory,
     send: send,
     SYSTEM: SYSTEM,
     SYSTEM_MSG: SYSTEM_MSG,
     PROXY_URL: PROXY_URL,
-    VOIDAI_KEY: VOIDAI_KEY
+    VOIDAI_KEY: VOIDAI_KEY,
+    currentUserId: currentUserId
   };
 
   function init() {
@@ -3324,6 +3333,13 @@ var voidaiConvs = [];
 var voidaiActiveConv = null;
 try { voidaiConvs = JSON.parse(localStorage.getItem('voidai_convs') || '[]'); } catch(e) {}
 try { voidaiActiveConv = localStorage.getItem('voidai_active_conv'); } catch(e) {}
+var voidaiCloudTimer = null;
+var voidaiCloudBusy = false;
+var voidaiCloudEpoch = 0;
+var voidaiCloudDirty = {};
+var voidaiDeleted = [];
+try { voidaiDeleted = JSON.parse(localStorage.getItem('voidai_deleted_convs') || '[]'); } catch(e) {}
+if (!Array.isArray(voidaiDeleted)) voidaiDeleted = [];
 
 // Keep local conversations scoped to the signed-in account. If a different
 // account signs in on this device, drop the previous account's cached thread
@@ -3331,17 +3347,21 @@ try { voidaiActiveConv = localStorage.getItem('voidai_active_conv'); } catch(e) 
 window.voidaiAdoptAccount = function(email) {
   var id = String(email || '').trim().toLowerCase();
   if (!id) return false;
-  var previous = '';
-  try { previous = String(localStorage.getItem('voidai_owner') || '').toLowerCase(); } catch(e) {}
-  var changed = !!previous && previous !== id;
+  var previous = 'guest';
+  try { previous = String(localStorage.getItem('voidai_owner') || 'guest').toLowerCase(); } catch(e) {}
+  var changed = previous !== id;
   if (changed) {
     try {
       localStorage.removeItem('voidai_convs');
       localStorage.removeItem('voidai_active_conv');
       localStorage.removeItem('voidai_chat_v3');
+      localStorage.removeItem('voidai_deleted_convs');
     } catch(e) {}
     voidaiConvs = [];
     voidaiActiveConv = null;
+    voidaiDeleted = [];
+    voidaiCloudDirty = {};
+    voidaiCloudEpoch++;
     var app = window.voidaiApp;
     var h = app ? app.history : null;
     if (h) {
@@ -3357,6 +3377,9 @@ window.voidaiAdoptAccount = function(email) {
 };
 
 function voidaiPersist() {
+  voidaiConvs.sort(function(a, b) {
+    return (b.updated || b.created || 0) - (a.updated || a.created || 0);
+  });
   voidaiConvs = voidaiConvs.slice(0, 50);
   try {
     localStorage.setItem('voidai_convs', JSON.stringify(voidaiConvs));
@@ -3372,6 +3395,263 @@ function voidaiPersist() {
     } catch(e2) { return false; }
   }
 }
+
+function voidaiCloudBridge() {
+  if (typeof window.Android !== 'undefined' && window.Android) return window.Android;
+  if (typeof window.VoidAI !== 'undefined' && window.VoidAI) return window.VoidAI;
+  return null;
+}
+
+function voidaiCloudUserId() {
+  try {
+    var bridge = voidaiCloudBridge();
+    if (!bridge) return '';
+    var id = typeof bridge.getUserId === 'function' ? String(bridge.getUserId() || '').trim() : '';
+    if (id) return id.toLowerCase();
+    var email = typeof bridge.getCurrentUser === 'function' ? String(bridge.getCurrentUser() || '').trim() : '';
+    return email ? email.toLowerCase() : '';
+  } catch(e) { return ''; }
+}
+
+function voidaiCloudBadge(text, color) {
+  var el = document.getElementById('voidai-sync-status');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = color || '#555';
+}
+
+function voidaiPersistDeleted() {
+  voidaiDeleted = voidaiDeleted.slice(-200);
+  try { localStorage.setItem('voidai_deleted_convs', JSON.stringify(voidaiDeleted)); } catch(e) {}
+}
+
+function voidaiMarkDeleted(id) {
+  if (!id) return;
+  var key = String(id);
+  if (voidaiDeleted.indexOf(key) < 0) voidaiDeleted.push(key);
+  voidaiPersistDeleted();
+}
+
+function voidaiUnmarkDeleted(id) {
+  var key = String(id || '');
+  voidaiDeleted = voidaiDeleted.filter(function(x) { return x !== key; });
+  voidaiPersistDeleted();
+}
+
+function voidaiCloudApi(path, payload) {
+  var app = window.voidaiApp;
+  if (!app || !app.PROXY_URL || !app.VOIDAI_KEY) return Promise.reject(new Error('app not ready'));
+  var base = String(app.PROXY_URL).replace(/\/$/, '');
+  return fetch(base + path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-VOID-KEY': app.VOIDAI_KEY
+    },
+    body: JSON.stringify(payload || {})
+  }).then(function(res) {
+    return res.text().then(function(raw) {
+      var data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch(e) {}
+      if (!res.ok) throw new Error((data && data.error && data.error.message) || ('sync http ' + res.status));
+      return data || {};
+    });
+  });
+}
+
+function voidaiNormalizeCloudConv(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  var id = String(raw.id || '').trim();
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) return null;
+  var messages = (Array.isArray(raw.messages) ? raw.messages : []).filter(function(m) {
+    return m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content;
+  }).map(function(m) {
+    return { role: m.role, content: m.content.slice(0, 40000) };
+  });
+  if (!messages.length) return null;
+  var created = Number(raw.created) || 0;
+  var updated = Number(raw.updated) || created || Date.now();
+  return {
+    id: id,
+    title: String(raw.title || 'Untitled').slice(0, 160),
+    messages: messages,
+    created: created,
+    updated: updated
+  };
+}
+
+function voidaiMergeCloud(remote) {
+  var map = {};
+  var seenDeleted = {};
+  voidaiDeleted.forEach(function(id) { seenDeleted[id] = true; });
+  voidaiConvs.forEach(function(c) {
+    var n = voidaiNormalizeCloudConv(c);
+    if (!n || seenDeleted[n.id]) return;
+    map[n.id] = n;
+  });
+  (Array.isArray(remote) ? remote : []).forEach(function(c) {
+    var n = voidaiNormalizeCloudConv(c);
+    if (!n || seenDeleted[n.id]) return;
+    var old = map[n.id];
+    if (!old || n.updated >= old.updated) map[n.id] = n;
+  });
+  return Object.keys(map).map(function(id) { return map[id]; }).sort(function(a, b) {
+    return (b.updated || 0) - (a.updated || 0);
+  });
+}
+
+function voidaiCloudQueue(conv) {
+  if (!conv || !conv.id) return;
+  if (!voidaiCloudUserId()) {
+    voidaiCloudBadge('LOCAL ONLY · SIGN IN TO SYNC');
+    return;
+  }
+  voidaiUnmarkDeleted(conv.id);
+  voidaiCloudDirty[conv.id] = true;
+  if (voidaiCloudTimer) clearTimeout(voidaiCloudTimer);
+  voidaiCloudTimer = setTimeout(function() {
+    voidaiCloudTimer = null;
+    voidaiCloudPushDirty();
+  }, 1200);
+}
+
+function voidaiCloudPushDirty() {
+  if (voidaiCloudBusy) {
+    if (voidaiCloudTimer) clearTimeout(voidaiCloudTimer);
+    voidaiCloudTimer = setTimeout(voidaiCloudPushDirty, 1500);
+    return;
+  }
+  var uid = voidaiCloudUserId();
+  if (!uid) { voidaiCloudBadge('LOCAL ONLY · SIGN IN TO SYNC'); return; }
+  var ids = Object.keys(voidaiCloudDirty);
+  if (!ids.length) return;
+  voidaiCloudDirty = {};
+  var convs = ids.map(voidaiFindConv).filter(function(c) { return !!c; });
+  if (!convs.length) return;
+  var request;
+  if (convs.length === 1) {
+    request = voidaiCloudApi('/conversations/save', { user_id: uid, conversation: convs[0] });
+  } else {
+    request = voidaiCloudApi('/conversations/save-all', { user_id: uid, conversations: convs });
+  }
+  voidaiCloudBusy = true;
+  voidaiCloudBadge('SYNCING…', '#777');
+  request.then(function() {
+    voidaiCloudBadge('SYNCED · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), '#5f8f6f');
+  }).catch(function() {
+    convs.forEach(function(c) { voidaiCloudDirty[c.id] = true; });
+    voidaiCloudBadge('OFFLINE · RETRYING', '#8a6a3a');
+    if (voidaiCloudTimer) clearTimeout(voidaiCloudTimer);
+    voidaiCloudTimer = setTimeout(voidaiCloudPushDirty, 5000);
+  }).then(function() {
+    voidaiCloudBusy = false;
+  });
+}
+
+function voidaiCloudDelete(id) {
+  voidaiMarkDeleted(id);
+  var uid = voidaiCloudUserId();
+  if (!uid) return;
+  voidaiCloudApi('/conversations/delete', { user_id: uid, id: id }).catch(function() {});
+}
+
+function voidaiCloudFlushDeletes() {
+  var uid = voidaiCloudUserId();
+  if (!uid || !voidaiDeleted.length) return Promise.resolve();
+  var ids = voidaiDeleted.slice(0, 20);
+  var chain = Promise.resolve();
+  ids.forEach(function(id) {
+    chain = chain.then(function() {
+      return voidaiCloudApi('/conversations/delete', { user_id: uid, id: id }).catch(function() {});
+    });
+  });
+  return chain;
+}
+
+function voidaiCloudPull() {
+  var uid = voidaiCloudUserId();
+  if (!uid) {
+    voidaiCloudBadge('LOCAL ONLY · SIGN IN TO SYNC');
+    return Promise.resolve(false);
+  }
+  if (voidaiCloudBusy) {
+    setTimeout(voidaiCloudPull, 1500);
+    return Promise.resolve(false);
+  }
+  voidaiCloudBusy = true;
+  var epoch = voidaiCloudEpoch;
+  voidaiCloudBadge('SYNCING…', '#777');
+  return voidaiCloudApi('/conversations/list', { user_id: uid }).then(function(data) {
+    if (epoch !== voidaiCloudEpoch) return { stale: true };
+    var remote = (data && Array.isArray(data.conversations)) ? data.conversations : [];
+    var remoteMap = {};
+    remote.forEach(function(c) { if (c && c.id) remoteMap[c.id] = c; });
+    var localOnly = [];
+    voidaiConvs.forEach(function(c) {
+      if (!c || !c.id || voidaiDeleted.indexOf(c.id) >= 0) return;
+      var r = remoteMap[c.id];
+      if (!r || (Number(c.updated) || 0) > (Number(r.updated) || 0)) localOnly.push(c);
+    });
+    voidaiConvs = voidaiMergeCloud(remote);
+    voidaiPersist();
+    voidaiRenderConvs();
+    if (voidaiActiveConv && voidaiFindConv(voidaiActiveConv)) {
+      voidaiSwitchConv(voidaiActiveConv, true);
+    } else if (voidaiConvs.length) {
+      voidaiActiveConv = voidaiConvs[0].id;
+      voidaiPersist();
+      voidaiSwitchConv(voidaiActiveConv, true);
+    }
+    if (localOnly.length) {
+      return voidaiCloudApi('/conversations/save-all', {
+        user_id: uid,
+        conversations: localOnly.slice(0, 60)
+      }).catch(function() {});
+    }
+  }).then(function(result) {
+    if (result && result.stale) return result;
+    return voidaiCloudFlushDeletes();
+  }).then(function(result) {
+    if (result && result.stale) return false;
+    voidaiCloudBadge('SYNCED · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), '#5f8f6f');
+    return true;
+  }).catch(function() {
+    if (epoch === voidaiCloudEpoch) voidaiCloudBadge('OFFLINE · LOCAL COPY KEPT', '#8a6a3a');
+    return false;
+  }).then(function(result) {
+    voidaiCloudBusy = false;
+    return epoch === voidaiCloudEpoch ? result : false;
+  });
+}
+
+window.voidaiPullCloud = voidaiCloudPull;
+window.voidaiCloudSignOut = function() {
+  // The account archive stays in Supabase. Clear this device's cache so a
+  // guest using the phone after sign-out cannot read the previous account.
+  voidaiConvs = [];
+  voidaiActiveConv = null;
+  voidaiDeleted = [];
+  voidaiCloudDirty = {};
+  voidaiCloudEpoch++;
+  try {
+    localStorage.removeItem('voidai_convs');
+    localStorage.removeItem('voidai_active_conv');
+    localStorage.removeItem('voidai_chat_v3');
+    localStorage.removeItem('voidai_deleted_convs');
+    localStorage.setItem('voidai_owner', 'guest');
+  } catch(e) {}
+  voidaiCloudBadge('LOCAL ONLY · SIGN IN TO SYNC');
+  voidaiRenderConvs();
+  var app = window.voidaiApp;
+  var h = app ? app.history : null;
+  if (h) {
+    h.length = 0;
+    if (app.SYSTEM) h.push({ role: 'system', content: app.SYSTEM });
+  }
+  var msgs = document.getElementById('messages') || document.getElementById('chat');
+  if (msgs) msgs.innerHTML = '';
+  if (app && typeof app.updateHero === 'function') app.updateHero();
+};
 
 function voidaiEsc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -3427,6 +3707,7 @@ function voidaiDeleteConv(id) {
   }
   voidaiPersist();
   voidaiRenderConvs();
+  if (typeof voidaiCloudDelete === 'function') voidaiCloudDelete(id);
 }
 
 function voidaiToggleSidebar() {
@@ -3440,7 +3721,7 @@ function voidaiToggleSidebar() {
 
 function voidaiNewConversation() {
   var id = 'c' + Date.now();
-  voidaiConvs.unshift({ id: id, title: 'New chat', messages: [], created: Date.now() });
+  voidaiConvs.unshift({ id: id, title: 'New chat', messages: [], created: Date.now(), updated: Date.now() });
   voidaiActiveConv = id;
   voidaiPersist();
   try { localStorage.removeItem('voidai_chat_v3'); } catch(e) {}
@@ -3482,7 +3763,7 @@ function voidaiSwitchConv(id, silent) {
 function voidaiSaveConv() {
   if (!voidaiActiveConv) {
     var id = 'c' + Date.now();
-    voidaiConvs.unshift({ id: id, title: 'New chat', messages: [], created: Date.now() });
+    voidaiConvs.unshift({ id: id, title: 'New chat', messages: [], created: Date.now(), updated: Date.now() });
     voidaiActiveConv = id;
   }
   var c = voidaiFindConv(voidaiActiveConv);
@@ -3499,8 +3780,10 @@ function voidaiSaveConv() {
   if (c.title === 'New chat' && firstUser) {
     c.title = firstUser.content.slice(0, 48);
   }
+  c.updated = Date.now();
   voidaiPersist();
   voidaiRenderConvs();
+  if (typeof voidaiCloudQueue === 'function') voidaiCloudQueue(c);
 }
 
 // Restore the last conversation on cold start instead of relying on the
@@ -3511,6 +3794,11 @@ window.voidaiRestoreActiveConv = function() {
   if (!c || !c.messages || !c.messages.length) return false;
   return voidaiSwitchConv(voidaiActiveConv, true);
 };
+
+setTimeout(function() {
+  if (voidaiCloudUserId()) voidaiCloudPull();
+  else voidaiCloudBadge('LOCAL ONLY · SIGN IN TO SYNC');
+}, 900);
 
 // ── Voice output ──
 function voidaiSpeak(text) {

@@ -602,6 +602,49 @@ class MemoryIdentityTests(unittest.TestCase):
         self.assertIn("appDidBecomeActive", view)
 
 
+class ConversationHistorySyncTests(unittest.TestCase):
+    """Guard long history and signed-in cross-device thread storage."""
+
+    def test_worker_accepts_longer_chat_context(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        self.assertIn("const MAX_MESSAGES = 200;", worker)
+        self.assertIn("const MAX_CHARS = 40000;", worker)
+        self.assertIn("const MAX_TOTAL_CHARS = 180000;", worker)
+        self.assertIn("const VOIDAI_CHUNK_THRESHOLD = 180000;", worker)
+
+    def test_worker_has_scoped_conversation_archive(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        for route in ("/conversations/list", "/conversations/save",
+                      "/conversations/save-all", "/conversations/delete"):
+            self.assertIn(route, worker)
+        self.assertIn("conversationArchiveScope", worker)
+        self.assertIn("CONVERSATION_ARCHIVE_SUFFIX", worker)
+        self.assertIn("normalizeArchivedConversation", worker)
+        self.assertIn("listArchivedConversations", worker)
+        self.assertIn("deleteArchivedConversation", worker)
+        self.assertIn("conversation_sync: true", worker)
+
+    def test_client_restores_and_syncs_full_threads(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        self.assertIn("var HISTORY_TURNS = 200;", html)
+        self.assertIn("var MAX_RESTORE_MSGS = 400;", html)
+        self.assertIn("window.voidaiPullCloud", html)
+        self.assertIn("voidaiCloudQueue", html)
+        self.assertIn("voidaiMergeCloud", html)
+        self.assertIn("voidaiMergeCloud(remote)", html)
+        self.assertIn("/conversations/save-all", html)
+        self.assertIn("voidai-sync-status", html)
+        self.assertIn("voidaiCloudDelete", html)
+        self.assertIn("voidai_deleted_convs", html)
+        self.assertIn("currentUserId: currentUserId", html)
+        self.assertIn("window.voidaiPullCloud();", html)
+        self.assertIn("var previous = 'guest';", html)
+        self.assertIn("localStorage.setItem('voidai_owner', 'guest')", html)
+
+
 class SecurityHardeningTests(unittest.TestCase):
     """Regression guards for the security review surfaces."""
 
@@ -670,7 +713,7 @@ class SecurityHardeningTests(unittest.TestCase):
         for route in ["/image", "/vision", "/protein/fold", "/protein/design",
                       "/protein/design-llm", "/brain", "/capabilities", "/diagnose"]:
             self.assertIn("pathname === '%s'" % route, worker)
-        self.assertIn("const MAX_TOTAL_CHARS = 72000;", worker)
+        self.assertIn("const MAX_TOTAL_CHARS = 180000;", worker)
         self.assertIn("code: 'empty_upstream'", worker)
 
     def test_scene_extraction_drops_trailing_prose(self):
