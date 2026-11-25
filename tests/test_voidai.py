@@ -861,6 +861,26 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("window.voidaiOpenWebGL('ai ' + prompt + ' ' + dim + 'd')", html)
         self.assertNotIn("if (cfg.dim >= 4) {\n      // 4D/5D are mathematical projections", html)
 
+    def test_whisper_listening_path_and_service(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        server = open(os.path.join(ROOT, "local-media", "stt_server.py"),
+                      encoding="utf-8").read()
+        manifest = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                     "AndroidManifest.xml"), encoding="utf-8").read()
+        info = open(os.path.join(ROOT, "ios-app", "VOIDAI", "Info.plist"),
+                    encoding="utf-8").read()
+        self.assertIn("function startWhisperMic(liveAuto)", html)
+        self.assertIn("function transcribeWhisper(blob, liveAuto)", html)
+        self.assertIn("fetch(state.sttUrl", html)
+        self.assertIn("id=\"va-stt-url\"", html)
+        self.assertIn("save-stt", html)
+        self.assertIn("def do_POST(self):", server)
+        self.assertIn('path not in ("/listen", "/transcribe", "/")', server)
+        self.assertIn("whisper.load_model", server)
+        self.assertIn('android:usesCleartextTraffic="true"', manifest)
+        self.assertIn("NSAllowsLocalNetworking", info)
+
     def test_voice_has_native_tts_fallback(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
                                  "assets", "index.html"), encoding="utf-8").read()

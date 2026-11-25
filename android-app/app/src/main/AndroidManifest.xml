@@ -11,7 +11,7 @@
         android:theme="@style/Theme.VOIDAI"
         android:allowBackup="false"
         android:label="VOIDAI"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
         <activity

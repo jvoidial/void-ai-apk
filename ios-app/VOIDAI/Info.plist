@@ -35,6 +35,13 @@
 <string>UIInterfaceOrientationLandscapeLeft</string>
 <string>UIInterfaceOrientationLandscapeRight</string>
 </array>
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+    <key>NSAllowsArbitraryLoadsInWebContent</key>
+    <true/>
+</dict>
 <key>NSPhotoLibraryUsageDescription</key>
 <string>Attach an image to a VOIDAI message.</string>
 <key>NSMicrophoneUsageDescription</key>

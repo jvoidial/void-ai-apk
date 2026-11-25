@@ -4188,6 +4188,14 @@ voidaiReassertSidebar();
     streamLabel: '',
     recognition: null,
     micActive: false,
+    sttUrl: '',
+    mediaRecorder: null,
+    mediaStream: null,
+    whisperChunks: [],
+    whisperTimer: null,
+    whisperAudio: null,
+    whisperDiscard: false,
+    whisperSession: 0,
     capsLoaded: false,
     imgObjectUrl: '',
     imgBusy: false,
@@ -4201,6 +4209,7 @@ voidaiReassertSidebar();
     var savedAutoSpeak = localStorage.getItem('voidai_autospeak');
     state.autoSpeak = savedAutoSpeak === null ? true : savedAutoSpeak === '1';
     state.voiceURI = localStorage.getItem('voidai_voice_uri') || '';
+    state.sttUrl = localStorage.getItem('voidai_stt_url') || '';
     var savedRate = parseFloat(localStorage.getItem('voidai_voice_rate'));
     if (savedRate >= 0.7 && savedRate <= 1.4) state.voiceRate = savedRate;
   } catch (e) {}
@@ -4326,6 +4335,43 @@ voidaiReassertSidebar();
     setStatus('voice speed: ' + rate.toFixed(1));
   }
 
+  function isPrivateSttHost(host) {
+    return /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|\[::1\]|[^.]+\.local)$/i.test(String(host || ''));
+  }
+
+  function setSttUrl(url) {
+    var clean = String(url || '').trim();
+    if (!clean) {
+      state.sttUrl = '';
+      try { localStorage.removeItem('voidai_stt_url'); } catch (e) {}
+      setStatus('Whisper URL cleared · using device speech recognition');
+      return true;
+    }
+    if (!/^https?:\/\//i.test(clean)) clean = 'http://' + clean;
+    clean = clean.replace(/\/+$/, '');
+    var parsed;
+    try { parsed = new URL(clean); } catch (e) { setStatus('invalid Whisper URL', true); return false; }
+    if (parsed.protocol !== 'https:' && !isPrivateSttHost(parsed.hostname)) {
+      setStatus('use HTTPS or a private LAN address for the Whisper URL', true);
+      return false;
+    }
+    state.sttUrl = clean;
+    try { localStorage.setItem('voidai_stt_url', clean); } catch (e) {}
+    setStatus('Whisper listening: ' + clean);
+    return true;
+  }
+
+  function saveSttUrl() {
+    var input = document.getElementById('va-stt-url');
+    if (input) setSttUrl(input.value);
+  }
+
+  function whisperReady() {
+    return !!(state.sttUrl && navigator.mediaDevices &&
+      typeof navigator.mediaDevices.getUserMedia === 'function' &&
+      typeof window.MediaRecorder !== 'undefined');
+  }
+
   function populateVoiceSelects() {
     var voices = voiceList();
     var chosen = selectedVoice();
@@ -4362,6 +4408,13 @@ voidaiReassertSidebar();
     if (rate) {
       rate.value = String(state.voiceRate);
       rate.onchange = function () { setVoiceRate(this.value); };
+    }
+    var stt = document.getElementById('va-stt-url');
+    if (stt) {
+      stt.value = state.sttUrl;
+      stt.onkeydown = function (event) {
+        if (event.key === 'Enter') { event.preventDefault(); saveSttUrl(); }
+      };
     }
     var chip = document.getElementById('voidai-voice-chip');
     if (chip) chip.title = chosen ? ('AI voice: ' + voiceLabel(chosen) + ' · young female preferred') : 'AI voice: auto · young female preferred';
@@ -4439,6 +4492,11 @@ voidaiReassertSidebar();
             '<option value="0.9">RATE 0.9</option><option value="1">RATE 1.0</option><option value="1.1">RATE 1.1</option>' +
           '</select>' +
         '</div>' +
+        '<h3>WHISPER LISTENING (OPTIONAL)</h3><div class="va-actions">' +
+          '<input id="va-stt-url" class="va-select" type="url" placeholder="http://192.168.1.10:8002/listen" style="min-width:260px" />' +
+          '<button type="button" data-va-action="save-stt">SAVE LISTEN URL</button>' +
+        '</div>' +
+        '<div class="va-note">Empty = device speech recognition. Set a HTTPS or private-LAN Whisper endpoint to record audio and send it there instead.</div>' +
         '<h3>ASTRA ACTIONS</h3><div class="va-actions">' +
           '<button type="button" data-va-action="builder">BUILDER/SIM</button>' +
           '<button type="button" data-va-action="images">IMAGE MAKER</button>' +
@@ -4451,7 +4509,7 @@ voidaiReassertSidebar();
         '</div>' +
         '<h3>AI ROUTING</h3><pre class="va-pre" id="va-routing">PRIMARY: openai/gpt-oss-120b via Groq\nFALLBACKS: OpenRouter, Gemini\nVISION: Groq → OpenRouter → Gemini → Workers AI fallback\nCONSENSUS: multi-model adjudication in deep mode</pre>' +
         '<h3>PHB PERSONA</h3><div class="va-note" id="va-phb">Human Agent v2: six layers (coherence, reflex, working, circuit, intent, narrative), five circuits (curiosity, focus, openness, rigor, creativity), female she/her, 20-year-old perspective, casual-precise, steady and warm, non-romantic. Full system prompt remains in the Worker; this client does not rewrite it.</div>' +
-        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Gallery photo vision · Photo attach · Two-way voice conversation · Mic dictation · TTS/read · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
+        '<h3>ALL FEATURES</h3><div class="va-note">Chat + 11 modes · Builder/Simulator (editable Three.js code, live preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D simulation and SIM LAB) · Image Maker tab (prompt, model, size, seed, preview, download) · Protein Studio tab (GPT-only sequences + topology, local WebGL schematic, FASTA/JSON download) · Gallery photo vision · Photo attach · Two-way voice conversation · Mic dictation · Native TTS/read · Optional Whisper URL for recorded-audio transcription · PHB memory and reflections · Search/time/weather/wiki/convert · Protein fold/design · Image generation · Sync/recap.</div>' +
         '<h3>JUST ASK</h3><pre class="va-pre">“open builder/simulator and simulate 300 orbiting objects”\n“build a WebGL scene of a neon city” (AI scene)\n“open the WebGL lab with a 5D penteract”\n“attach a photo and describe what you see”\n“start listening” / “stop listening”\n“read that back” / “stop speaking”\n“switch to deep mode”\n“draw a cybernetic owl”\n“sync now” / “recap this chat”\n\nOptional commands still work: /builder /build /images /sim /webgl /photo /image /sync</pre>' +
         '<div class="va-pre" id="va-cap-status" style="margin-top:12px">Capabilities not loaded yet.</div>' +
       '</div></div>';
@@ -4551,6 +4609,7 @@ voidaiReassertSidebar();
     if (name === 'mic') return toggleMic(false);
     if (name === 'read') return readLast();
     if (name === 'speak') return toggleAutoSpeak();
+    if (name === 'save-stt') return saveSttUrl();
     if (name === 'capabilities') { state.capsLoaded = false; return loadCapabilities(); }
   }
 
@@ -4628,10 +4687,14 @@ voidaiReassertSidebar();
   }
 
   function startMic(liveAuto) {
-    var SR = speechCtor();
-    if (!SR) { setStatus('speech recognition unavailable — use keyboard'); return; }
     if (state.voiceSpeaking) return;
     stopMic(true);
+    if (whisperReady()) {
+      startWhisperMic(liveAuto);
+      return;
+    }
+    var SR = speechCtor();
+    if (!SR) { setStatus('speech recognition unavailable — set a Whisper URL or use the keyboard'); return; }
     state.liveVoice = !!liveAuto;
     window.voidaiLiveVoice = state.liveVoice;
     try {
@@ -4702,17 +4765,202 @@ voidaiReassertSidebar();
     var rec = state.recognition;
     state.recognition = null;
     state.micActive = false;
+    state.whisperSession++;
     if (!preserveLive) {
       state.liveVoice = false;
       window.voidaiLiveVoice = false;
     }
     if (rec) { try { rec.stop(); } catch (e) {} }
+    if (state.mediaRecorder) {
+      stopWhisperRecording(!!preserveLive);
+    } else {
+      cleanupWhisperAudio();
+    }
     updateMicButtons();
   }
 
+  function cleanupWhisperAudio() {
+    if (state.whisperTimer) {
+      clearInterval(state.whisperTimer);
+      state.whisperTimer = null;
+    }
+    try {
+      if (state.mediaStream) {
+        var tracks = state.mediaStream.getTracks ? state.mediaStream.getTracks() : [];
+        for (var i = 0; i < tracks.length; i++) tracks[i].stop();
+      }
+    } catch (e) {}
+    try { if (state.whisperAudio) state.whisperAudio.close(); } catch (e) {}
+    state.mediaStream = null;
+    state.whisperAudio = null;
+  }
+
+  function stopWhisperRecording(discard) {
+    state.whisperDiscard = !!discard;
+    state.whisperSession++;
+    if (state.whisperTimer) {
+      clearInterval(state.whisperTimer);
+      state.whisperTimer = null;
+    }
+    var recorder = state.mediaRecorder;
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch (e) { cleanupWhisperAudio(); }
+    } else {
+      state.mediaRecorder = null;
+      cleanupWhisperAudio();
+      state.micActive = false;
+      updateMicButtons();
+    }
+  }
+
+  function startWhisperMic(liveAuto) {
+    if (state.voiceSpeaking) return;
+    var session = ++state.whisperSession;
+    state.liveVoice = !!liveAuto;
+    window.voidaiLiveVoice = state.liveVoice;
+    state.micActive = true;
+    updateMicButtons();
+    setStatus(liveAuto ? (state.voiceMode ? 'voice mode · listening with Whisper' : 'voice live · speak') : 'listening with Whisper…');
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    }).then(function (stream) {
+      if (session !== state.whisperSession || !state.micActive) {
+        try { stream.getTracks().forEach(function (track) { track.stop(); }); } catch (e) {}
+        return;
+      }
+      state.mediaStream = stream;
+      var mime = '';
+      try {
+        var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+        for (var i = 0; i < types.length; i++) {
+          if (window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(types[i])) { mime = types[i]; break; }
+        }
+      } catch (e) {}
+      var recorder;
+      try { recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+      catch (e) {
+        cleanupWhisperAudio();
+        state.micActive = false;
+        updateMicButtons();
+        setStatus('Whisper recorder unavailable: ' + (e.message || e), true);
+        return;
+      }
+      state.mediaRecorder = recorder;
+      state.whisperChunks = [];
+      state.whisperDiscard = false;
+      recorder.ondataavailable = function (event) {
+        if (event.data && event.data.size) state.whisperChunks.push(event.data);
+      };
+      recorder.onstop = function () {
+        var chunks = state.whisperChunks.slice();
+        var type = recorder.mimeType || mime || 'audio/webm';
+        var discard = state.whisperDiscard;
+        var wasLive = !!liveAuto;
+        state.mediaRecorder = null;
+        state.whisperChunks = [];
+        state.whisperDiscard = false;
+        state.mediaStream = null;
+        cleanupWhisperAudio();
+        state.micActive = false;
+        updateMicButtons();
+        if (discard || !chunks.length) return;
+        transcribeWhisper(new Blob(chunks, { type: type }), wasLive);
+      };
+      var audioCtx = null;
+      var analyser = null;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        source.connect(analyser);
+        state.whisperAudio = audioCtx;
+        if (audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+      } catch (e) {}
+      var samples = new Uint8Array(analyser ? analyser.fftSize : 1024);
+      var speechSeen = false;
+      var quietSince = 0;
+      var startedAt = Date.now();
+      var maxMs = liveAuto ? 12000 : 30000;
+      state.whisperTimer = setInterval(function () {
+        if (state.mediaRecorder !== recorder) return;
+        var rms = 0;
+        if (analyser) {
+          analyser.getByteTimeDomainData(samples);
+          var sum = 0;
+          for (var i = 0; i < samples.length; i++) {
+            var v = (samples[i] - 128) / 128;
+            sum += v * v;
+          }
+          rms = Math.sqrt(sum / samples.length);
+        }
+        if (rms > 0.045) {
+          speechSeen = true;
+          quietSince = 0;
+        } else if (speechSeen) {
+          if (!quietSince) quietSince = Date.now();
+          if (Date.now() - quietSince > 1300) {
+            stopWhisperRecording(false);
+            return;
+          }
+        }
+        if (Date.now() - startedAt > maxMs) stopWhisperRecording(false);
+      }, 100);
+      recorder.start(250);
+    }).catch(function (e) {
+      if (session !== state.whisperSession) return;
+      state.micActive = false;
+      updateMicButtons();
+      if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) {
+        if (state.voiceMode) stopVoiceMode();
+        setStatus('microphone permission denied');
+      } else {
+        setStatus('Whisper mic error: ' + (e.message || e), true);
+      }
+    });
+  }
+
+  function transcribeWhisper(blob, liveAuto) {
+    if (!state.sttUrl) {
+      setStatus('Whisper URL is empty');
+      return;
+    }
+    setStatus('transcribing with Whisper…');
+    fetch(state.sttUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+      body: blob
+    }).then(function (response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      return response.json();
+    }).then(function (data) {
+      var text = String(data && (data.text || data.transcription) || '').trim();
+      if (!text) {
+        setStatus('Whisper heard nothing');
+        if (liveAuto && state.liveVoice && !state.voiceSpeaking && (state.liveActive || state.voiceMode)) {
+          setTimeout(function () { if (state.liveVoice) startMic(true); }, 500);
+        }
+        return;
+      }
+      if (app.els && app.els.input) app.els.input.value = text;
+      setStatus('heard: ' + text.slice(0, 80));
+      if (liveAuto && (state.liveActive || state.voiceMode) && app.els && app.els.send) {
+        app.send();
+      }
+    }).catch(function (e) {
+      setStatus('Whisper error: ' + (e.message || e), true);
+      if (state.voiceMode) stopVoiceMode();
+      else {
+        state.liveVoice = false;
+        window.voidaiLiveVoice = false;
+        updateMicButtons();
+      }
+    });
+  }
+
   function startVoiceMode() {
-    if (!speechCtor()) {
-      setStatus('voice input unavailable — use the keyboard');
+    if (!speechCtor() && !whisperReady()) {
+      setStatus('voice input unavailable — set a Whisper URL or use the keyboard');
       return false;
     }
     closeCap();

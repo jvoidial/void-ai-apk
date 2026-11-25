@@ -22,7 +22,8 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Image vision — attach a photo, downscaled on-device, analyzed through a Groq → OpenRouter → Gemini → Workers AI fallback chain
 - Image Maker tab — prompt, FLUX/TURBO/KONTEXT model, size, seed, preview, copy prompt, and download
 - Astra media layer — gallery photo vision, voice input, spoken replies, and a continuous voice loop
-- Voice output — auto-speak with a young female English voice preferred, plus a voice picker and speed control
+- Voice output — native auto-speak with a young female English voice preferred, plus a voice picker and speed control
+- Optional Whisper listening — record a clip and send it to a local Whisper service (see `local-media/README.md`)
 - Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder/simulator
 - Conversation history — saved chats, switch, delete, restore after reload, clear, and per-turn persistence including errors and tool commands
 - Builder/Simulator tab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D scenes, and a linked N-D simulation workbench
