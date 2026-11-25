@@ -700,6 +700,42 @@ process.stdout.write(JSON.stringify(out));
             self.assertNotIn("wants", repair["code"])
             self.assertIn("window.update", repair["code"])
 
+    def test_builder_dimension_sync(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        start = html.index("  function parseTemplate(input)")
+        end = html.index("  function codeFor(key, count)", start)
+        harness = html[start:end] + r"""
+var cases = [
+  ["build 60 bouncing objects", 3, "objects", 3],
+  ["4d tesseract", 3, "tesseract", 4],
+  ["5D penteract", 3, "penteract", 5],
+  ["neon city", 5, "penteract", 5],
+  ["3d objects", 5, "objects", 3],
+  ["4-dimensional hypercube", 3, "tesseract", 4]
+];
+var out = cases.map(function(c) {
+  var cfg = sceneConfigFor(c[0], c[1]);
+  return {key: cfg.key, dim: cfg.dim, expectedKey: c[2], expectedDim: c[3]};
+});
+process.stdout.write(JSON.stringify(out));
+"""
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+            fh.write(harness)
+            path = fh.name
+        try:
+            result = subprocess.run([node, path], check=True, text=True,
+                                    capture_output=True)
+            repairs = json.loads(result.stdout)
+        finally:
+            os.unlink(path)
+        for repair in repairs:
+            self.assertEqual(repair["key"], repair["expectedKey"])
+            self.assertEqual(repair["dim"], repair["expectedDim"])
+
     def test_python_rejects_untrusted_llm_base_url(self):
         sys.path.insert(0, PY_SRC)
         from voidai import server as py_server

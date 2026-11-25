@@ -2432,7 +2432,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   if (!modal || !frame) return;
 
   var LOCAL_THREE = (document.getElementById('three-local') || {}).textContent || '';
-  var GL = { open: false, runId: 0, timer: 0, watchdog: 0, lastBeat: 0, template: 'orbit', bound: false, cel: false, wire: false };
+  var GL = { open: false, runId: 0, timer: 0, watchdog: 0, lastBeat: 0, template: 'orbit', dim: 3, bound: false, cel: false, wire: false };
 
   var LABELS = {
     orbit: 'ORBIT / N-BODY',
@@ -2701,6 +2701,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function dimForTemplate(key) { return key === 'penteract' ? 5 : (key === 'tesseract' ? 4 : 3); }
 
   function setGLDimActive(dim) {
+    GL.dim = Number(dim) || 3;
     [3, 4, 5].forEach(function (d) {
       var btn = el('gl-dim-' + d);
       if (!btn) return;
@@ -2789,17 +2790,36 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function parseTemplate(input) {
     var low = String(input || '').toLowerCase();
-    var key = 'orbit', count = 0;
-    if (/penteract|5d|5-d|five[- ]?dimension/.test(low)) key = 'penteract';
-    else if (/tesseract|hypercube|4d|4-d|fourth[- ]?dimension/.test(low)) key = 'tesseract';
-    else if (/lorenz|chaos|attractor/.test(low)) key = 'lorenz';
-    else if (/wave|surface|field/.test(low)) key = 'wave';
-    else if (/object|bounce|ball|physics|collision|stack/.test(low)) key = 'objects';
-    else if (/particle|swarm|cloud|points/.test(low)) key = 'particles';
-    else if (/orbit|solar|planet|gravity|n-body/.test(low)) key = 'orbit';
+    var key = 'orbit', count = 0, dim = 3, explicitDim = false;
+    if (/penteract|5[- ]?d(?:imensional)?|5-cube|fifth[- ]?dimension/.test(low)) {
+      key = 'penteract'; dim = 5; explicitDim = true;
+    } else if (/tesseract|hypercube|4[- ]?d(?:imensional)?|4-cube|fourth[- ]?dimension/.test(low)) {
+      key = 'tesseract'; dim = 4; explicitDim = true;
+    }
+    if (!explicitDim && /lorenz|chaos|attractor/.test(low)) key = 'lorenz';
+    else if (!explicitDim && /wave|surface|field/.test(low)) key = 'wave';
+    else if (!explicitDim && /object|bounce|ball|physics|collision|stack/.test(low)) key = 'objects';
+    else if (!explicitDim && /particle|swarm|cloud|points/.test(low)) key = 'particles';
+    else if (!explicitDim && /orbit|solar|planet|gravity|n-body/.test(low)) key = 'orbit';
+    var dm = low.match(/\b([3-5])\s*-?\s*d(?:imensional)?\b/);
+    if (dm) {
+      dim = parseInt(dm[1], 10);
+      explicitDim = true;
+      if (dim === 5) key = 'penteract';
+      else if (dim === 4) key = 'tesseract';
+      else if (key === 'tesseract' || key === 'penteract') key = 'orbit';
+    }
     var cm = low.match(/\b(\d{2,5})\s*(?:particles?|points?|bodies|objects?|balls?|things?|planets?)\b/);
     if (cm) count = Math.max(100, Math.min(20000, parseInt(cm[1], 10)));
-    return { key: key, count: count };
+    return { key: key, count: count, dim: dim, explicitDim: explicitDim };
+  }
+
+  function sceneConfigFor(input, fallbackDim) {
+    var cfg = parseTemplate(input);
+    var dim = cfg.explicitDim ? cfg.dim : (Number(fallbackDim) || 3);
+    var key = dim === 5 ? 'penteract' : (dim === 4 ? 'tesseract' : cfg.key);
+    if (dim < 4 && (key === 'tesseract' || key === 'penteract')) key = 'orbit';
+    return { key: key, count: cfg.count, dim: dim };
   }
 
   function codeFor(key, count) {
@@ -2914,11 +2934,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var aiMatch = String(input || '').match(/^ai\b[::\s]*(.*)$/i);
     var aiPrompt = aiMatch ? (aiMatch[1] || '').trim() : '';
     if (aiPrompt) input = aiPrompt;
-    var cfg = parseTemplate(input);
+    var cfg = sceneConfigFor(input, 3);
     GL.template = cfg.key;
     el('gl-template').value = cfg.key;
     el('gl-code').value = codeFor(cfg.key, cfg.count);
-    setGLDimActive(dimForTemplate(cfg.key));
+    setGLDimActive(cfg.dim);
     setStatus(aiPrompt ? 'VOIDAI is writing the scene…' : 'Starting sandboxed Three.js scene…', true);
     run();
     if (aiPrompt) setTimeout(function() { generateScene(aiPrompt); }, 120);
@@ -2951,10 +2971,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   }
 
   function buildFromPrompt() {
-    var cfg = parseTemplate(el('gl-prompt').value);
+    var cfg = sceneConfigFor(el('gl-prompt').value, GL.dim);
     GL.template = cfg.key;
     el('gl-template').value = cfg.key;
     el('gl-code').value = codeFor(cfg.key, cfg.count);
+    setGLDimActive(cfg.dim);
     run();
   }
 
@@ -2983,7 +3004,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var app = window.voidaiApp;
     var request = String(prompt || el('gl-prompt').value || '').trim();
     if (!request) { setStatus('Describe the scene you want first, for example: neon city at night.', true); return; }
+    var cfg = sceneConfigFor(request, GL.dim);
+    if (cfg.dim >= 4) {
+      // 4D/5D are mathematical projections; the local templates keep the
+      // selected dimension and the preview exactly in sync.
+      GL.template = cfg.key;
+      el('gl-template').value = cfg.key;
+      el('gl-code').value = codeFor(cfg.key, 0);
+      setGLDimActive(cfg.dim);
+      setStatus(cfg.dim + 'D projection loaded from the ' + templateLabel(cfg.key) + ' template.', false);
+      run();
+      return;
+    }
     if (!app || !app.PROXY_URL || !app.VOIDAI_KEY) { setStatus('VOIDAI app bridge is unavailable.', true); return; }
+    setGLDimActive(3);
     setStatus('VOIDAI is writing the scene…', true);
     fetch(app.PROXY_URL, {
       method: 'POST',
@@ -2994,7 +3028,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
         temperature: 0.35,
         messages: [{
           role: 'user',
-          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. Globals: THREE, scene, camera, renderer. Define window.update = function(t) { ... } for animation. Build visible objects and a bounded simulation: give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
+          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. The requested dimension is 3D (three spatial axes). Globals: THREE, scene, camera, renderer. Define window.update = function(t) { ... } for animation. Build visible objects and a bounded simulation: give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
         }]
       })
     }).then(function(r) {
@@ -3012,7 +3046,9 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       var syntaxError = sceneSyntaxError(code);
       if (syntaxError) throw new Error('generated scene has a syntax error: ' + syntaxError);
       el('gl-code').value = code;
-      el('gl-template').value = 'orbit';
+      el('gl-template').value = cfg.key;
+      GL.template = cfg.key;
+      setGLDimActive(3);
       setStatus('AI scene ready. Running in the sandbox…', true);
       run();
     }).catch(function(e) {
@@ -3035,8 +3071,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       run();
     });
     el('gl-template').addEventListener('change', function() {
+      GL.template = this.value;
       el('gl-code').value = TEMPLATES[this.value] || TEMPLATES.orbit;
       setGLDimActive(dimForTemplate(this.value));
+      run();
     });
     [3, 4, 5].forEach(function (d) {
       var btn = el('gl-dim-' + d);
