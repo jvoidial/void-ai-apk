@@ -1526,8 +1526,6 @@ window.voidaiToggleSidebar = function() {
       }
     }, REPLY_TIMEOUT_MS);
 
-    var emptyRetries = 0;
-
     function postChat(mode) {
       var effectiveMode = mode || requestedMode;
       return fetch(PROXY_URL, {
@@ -1553,7 +1551,8 @@ window.voidaiToggleSidebar = function() {
           }
           if (!res.ok) {
             var msg = data && data.error && (data.error.message || data.error);
-            throw new Error('HTTP ' + res.status + (msg ? ': ' + msg : ''));
+            var detail = data && data.error && data.error.detail;
+            throw new Error('HTTP ' + res.status + (msg ? ': ' + msg : '') + (detail ? ' — ' + detail : ''));
           }
           if (!data) throw new Error('empty response (HTTP ' + res.status + ')');
           return data;
@@ -1561,18 +1560,31 @@ window.voidaiToggleSidebar = function() {
       });
     }
 
-    postChat(requestedMode)
+    function retryDelay(ms) {
+      return new Promise(function(resolve) { setTimeout(resolve, ms); });
+    }
+
+    function postChatWithRetry(mode, attempts) {
+      return postChat(mode).catch(function(err) {
+        var m = (err && err.message) || String(err);
+        var transient = /empty response|empty_upstream|empty_message|HTTP 204|HTTP 205|HTTP 429|HTTP 500|HTTP 502|HTTP 503|timed out|timeout/i.test(m);
+        if (transient && attempts > 1) {
+          status('provider busy · retrying…');
+          return retryDelay(1500).then(function() {
+            return postChatWithRetry(mode, attempts - 1);
+          });
+        }
+        throw err;
+      });
+    }
+
+    postChatWithRetry(requestedMode, 3)
     .catch(function(err) {
       var m = (err && err.message) || String(err);
-      // A 204/empty upstream can be transient. Retry once, then switch routes.
-      if (/empty response|HTTP 204|HTTP 205/i.test(m) && emptyRetries < 1) {
-        emptyRetries++;
-        status('empty reply · retrying…');
-        return postChat(requestedMode);
-      }
-      if (requestedMode && requestedMode !== 'fast' && /model|provider|unavailable|no endpoints|no models|HTTP 404|HTTP 502|HTTP 204|HTTP 205|404|502/i.test(m)) {
+      if (requestedMode && requestedMode !== 'fast' &&
+          /model|provider|unavailable|no endpoints|no models|empty_upstream|empty_message|HTTP 404|HTTP 429|HTTP 500|HTTP 502|HTTP 503|404|429|500|502|503/i.test(m)) {
         status('route unavailable · retrying on the stable Groq route…');
-        return postChat('fast');
+        return postChatWithRetry('fast', 2);
       }
       throw err;
     })
@@ -1593,7 +1605,7 @@ window.voidaiToggleSidebar = function() {
       clearTimeout(timeout);
       hideThinking();
       var m = err.message || String(err);
-      var hint = m.indexOf('413') >= 0 ? '\n\nThe message is too long — try splitting it into smaller parts.' : '\n\nTry again.';
+      var hint = m.indexOf('413') >= 0 ? '\n\nThe message is too long — try splitting it into smaller parts.' : (/empty_upstream|empty_message|HTTP 502|HTTP 503/i.test(m) ? '\n\nThe model route returned an empty reply. Retry, or switch to FAST mode.' : '\n\nTry again.');
       var chatErr = '**Error:** ' + m + hint;
       addMsg('assistant', chatErr);
       recordTurn(null, chatErr);
