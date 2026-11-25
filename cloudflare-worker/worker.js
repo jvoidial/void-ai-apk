@@ -4,9 +4,9 @@
 // ════════════════════════════════════════════════════════════
 
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
-const MAX_MESSAGES = 80;
-const MAX_CHARS = 32000;
-const MAX_TOTAL_CHARS = 120000;
+const MAX_MESSAGES = 60;
+const MAX_CHARS = 20000;
+const MAX_TOTAL_CHARS = 72000;
 const MAX_IMAGE_CHARS = 12 * 1024 * 1024;
 const DEFAULT_MAX_TOKENS = 4096;
 const MAX_MAX_TOKENS = 8192;
@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.4.2';
+const WORKER_VERSION = '3.4.4';
 
 class Oscillator {
   constructor(name, freq, phaseOffset, region) {
@@ -801,6 +801,65 @@ function cleanProteinSequence(value) {
     return { error: 'sequence exceeds the ' + PROTEIN_MAX_SEQUENCE + ' residue Phase 1 limit' };
   }
   return { sequence: raw };
+}
+
+function parseProteinDesignJson(text) {
+  var raw = String(text || '').trim();
+  if (!raw) return null;
+  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+  var start = raw.indexOf('{');
+  var end = raw.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try { return JSON.parse(raw.slice(start, end + 1)); } catch (e) { return null; }
+}
+
+function normalizeProteinDesignPayload(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  var rawCandidates = Array.isArray(obj.candidates) ? obj.candidates : (Array.isArray(obj.designs) ? obj.designs : []);
+  var candidates = [];
+  for (var i = 0; i < rawCandidates.length && candidates.length < 3; i++) {
+    var c = rawCandidates[i] || {};
+    var seq = String(c.sequence || '').toUpperCase().replace(/[^ACDEFGHIKLMNPQRSTVWY]/g, '');
+    if (seq.length < 20 || seq.length > 400) continue;
+    var topology = [];
+    if (Array.isArray(c.topology)) {
+      c.topology.forEach(function (t) {
+        var type = String((t && t.type) || '').toLowerCase();
+        var residues = Math.max(0, Math.floor(Number(t && t.residues) || 0));
+        if (/^(helix|sheet|coil)$/.test(type) && residues > 0) topology.push({ type: type, residues: residues });
+      });
+    }
+    var confidence = Number(c.confidence);
+    candidates.push({
+      name: String(c.name || ('Candidate ' + (candidates.length + 1))).slice(0, 60),
+      sequence: seq,
+      topology: topology,
+      confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : null,
+      rationale: String(c.rationale || '').slice(0, 600),
+      key_residues: String(c.key_residues || '').slice(0, 240),
+      risks: String(c.risks || '').slice(0, 400)
+    });
+  }
+  if (!candidates.length) return null;
+  return {
+    target: String(obj.target || '').slice(0, 160),
+    summary: String(obj.summary || '').slice(0, 900),
+    candidates: candidates,
+    limitations: String(obj.limitations || '').slice(0, 600)
+  };
+}
+
+function proteinDesignPrompt(target, seed) {
+  var schema = '{"target":"...","summary":"...","candidates":[{"name":"...","sequence":"STANDARD_AMINO_ACIDS_ONLY","topology":[{"type":"helix","residues":12}],"confidence":0.0,"rationale":"...","key_residues":"...","risks":"..."}],"limitations":"..."}';
+  return [
+    'You are VOIDAI PROTEIN STUDIO. Design benign, non-pathogenic protein candidates using reasoning about sequence and structure only.',
+    'Do NOT call ESMFold, AlphaFold, docking, or any specialized biology model. Do not claim experimental validation, ipSAE, pLDDT, or binding measurements.',
+    'Return ONLY one valid JSON object with this exact shape:',
+    schema,
+    'Rules: 3 candidates. Each sequence must be 45-120 standard amino acids. Topology types are only helix, sheet, or coil; residue counts must add up to the sequence length. confidence is a model estimate from 0 to 1. Include a short rationale, key residue positions, and risks for each candidate.',
+    'Benign, non-pathogenic research target: ' + String(target || '').slice(0, 300),
+    seed ? ('Optional seed sequence to consider, not a requirement: ' + seed) : ''
+  ].filter(Boolean).join('\n');
 }
 
 async function foldProteinSequence(sequence) {
@@ -2194,7 +2253,7 @@ async function callGroq(messages, env, opts) {
     return fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-      body: JSON.stringify({ model: m, messages: messages, max_tokens: maxTokOverride || maxTok, temperature: temp })
+      body: JSON.stringify(Object.assign({ model: m, messages: messages, max_tokens: maxTokOverride || maxTok, temperature: temp }, opts.responseFormat ? { response_format: opts.responseFormat } : {}))
     });
   };
   let res = await doFetch(DEFAULT_MODEL, maxTok);
@@ -2212,12 +2271,12 @@ async function callModelGeneric(model, messages, env, opts) {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + env.GROQ_API_KEY },
-    body: JSON.stringify({
+    body: JSON.stringify(Object.assign({
       model: model,
       messages: messages,
       max_tokens: opts.maxTokens || 4000,
       temperature: opts.temperature != null ? opts.temperature : 0.5
-    })
+    }, opts.responseFormat ? { response_format: opts.responseFormat } : {}))
   });
   const text = await res.text();
   return { ok: res.ok, status: res.status, text: text };
@@ -2431,12 +2490,12 @@ async function callOpenRouter(messages, env, model, opts) {
         'HTTP-Referer': 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev',
         'X-Title': 'VOIDAI'
       },
-      body: JSON.stringify({
+      body: JSON.stringify(Object.assign({
         model: model,
         messages: messages,
         max_tokens: opts.maxTokens || DEFAULT_MAX_TOKENS,
         temperature: opts.temperature != null ? opts.temperature : 0.5
-      })
+      }, opts.responseFormat ? { response_format: opts.responseFormat } : {}))
     });
     const text = await res.text();
     if (res.status === 204 || res.status === 205 || (res.ok && !text.trim())) {
@@ -2487,6 +2546,7 @@ export default {
         resonance_layers: 6,
         activation_bits: 64,
         topology_mapped: true,
+        protein_design_llm: true,
         source_route: true,
         capabilities_route: true,
         self_knowledge: true
@@ -2500,7 +2560,8 @@ export default {
         phase: 2,
         esmfold: true,
         design_backend: env.PROTEIN_DESIGN_URL ? 'external' : 'cpu_heuristic',
-        design_modes: ['cpu_heuristic', 'external_gpu'],
+        design_modes: ['cpu_heuristic', 'external_gpu', 'llm_reasoning'],
+        llm_design: true,
         gpu_required_for_cpu_design: false,
         max_sequence: PROTEIN_MAX_SEQUENCE,
         max_designs: 24,
@@ -2560,6 +2621,68 @@ export default {
 
       const designed = await designProteinCPU(pbody || {}, env);
       return json(designed.body, designed.status);
+    }
+
+    if (new URL(request.url).pathname === '/protein/design-llm' && request.method === 'POST') {
+      if (!authed) return json({ error: { message: 'unauthorized' } }, 401);
+      let pbody;
+      try { pbody = await request.json(); }
+      catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
+
+      const safety = proteinSafetyError(pbody);
+      if (safety) return json({ error: { message: safety, code: 'biosecurity_block' } }, 403);
+      const target = String((pbody && pbody.target) || '').trim().slice(0, 300);
+      if (!target) return json({ error: { message: 'target is required' } }, 400);
+      let seed = '';
+      if (pbody && pbody.seed_sequence) {
+        const cleaned = cleanProteinSequence(pbody.seed_sequence);
+        if (cleaned.error) return json({ error: { message: cleaned.error } }, 400);
+        seed = cleaned.sequence;
+      }
+
+      const messages = [
+        { role: 'system', content: 'You are VOIDAI PROTEIN STUDIO. You design benign, non-pathogenic protein candidates with sequence and structure reasoning only. Never call or imply a specialized biology model. Return JSON only.' },
+        { role: 'user', content: proteinDesignPrompt(target, seed) }
+      ];
+      const opts = { maxTokens: 3000, temperature: 0.35, responseFormat: { type: 'json_object' } };
+      let result = await callGroqAuto(env, messages, DEFAULT_MODEL, opts);
+      if (!result.ok && result.status === 400) {
+        // Some providers reject response_format; retry with the same strict prompt.
+        result = await callGroqAuto(env, messages, DEFAULT_MODEL, { maxTokens: 3000, temperature: 0.35 });
+      }
+      if (!result.ok) {
+        return json({ error: { message: 'protein reasoning failed: ' + briefProviderError(result.text, result.status), code: 'model_error' } }, 502);
+      }
+      let content = extractContent(result);
+      let design = normalizeProteinDesignPayload(parseProteinDesignJson(content));
+      if (!design) {
+        const repairMessages = [
+          { role: 'system', content: 'You repair invalid JSON. Return only one valid JSON object. Do not add markdown or prose.' },
+          { role: 'user', content: 'Schema: ' + proteinDesignPrompt(target, seed) + '\n\nInvalid output to repair:\n' + String(content || '').slice(0, 7000) }
+        ];
+        const repaired = await callGroqAuto(env, repairMessages, DEFAULT_MODEL, { maxTokens: 3000, temperature: 0 });
+        if (repaired.ok) {
+          content = extractContent(repaired);
+          design = normalizeProteinDesignPayload(parseProteinDesignJson(content));
+          if (design) result = repaired;
+        }
+      }
+      if (!design) {
+        return json({ error: { message: 'The model did not return a usable protein design JSON payload. Retry once.', code: 'invalid_design_json' } }, 502);
+      }
+      let model = DEFAULT_MODEL;
+      try {
+        const parsed = JSON.parse(result.text || '{}');
+        model = parsed.model || model;
+      } catch (e) {}
+      return json({
+        ok: true,
+        engine: 'VOIDAI reasoning + code',
+        model: model,
+        design: design,
+        no_specialized_biology_models: true,
+        disclaimer: 'Model-proposed sequence and topology only. The 3D view is a schematic built from that topology, not a predicted atomic structure. No ESMFold, docking, ipSAE, pLDDT, binding measurement, or wet-lab validation is implied.'
+      });
     }
 
     if (new URL(request.url).pathname === '/source') {
@@ -2713,8 +2836,8 @@ export default {
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein', 'builder'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
-        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_external', 'image_generate'],
-        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/image', '/vision', '/protein/status', '/protein/fold', '/protein/design'],
+        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_llm', 'image_generate'],
+        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/image', '/vision', '/protein/status', '/protein/fold', '/protein/design', '/protein/design-llm'],
         brain: {
           module: 'schumann-resonance',
           layers: ['coherence','reflex','working','circuit','intent','narrative'],
@@ -3028,7 +3151,7 @@ export default {
     }
 
     if (!result || !result.ok || typeof result.text !== 'string' || !result.text.trim()) {
-      return json({ error: { message: 'upstream returned an empty response' } }, 502);
+      return json({ error: { message: 'upstream returned an empty response', code: 'empty_upstream', retryable: true } }, 502);
     }
 
     if (resultSources.length > 0) {
@@ -3042,7 +3165,7 @@ export default {
     } catch (e) {}
 
     if (!assistantText || !String(assistantText).trim()) {
-      return json({ error: { message: 'upstream returned no message content' } }, 502);
+      return json({ error: { message: 'upstream returned no message content', code: 'empty_message', retryable: true } }, 502);
     }
 
     ctx.waitUntil(

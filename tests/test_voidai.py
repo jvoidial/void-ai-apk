@@ -661,14 +661,17 @@ class SecurityHardeningTests(unittest.TestCase):
         self.assertIn("X-Image-Fallback", worker)
         self.assertIn("useWorkersFlux", worker)
         for marker in ["voidaiOpenBuilder", "voidaiOpenLive", "voidaiOpenImage",
+                       "voidaiOpenProtein", "voidaiGenerateProtein",
                        "voidaiGenerateWebGLScene", "downloadImageMaker",
                        "voidaiToggleMic", "voidaiToggleListen", "voidaiReadLast",
                        "voidaiCaptureCamera", "voidaiCaptureScreen",
                        "voidaiShowCapabilities"]:
             self.assertIn(marker, html)
         for route in ["/image", "/vision", "/protein/fold", "/protein/design",
-                      "/brain", "/capabilities", "/diagnose"]:
+                      "/protein/design-llm", "/brain", "/capabilities", "/diagnose"]:
             self.assertIn("pathname === '%s'" % route, worker)
+        self.assertIn("const MAX_TOTAL_CHARS = 72000;", worker)
+        self.assertIn("code: 'empty_upstream'", worker)
 
     def test_scene_extraction_drops_trailing_prose(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
