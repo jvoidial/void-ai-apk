@@ -146,8 +146,8 @@ does not prove persistence.
 
 ## N-D simulation workbench
 
-- `/sim`, `/simulate`, `/simulator`, and `/builder` open the full-screen Canvas 2D
-  workbench in the shared WebView UI.
+- `/builder` opens the editable Three.js code and live-preview builder.
+- `/sim`, `/simulate`, and `/simulator` open the full-screen Canvas 2D workbench.
 - 3D scenes: orbit/N-body, Lorenz attractor, wave field, and particle cloud.
 - 4D/5D scenes: tesseract, penteract, N-D lattice, and N-D harmonic state curve.
   These are mathematical N-dimensional projections, not physical 4D/5D spacetime

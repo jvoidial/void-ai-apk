@@ -21,7 +21,7 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Image vision — attach a photo, downscaled on-device, analyzed through a Groq → OpenRouter → Gemini → Workers AI fallback chain
 - Astra live layer — live camera preview, snap-and-ask vision, screen share, voice input, spoken replies, and a continuous voice loop
 - Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder
-- Sandboxed creative tools — Three.js/WebGL lab and Canvas N-D simulation workbench
+- Builder lab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, and an N-D simulation workbench
 - PHB layers — coherence, reflex, working, circuit, intent, narrative
 - Sign-in — GitHub OAuth via Supabase (Android + iOS)
 - Storage — per-user files, RLS-isolated

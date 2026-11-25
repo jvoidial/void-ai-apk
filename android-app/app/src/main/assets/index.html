@@ -417,8 +417,8 @@ window.voidaiToggleSidebar = function() {
   <div id="gl-panel">
     <div id="gl-head">
       <div>
-        <div id="gl-kicker">VOIDAI WEBGL</div>
-        <div id="gl-title">THREE.JS LAB <span id="gl-badge">SANDBOXED</span></div>
+        <div id="gl-kicker">VOIDAI BUILDER</div>
+        <div id="gl-title">CODE / LIVE PREVIEW <span id="gl-badge">SANDBOXED</span></div>
       </div>
       <button id="gl-close" type="button">CLOSE</button>
     </div>
@@ -428,7 +428,7 @@ window.voidaiToggleSidebar = function() {
     </div>
     <div id="gl-controls">
       <div class="sim-row">
-        <input id="gl-prompt" type="text" placeholder="ask for a scene: 5d penteract, neon city, wave, lorenz, 6000 particles" autocomplete="off">
+        <input id="gl-prompt" type="text" placeholder="build an object or simulation: 60 bouncing objects, neon city, wave, 5d penteract" autocomplete="off">
         <button id="gl-build" class="sim-btn" type="button">BUILD</button>
         <button id="gl-ai" class="sim-btn" type="button">AI BUILD</button>
       </div>
@@ -441,15 +441,19 @@ window.voidaiToggleSidebar = function() {
           <option value="lorenz">Lorenz attractor</option>
           <option value="tesseract">4D tesseract</option>
           <option value="penteract">5D penteract</option>
+          <option value="objects">Object simulation</option>
         </select>
         <button id="gl-cel" class="sim-btn gl-toggle" type="button">CEL</button>
         <button id="gl-wire" class="sim-btn gl-toggle" type="button">WIRE</button>
         <button id="gl-run" class="sim-btn" type="button">RUN</button>
         <button id="gl-stop" class="sim-btn" type="button">STOP</button>
         <button id="gl-reset" class="sim-btn" type="button">RESET</button>
+        <button id="gl-copy" class="sim-btn" type="button">COPY</button>
+        <button id="gl-download" class="sim-btn" type="button">DOWNLOAD</button>
+        <button id="gl-sim" class="sim-btn" type="button">SIM LAB</button>
       </div>
       <textarea id="gl-code" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
-      <div id="gl-note"><b>Sandbox:</b> local Three.js, no CDN, no network, no app data, cookies, or storage. Loops get a ~1.5s CPU budget and a heartbeat watchdog resets unresponsive frames; this is still best-effort, not a hard CPU sandbox. 4D/5D views are mathematical projections.</div>
+      <div id="gl-note"><b>Sandbox:</b> local Three.js, no CDN, no network, no app data, cookies, or storage. Loops get a ~1.5s CPU budget and a heartbeat watchdog resets unresponsive frames; this is still best-effort, not a hard CPU sandbox. AI BUILD asks the builder model for code; edit it, RUN it, COPY it, or DOWNLOAD it. 4D/5D views are mathematical projections.</div>
     </div>
   </div>
 </div>
@@ -663,7 +667,10 @@ window.voidaiToggleSidebar = function() {
     if (action && /\b(tesseract|penteract|hypercube|4d|5d|fourth dimension|fifth dimension)\b/.test(low)) {
       return '/webgl ' + (extractScenePrompt(text) || text);
     }
-    if (action && /\b(simulate|simulation|simulator|workbench|builder|lorenz|attractor|orbit|n-body|wave field|particle field)\b/.test(low)) {
+    if (action && /\bbuilder\b/.test(low)) {
+      return '/builder ' + text;
+    }
+    if (action && /\b(simulate|simulation|simulator|workbench|lorenz|attractor|orbit|n-body|wave field|particle field)\b/.test(low)) {
       return '/sim ' + text;
     }
 
@@ -743,7 +750,8 @@ window.voidaiToggleSidebar = function() {
         '- `/design SEQUENCE | TARGET` — CPU protein design',
         '- `/protein` — benign protein-engineering mode',
         '- `/predict` or `/future` — technology forecast',
-        '- `/sim` or `/builder` — Canvas N-D workbench',
+        '- `/builder` — AI code + live preview builder',
+        '- `/sim` — Canvas N-D workbench',
         '- `/webgl` or `/three` — sandboxed Three.js lab',
         '- `/sync` — refresh the PHB six-layer state',
         '- `/recap` — one-line recap',
@@ -1099,7 +1107,31 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
-    var simMatch = text.match(/^[@\/](?:sim|simulate|simulator|builder)\b\s*([\s\S]*)$/i);
+    var builderMatch = text.match(/^[@\/]builder\b\s*([\s\S]*)$/i);
+    if (builderMatch) {
+      if (typeof window.voidaiOpenBuilder !== 'function') {
+        addMsg('assistant', '**Builder error:** builder lab failed to load.');
+        return;
+      }
+      var builderPrompt = builderMatch[1].trim();
+      var builderResult = window.voidaiOpenBuilder(builderPrompt) || {};
+      addMsg('user', shownText);
+      var builderReply = '**Builder lab**\n'
+        + '- mode: editable code + live preview\n'
+        + '- template: ' + (builderResult.templateLabel || '3D / OBJECT SIMULATION') + '\n'
+        + '- sandbox: local Three.js, no network, no app data, cookies, or storage\n\n'
+        + (builderResult.note || 'Edit the code, RUN it, COPY it, or DOWNLOAD it.') + '\n\n'
+        + (builderPrompt ? 'VOIDAI is generating the build from: “' + builderPrompt + '”.' : 'Use AI BUILD with an object or simulation request.');
+      addMsg('assistant', builderReply);
+      history.push({ role: 'user', content: historyText });
+      history.push({ role: 'assistant', content: builderReply });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+      status('builder ready');
+      return;
+    }
+
+    var simMatch = text.match(/^[@\/](?:sim|simulate|simulator)\b\s*([\s\S]*)$/i);
     if (simMatch) {
       if (typeof window.voidaiOpenSim !== 'function') {
         addMsg('assistant', '**Simulation error:** workbench failed to load.');
@@ -2196,7 +2228,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     particles: 'PARTICLE FIELD',
     lorenz: 'LORENZ ATTRACTOR',
     tesseract: '4D TESSERACT',
-    penteract: '5D PENTERACT'
+    penteract: '5D PENTERACT',
+    objects: 'OBJECT SIMULATION'
   };
 
   var TEMPLATES = {
@@ -2406,7 +2439,41 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       '  geo.attributes.position.needsUpdate = true;',
       '  lines.rotation.y = t * 0.08;',
       '};'
-    ].join('\n')
+    ].join('\n'),
+
+    objects: [
+      'var COUNT = 90;',
+      'var BOUND = 4;',
+      'var objects = [];',
+      'var seed = 1337;',
+      'function rnd() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }',
+      'var floor = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), new THREE.MeshStandardMaterial({ color: 0x0b1116, roughness: 0.95 }));',
+      'floor.rotation.x = -Math.PI / 2; floor.position.y = -BOUND; scene.add(floor);',
+      'scene.add(new THREE.GridHelper(8, 16, 0x2b6f7a, 0x143b42));',
+      'for (var i = 0; i < COUNT; i++) {',
+      '  var radius = 0.08 + rnd() * 0.16;',
+      '  var mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 12, 12), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(rnd(), 0.72, 0.6), roughness: 0.45, metalness: 0.25 }));',
+      '  var pos = new THREE.Vector3((rnd() - 0.5) * 6, -BOUND + radius + rnd() * 7, (rnd() - 0.5) * 6);',
+      '  var vel = new THREE.Vector3((rnd() - 0.5) * 2.5, rnd() * 2, (rnd() - 0.5) * 2.5);',
+      '  mesh.position.copy(pos); scene.add(mesh);',
+      '  objects.push({ mesh: mesh, pos: pos, vel: vel, r: radius });',
+      '}',
+      'camera.position.set(7, 5.5, 7); camera.lookAt(0, 0, 0);',
+      'window.update = function(t) {',
+      '  var dt = 0.016;',
+      '  for (var i = 0; i < objects.length; i++) {',
+      '    var o = objects[i];',
+      '    o.vel.y -= 9.8 * dt;',
+      '    o.pos.addScaledVector(o.vel, dt);',
+      '    if (o.pos.y < -BOUND + o.r) { o.pos.y = -BOUND + o.r; o.vel.y = Math.abs(o.vel.y) * 0.76; o.vel.x *= 0.98; o.vel.z *= 0.98; }',
+      '    if (o.pos.x > BOUND - o.r || o.pos.x < -BOUND + o.r) { o.pos.x = Math.max(-BOUND + o.r, Math.min(BOUND - o.r, o.pos.x)); o.vel.x *= -0.86; }',
+      '    if (o.pos.z > BOUND - o.r || o.pos.z < -BOUND + o.r) { o.pos.z = Math.max(-BOUND + o.r, Math.min(BOUND - o.r, o.pos.z)); o.vel.z *= -0.86; }',
+      '    o.mesh.position.copy(o.pos);',
+      '    o.mesh.rotation.x += o.vel.z * dt; o.mesh.rotation.y += o.vel.x * dt;',
+      '  }',
+      '};'
+    ].join('\n'),
+
   };
 
   function el(id) { return document.getElementById(id); }
@@ -2494,9 +2561,10 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     else if (/tesseract|hypercube|4d|4-d|fourth[- ]?dimension/.test(low)) key = 'tesseract';
     else if (/lorenz|chaos|attractor/.test(low)) key = 'lorenz';
     else if (/wave|surface|field/.test(low)) key = 'wave';
+    else if (/object|bounce|ball|physics|collision|stack/.test(low)) key = 'objects';
     else if (/particle|swarm|cloud|points/.test(low)) key = 'particles';
     else if (/orbit|solar|planet|gravity|n-body/.test(low)) key = 'orbit';
-    var cm = low.match(/\b(\d{2,5})\s*(?:particles?|points?|bodies|planets?)\b/);
+    var cm = low.match(/\b(\d{2,5})\s*(?:particles?|points?|bodies|objects?|balls?|things?|planets?)\b/);
     if (cm) count = Math.max(100, Math.min(20000, parseInt(cm[1], 10)));
     return { key: key, count: count };
   }
@@ -2504,6 +2572,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   function codeFor(key, count) {
     var code = TEMPLATES[key] || TEMPLATES.orbit;
     if (key === 'particles' && count) code = code.replace('var N = 6000;', 'var N = ' + count + ';');
+    if (key === 'objects' && count) code = code.replace('var COUNT = 90;', 'var COUNT = ' + Math.max(8, Math.min(200, count)) + ';');
     if (key === 'orbit' && count) code = code.replace('i < 32', 'i < ' + Math.max(8, Math.min(160, Math.round(count / 50))) );
     return code;
   }
@@ -2656,12 +2725,12 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
       body: JSON.stringify({
-        mode: 'fast',
+        mode: 'builder',
         max_tokens: 4096,
         temperature: 0.35,
         messages: [{
           role: 'user',
-          content: 'You are the VOIDAI WebGL scene generator. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. Globals available: THREE, scene, camera, renderer. Define window.update = function(t) { ... } for animation. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Do not use while(true) or an unbounded for loop. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane must be no larger than 300x300; keep the scene clearly visible rather than filling the view with one surface. Return ONLY raw JavaScript, no markdown, under 6000 characters. Scene request: ' + request
+          content: 'You are the VOIDAI BUILDER. Write a self-contained Three.js scene body that runs inside a sandboxed iframe. Globals: THREE, scene, camera, renderer. Define window.update = function(t) { ... } for animation. Build visible objects and a bounded simulation: give each object a position, velocity, and deterministic seed; include gravity, collisions, or constraints where relevant; keep loops bounded. Use only local geometry, materials, and math. Do not use imports, fetch, XMLHttpRequest, WebSocket, storage, cookies, eval, new Function, or external assets. Keep every object inside a 300-unit cube; put the camera outside all geometry and start it around (0, 55, 170) looking at (0, 18, 0); a ground plane no larger than 300x300; keep the scene clearly visible. Return ONLY raw JavaScript, no markdown, under 6000 characters. Build request: ' + request
         }]
       })
     }).then(function(r) {
@@ -2701,6 +2770,33 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     });
     el('gl-template').addEventListener('change', function() {
       el('gl-code').value = TEMPLATES[this.value] || TEMPLATES.orbit;
+    });
+    el('gl-copy').addEventListener('click', function() {
+      var code = el('gl-code').value || '';
+      if (!code) { setStatus('Nothing to copy yet.', true); return; }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function() { setStatus('Scene code copied.', true); }).catch(function() { setStatus('Copy failed; select the code manually.', true); });
+      } else {
+        el('gl-code').select();
+        try { document.execCommand('copy'); setStatus('Scene code copied.', true); } catch (e) { setStatus('Copy failed; select the code manually.', true); }
+      }
+    });
+    el('gl-download').addEventListener('click', function() {
+      var code = el('gl-code').value || '';
+      if (!code) { setStatus('Nothing to download yet.', true); return; }
+      try {
+        var blob = new Blob([code], { type: 'text/javascript' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'voidai-builder-scene.js';
+        document.body.appendChild(a); a.click();
+        setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 600);
+        setStatus('Scene code download started.', true);
+      } catch (e) { setStatus('Download failed: ' + (e.message || e), true); }
+    });
+    el('gl-sim').addEventListener('click', function() {
+      closeGL();
+      if (typeof window.voidaiOpenSim === 'function') window.voidaiOpenSim('3d orbit objects');
     });
     el('gl-prompt').addEventListener('keydown', function(e) {
       if (e.key === 'Enter') { e.preventDefault(); buildFromPrompt(); }
@@ -3376,16 +3472,23 @@ voidaiReassertSidebar();
     }, true);
   }
 
-  function openBuilder() {
+  function openBuilder(prompt) {
     closeCap();
     closeLive();
+    if (typeof window.voidaiCloseSim === 'function') window.voidaiCloseSim();
     if (typeof window.voidaiSetMode === 'function') window.voidaiSetMode('builder', false);
-    if (typeof window.voidaiOpenSim !== 'function') {
-      setStatus('builder lab unavailable');
-      return;
+    var request = String(prompt || '').trim();
+    if (typeof window.voidaiOpenWebGL === 'function') {
+      var result = window.voidaiOpenWebGL(request ? ('ai ' + request) : 'objects');
+      setStatus(request ? 'builder lab · generating code and preview' : 'builder lab · edit, run, copy, or AI BUILD');
+      return result;
     }
-    window.voidaiOpenSim('3d orbit objects');
-    setStatus('builder lab · simulate or switch to 3D BUILD');
+    if (typeof window.voidaiOpenSim === 'function') {
+      var simResult = window.voidaiOpenSim(request || '3d orbit objects');
+      setStatus('builder lab · simulation');
+      return simResult;
+    }
+    setStatus('builder lab unavailable');
   }
 
   function openCap() {
