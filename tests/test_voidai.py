@@ -615,6 +615,7 @@ class SecurityHardeningTests(unittest.TestCase):
         self.assertIn("allowFileAccessFromFileURLs = false", activity)
         self.assertIn("shouldOverrideUrlLoading", activity)
         self.assertIn("WebResourceRequest", activity)
+        self.assertIn("flowType = FlowType.PKCE", activity)
         self.assertNotIn("allowUniversalAccessFromFileURLs = true", activity)
         self.assertNotIn("sessionFromUrl", activity)
 

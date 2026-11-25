@@ -27,6 +27,7 @@ import androidx.lifecycle.lifecycleScope
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.ExternalAuthAction
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.handleDeeplinks
 import io.github.jan.supabase.auth.providers.Github
@@ -98,6 +99,9 @@ class MainActivity : AppCompatActivity() {
                     scheme = "voidai"
                     host = "auth-callback"
                     defaultExternalAuthAction = ExternalAuthAction.CustomTabs()
+                    // The SDK default is IMPLICIT; force PKCE so the OAuth state
+                    // is validated and callbacks cannot inject a session.
+                    flowType = FlowType.PKCE
                 }
                 install(Storage)
             }.also { Log.i("VOIDAI", "Supabase ready") }
