@@ -828,11 +828,18 @@ window.voidaiToggleSidebar = function() {
   }
 
   function saveMemory() {
+    var turns = history.filter(function(m) { return m.role !== 'system'; });
+    var trimmed = [{ role: 'system', content: SYSTEM }].concat(turns.slice(-MAX_MSGS));
     try {
-      var turns = history.filter(function(m) { return m.role !== 'system'; });
-      var trimmed = [{ role: 'system', content: SYSTEM }].concat(turns.slice(-MAX_MSGS));
       localStorage.setItem(MEMORY_KEY, JSON.stringify(trimmed));
-    } catch(e) {}
+    } catch(e) {
+      try {
+        var compact = [{ role: 'system', content: SYSTEM }].concat(turns.slice(-100).map(function(m) {
+          return { role: m.role, content: String(m.content || '').slice(0, 8000) };
+        }));
+        localStorage.setItem(MEMORY_KEY, JSON.stringify(compact));
+      } catch(e2) {}
+    }
   }
 
   function extractScenePrompt(text) {
@@ -1662,10 +1669,12 @@ window.voidaiToggleSidebar = function() {
       if (typeof voidaiActiveConv !== 'undefined' && voidaiActiveConv && typeof voidaiFindConv === 'function') {
         var active = voidaiFindConv(voidaiActiveConv);
         if (active) {
-          active.messages = [];
-          active.title = 'New chat';
+          var clearedId = active.id;
+          voidaiConvs = voidaiConvs.filter(function(c) { return c.id !== clearedId; });
+          voidaiActiveConv = null;
           voidaiPersist();
           voidaiRenderConvs();
+          if (typeof voidaiCloudDelete === 'function') voidaiCloudDelete(clearedId);
         }
       }
     } catch(e) {}
@@ -3381,15 +3390,27 @@ function voidaiPersist() {
     return (b.updated || b.created || 0) - (a.updated || a.created || 0);
   });
   voidaiConvs = voidaiConvs.slice(0, 50);
+  var snapshot = voidaiConvs;
   try {
-    localStorage.setItem('voidai_convs', JSON.stringify(voidaiConvs));
+    localStorage.setItem('voidai_convs', JSON.stringify(snapshot));
     localStorage.setItem('voidai_active_conv', voidaiActiveConv || '');
     return true;
   } catch(e) {
-    // Quota pressure: drop the oldest saved chats and retry once.
+    // Quota pressure: keep the full in-memory list, but persist a compact
+    // cache. The cloud archive restores the trimmed messages on next pull.
     try {
-      voidaiConvs = voidaiConvs.slice(0, 20);
-      localStorage.setItem('voidai_convs', JSON.stringify(voidaiConvs));
+      var compact = snapshot.slice(0, 20).map(function(c) {
+        return {
+          id: c.id,
+          title: c.title,
+          created: c.created,
+          updated: c.updated,
+          messages: (c.messages || []).slice(-100).map(function(m) {
+            return { role: m.role, content: String(m.content || '').slice(0, 8000) };
+          })
+        };
+      });
+      localStorage.setItem('voidai_convs', JSON.stringify(compact));
       localStorage.setItem('voidai_active_conv', voidaiActiveConv || '');
       return true;
     } catch(e2) { return false; }
@@ -3442,20 +3463,32 @@ function voidaiCloudApi(path, payload) {
   var app = window.voidaiApp;
   if (!app || !app.PROXY_URL || !app.VOIDAI_KEY) return Promise.reject(new Error('app not ready'));
   var base = String(app.PROXY_URL).replace(/\/$/, '');
-  return fetch(base + path, {
+  var controller = null;
+  var timer = null;
+  if (typeof AbortController !== 'undefined') {
+    controller = new AbortController();
+    timer = setTimeout(function() { try { controller.abort(); } catch(e) {} }, 25000);
+  }
+  var options = {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-VOID-KEY': app.VOIDAI_KEY
     },
     body: JSON.stringify(payload || {})
-  }).then(function(res) {
+  };
+  if (controller) options.signal = controller.signal;
+  return fetch(base + path, options).then(function(res) {
+    if (timer) clearTimeout(timer);
     return res.text().then(function(raw) {
       var data = null;
       try { data = raw ? JSON.parse(raw) : null; } catch(e) {}
       if (!res.ok) throw new Error((data && data.error && data.error.message) || ('sync http ' + res.status));
       return data || {};
     });
+  }, function(err) {
+    if (timer) clearTimeout(timer);
+    throw err;
   });
 }
 
@@ -3534,11 +3567,14 @@ function voidaiCloudPushDirty() {
   } else {
     request = voidaiCloudApi('/conversations/save-all', { user_id: uid, conversations: convs });
   }
+  var epoch = voidaiCloudEpoch;
   voidaiCloudBusy = true;
   voidaiCloudBadge('SYNCING…', '#777');
   request.then(function() {
+    if (epoch !== voidaiCloudEpoch) return;
     voidaiCloudBadge('SYNCED · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), '#5f8f6f');
   }).catch(function() {
+    if (epoch !== voidaiCloudEpoch) return;
     convs.forEach(function(c) { voidaiCloudDirty[c.id] = true; });
     voidaiCloudBadge('OFFLINE · RETRYING', '#8a6a3a');
     if (voidaiCloudTimer) clearTimeout(voidaiCloudTimer);
@@ -3550,6 +3586,11 @@ function voidaiCloudPushDirty() {
 
 function voidaiCloudDelete(id) {
   voidaiMarkDeleted(id);
+  delete voidaiCloudDirty[id];
+  if (voidaiCloudTimer && !Object.keys(voidaiCloudDirty).length) {
+    clearTimeout(voidaiCloudTimer);
+    voidaiCloudTimer = null;
+  }
   var uid = voidaiCloudUserId();
   if (!uid) return;
   voidaiCloudApi('/conversations/delete', { user_id: uid, id: id }).catch(function() {});
@@ -3558,14 +3599,12 @@ function voidaiCloudDelete(id) {
 function voidaiCloudFlushDeletes() {
   var uid = voidaiCloudUserId();
   if (!uid || !voidaiDeleted.length) return Promise.resolve();
-  var ids = voidaiDeleted.slice(0, 20);
-  var chain = Promise.resolve();
-  ids.forEach(function(id) {
-    chain = chain.then(function() {
-      return voidaiCloudApi('/conversations/delete', { user_id: uid, id: id }).catch(function() {});
-    });
-  });
-  return chain;
+  // Keep tombstones as a safety net against an in-flight save resurrecting a
+  // deleted thread. The batch call removes all pending remote rows at once.
+  return voidaiCloudApi('/conversations/delete', {
+    user_id: uid,
+    ids: voidaiDeleted.slice(0, 200)
+  }).catch(function() {});
 }
 
 function voidaiCloudPull() {
@@ -3588,7 +3627,7 @@ function voidaiCloudPull() {
     remote.forEach(function(c) { if (c && c.id) remoteMap[c.id] = c; });
     var localOnly = [];
     voidaiConvs.forEach(function(c) {
-      if (!c || !c.id || voidaiDeleted.indexOf(c.id) >= 0) return;
+      if (!c || !c.id || !c.messages || !c.messages.length || voidaiDeleted.indexOf(c.id) >= 0) return;
       var r = remoteMap[c.id];
       if (!r || (Number(c.updated) || 0) > (Number(r.updated) || 0)) localOnly.push(c);
     });

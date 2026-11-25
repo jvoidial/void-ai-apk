@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.5.0';
+const WORKER_VERSION = '3.5.1';
 const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
@@ -405,20 +405,63 @@ async function listArchivedConversations(env, userId) {
   var res = await sbFetch(env,
     '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
     '&kind=like.' + encodeURIComponent(CONVERSATION_KIND_PREFIX + '*') +
-    '&order=weight.desc&limit=' + MAX_ARCHIVE_CONVERSATIONS +
+    '&order=weight.desc&limit=' + (MAX_ARCHIVE_CONVERSATIONS * 3) +
     '&select=kind,content,weight', { method: 'GET' });
   var rows = await readJsonSafe(res, []);
   if (!Array.isArray(rows)) return [];
-  var out = [];
+  var byId = {};
   rows.forEach(function (row) {
     try {
       var parsed = JSON.parse(row.content || '{}');
       var normalized = normalizeArchivedConversation(parsed);
-      if (!normalized.error) out.push(normalized);
+      if (normalized.error) return;
+      var old = byId[normalized.id];
+      if (!old || normalized.updated >= old.updated) byId[normalized.id] = normalized;
     } catch (e) {}
   });
-  out.sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
-  return out.slice(0, MAX_ARCHIVE_CONVERSATIONS);
+  return Object.keys(byId).map(function (id) { return byId[id]; }).sort(function (a, b) {
+    return (b.updated || 0) - (a.updated || 0);
+  }).slice(0, MAX_ARCHIVE_CONVERSATIONS);
+}
+
+// Keep the reserved archive namespace bounded. Without this, every deleted or
+// replaced conversation would remain in Supabase forever and duplicate rows
+// from concurrent saves would accumulate.
+async function pruneArchivedConversations(env, userId) {
+  try {
+    var scope = conversationArchiveScope(userId);
+    var res = await sbFetch(env,
+      '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+      '&kind=like.' + encodeURIComponent(CONVERSATION_KIND_PREFIX + '*') +
+      '&order=weight.desc&limit=500&select=id,kind,weight', { method: 'GET' });
+    var rows = await readJsonSafe(res, []);
+    if (!Array.isArray(rows) || !rows.length) return;
+    var seen = {};
+    var kept = 0;
+    var remove = [];
+    rows.forEach(function (row) {
+      if (!row || row.id == null) return;
+      var kind = String(row.kind || '');
+      if (!kind) return;
+      if (seen[kind]) {
+        remove.push(String(row.id));
+        return;
+      }
+      seen[kind] = true;
+      if (kept < MAX_ARCHIVE_CONVERSATIONS) kept++;
+      else remove.push(String(row.id));
+    });
+    for (var i = 0; i < remove.length; i += 40) {
+      var ids = remove.slice(i, i + 40).filter(function (id) {
+        return /^[0-9]+$/.test(id);
+      });
+      if (!ids.length) continue;
+      await sbFetch(env, '/rest/v1/voidai_reflections?id=in.(' + ids.join(',') + ')', {
+        method: 'DELETE',
+        headers: { 'Prefer': 'return=minimal' }
+      });
+    }
+  } catch (e) {}
 }
 
 async function deleteArchivedConversation(env, userId, conversationId) {
@@ -427,6 +470,37 @@ async function deleteArchivedConversation(env, userId, conversationId) {
   var res = await sbFetch(env,
     '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
     '&kind=eq.' + encodeURIComponent(kind),
+    { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
+  return res.ok;
+}
+
+async function bulkInsertArchivedConversations(env, userId, conversations) {
+  var scope = conversationArchiveScope(userId);
+  var rows = conversations.map(function (conversation) {
+    return {
+      user_id: scope,
+      kind: CONVERSATION_KIND_PREFIX + conversation.id,
+      content: JSON.stringify(conversation),
+      weight: conversation.updated
+    };
+  });
+  if (!rows.length) return true;
+  var res = await sbFetch(env, '/rest/v1/voidai_reflections', {
+    method: 'POST',
+    headers: { 'Prefer': 'return=minimal' },
+    body: JSON.stringify(rows)
+  });
+  return res.ok;
+}
+
+async function deleteArchivedConversations(env, userId, ids) {
+  var scope = conversationArchiveScope(userId);
+  var kinds = ids.map(function (id) { return CONVERSATION_KIND_PREFIX + id; });
+  if (!kinds.length) return true;
+  var list = kinds.map(function (kind) { return '"' + kind.replace(/"/g, '') + '"'; }).join(',');
+  var res = await sbFetch(env,
+    '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(scope) +
+    '&kind=in.(' + list + ')',
     { method: 'DELETE', headers: { 'Prefer': 'return=minimal' } });
   return res.ok;
 }
@@ -2814,6 +2888,7 @@ export default {
       }
       const saved = await upsertArchivedConversation(env, uid, normalized);
       if (!saved) return json({ error: { message: 'conversation archive failed' } }, 502);
+      await pruneArchivedConversations(env, uid);
       return json({ ok: true, user_id: uid, id: normalized.id, updated: normalized.updated });
     }
 
@@ -2827,14 +2902,22 @@ export default {
         return json({ error: { message: 'signed-in user_id is required' } }, 400);
       }
       const source = Array.isArray(cbody.conversations) ? cbody.conversations.slice(0, MAX_ARCHIVE_CONVERSATIONS) : [];
-      var saved = 0;
+      var normalizedList = [];
       var skipped = 0;
       for (var ci = 0; ci < source.length; ci++) {
         var normalized = normalizeArchivedConversation(source[ci]);
         if (normalized.error) { skipped++; continue; }
-        if (await upsertArchivedConversation(env, uid, normalized)) saved++;
-        else skipped++;
+        normalizedList.push(normalized);
       }
+      var saved = 0;
+      // One bulk insert per 10 rows keeps the whole sync below Cloudflare's
+      // subrequest ceiling. Prune removes any older duplicate rows afterwards.
+      for (var bi = 0; bi < normalizedList.length; bi += 10) {
+        var chunk = normalizedList.slice(bi, bi + 10);
+        if (await bulkInsertArchivedConversations(env, uid, chunk)) saved += chunk.length;
+        else skipped += chunk.length;
+      }
+      await pruneArchivedConversations(env, uid);
       return json({ ok: true, user_id: uid, saved: saved, skipped: skipped });
     }
 
@@ -2844,13 +2927,22 @@ export default {
       try { cbody = await request.json(); }
       catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
       const uid = safeUserId(cbody && cbody.user_id);
-      const id = String((cbody && cbody.id) || '').trim();
-      if (!cbody || !cbody.user_id || uid === 'guest' || !/^[a-zA-Z0-9_-]{1,80}$/.test(id)) {
+      const singleId = String((cbody && cbody.id) || '').trim();
+      const rawIds = Array.isArray(cbody && cbody.ids) ? cbody.ids : [singleId];
+      const ids = rawIds.map(function (value) { return String(value || '').trim(); })
+        .filter(function (value) { return /^[a-zA-Z0-9_-]{1,80}$/.test(value); })
+        .slice(0, 200);
+      if (!cbody || !cbody.user_id || uid === 'guest' || !ids.length) {
         return json({ error: { message: 'signed-in user_id and conversation id are required' } }, 400);
       }
-      const deleted = await deleteArchivedConversation(env, uid, id);
+      var deleted = 0;
+      if (ids.length === 1) {
+        if (await deleteArchivedConversation(env, uid, ids[0])) deleted = 1;
+      } else if (await deleteArchivedConversations(env, uid, ids)) {
+        deleted = ids.length;
+      }
       if (!deleted) return json({ error: { message: 'conversation delete failed' } }, 502);
-      return json({ ok: true, user_id: uid, id: id });
+      return json({ ok: true, user_id: uid, id: singleId || ids[0], deleted: deleted });
     }
 
     if (new URL(request.url).pathname === '/source') {

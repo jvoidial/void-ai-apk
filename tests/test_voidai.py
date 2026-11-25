@@ -644,6 +644,21 @@ class ConversationHistorySyncTests(unittest.TestCase):
         self.assertIn("var previous = 'guest';", html)
         self.assertIn("localStorage.setItem('voidai_owner', 'guest')", html)
 
+    def test_archive_storage_is_bounded_and_deletes_are_batched(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        self.assertIn("pruneArchivedConversations", worker)
+        self.assertIn("bulkInsertArchivedConversations", worker)
+        self.assertIn("deleteArchivedConversations", worker)
+        self.assertIn("ids: voidaiDeleted.slice(0, 200)", html)
+        self.assertIn("delete voidaiCloudDirty[id]", html)
+        self.assertIn("AbortController", html)
+        self.assertIn("voidaiCloudDelete(clearedId)", html)
+        self.assertIn("slice(-100).map", html)
+        self.assertIn("slice(0, 20).map", html)
+
 
 class SecurityHardeningTests(unittest.TestCase):
     """Regression guards for the security review surfaces."""

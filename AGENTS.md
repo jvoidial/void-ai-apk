@@ -111,6 +111,20 @@ The Worker writes those columns first and falls back to the legacy
 `turn/mood/insight/note`, `key/value`, and `narrative` columns. Reads accept
 both shapes. Do not drop either shape without checking production data.
 
+## Conversation archive storage
+
+- Signed-in threads are stored in `voidai_reflections` under
+  `user_id = "<account-uuid>:conversation_archive"` and
+  `kind = "conversation:<id>"`.
+- The Worker keeps at most 60 rows per account. `save-all` inserts in batches
+  of 10 and `pruneArchivedConversations` removes duplicate and older rows;
+  keep both paths under Cloudflare's per-invocation subrequest limit.
+- Client tombstones in `voidai_deleted_convs` suppress deleted threads and are
+  flushed with the batch `/conversations/delete` call. Do not remove a
+  tombstone before the remote delete succeeds.
+- Local quota fallbacks keep the in-memory thread list and persist a compact
+  cache; do not truncate `voidaiConvs` in memory when `localStorage` is full.
+
 ## Worker reflection persistence
 
 The Worker's `runReflectionPass` uses `DEFAULT_MODEL` with a JSON-only prompt,
