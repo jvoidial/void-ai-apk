@@ -3399,7 +3399,10 @@ function voidaiPersist() {
     // Quota pressure: keep the full in-memory list, but persist a compact
     // cache. The cloud archive restores the trimmed messages on next pull.
     try {
-      var compact = snapshot.slice(0, 20).map(function(c) {
+      var compactSource = snapshot.slice(0, 20);
+      var active = voidaiFindConv(voidaiActiveConv);
+      if (active && compactSource.indexOf(active) < 0) compactSource.push(active);
+      var compact = compactSource.map(function(c) {
         return {
           id: c.id,
           title: c.title,

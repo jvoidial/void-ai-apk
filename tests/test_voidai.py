@@ -657,7 +657,8 @@ class ConversationHistorySyncTests(unittest.TestCase):
         self.assertIn("AbortController", html)
         self.assertIn("voidaiCloudDelete(clearedId)", html)
         self.assertIn("slice(-100).map", html)
-        self.assertIn("slice(0, 20).map", html)
+        self.assertIn("compactSource = snapshot.slice(0, 20)", html)
+        self.assertIn("compactSource.push(active)", html)
 
 
 class SecurityHardeningTests(unittest.TestCase):
