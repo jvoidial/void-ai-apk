@@ -666,6 +666,40 @@ class SecurityHardeningTests(unittest.TestCase):
                       "/brain", "/capabilities", "/diagnose"]:
             self.assertIn("pathname === '%s'" % route, worker)
 
+    def test_scene_extraction_drops_trailing_prose(self):
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        start = html.index("  function sceneSyntaxError(code)")
+        end = html.index("  function generateScene(prompt)", start)
+        harness = html[start:end] + r"""
+var cases = [
+  "var COUNT = 1;\nfor (var i=0;i<COUNT;i++){}\nwindow.update = function(t){};\nThis scene wants more objects.",
+  "Here is the scene:\nvar x = 1;\nwindow.update = function(t){};\nThis scene wants more.",
+  "```javascript\nvar y = 2;\nwindow.update = function(t){};\n```\nThe scene wants more."
+];
+var out = cases.map(function(c) {
+  var scene = extractSceneCode(c);
+  return {code: scene, error: sceneSyntaxError(scene)};
+});
+process.stdout.write(JSON.stringify(out));
+"""
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("node is not installed")
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+            fh.write(harness)
+            path = fh.name
+        try:
+            result = subprocess.run([node, path], check=True, text=True,
+                                    capture_output=True)
+            repairs = json.loads(result.stdout)
+        finally:
+            os.unlink(path)
+        for repair in repairs:
+            self.assertEqual(repair["error"], "")
+            self.assertNotIn("wants", repair["code"])
+            self.assertIn("window.update", repair["code"])
+
     def test_python_rejects_untrusted_llm_base_url(self):
         sys.path.insert(0, PY_SRC)
         from voidai import server as py_server

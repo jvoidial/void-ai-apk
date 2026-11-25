@@ -2859,12 +2859,28 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     return '';
   }
 
+  function sceneSyntaxError(code) {
+    try { new Function(code); return ''; } catch (e) { return (e && e.message) || 'Syntax error'; }
+  }
+
+  function trimSceneToValid(code) {
+    if (!sceneSyntaxError(code)) return code;
+    var lines = String(code).split('\n');
+    for (var end = lines.length - 1; end > 0; end--) {
+      var candidate = lines.slice(0, end).join('\n').replace(/\s+$/, '');
+      if (candidate.trim() && !sceneSyntaxError(candidate)) return candidate;
+    }
+    return '';
+  }
+
   function run() {
     var code = el('gl-code').value;
     if (!code || !code.trim()) { setStatus('Code is empty. Select a template or write a scene.', true); return; }
     if (code.length > 30000) { setStatus('Code is too large. Keep it under 30,000 characters.', true); return; }
     var policyError = validateSceneCode(code);
     if (policyError) { setStatus(policyError, true); return; }
+    var syntaxError = sceneSyntaxError(code);
+    if (syntaxError) { setStatus('Syntax error: ' + syntaxError + '. Edit the code or use AI BUILD again.', true); return; }
     GL.runId++;
     var runId = GL.runId;
     if (GL.timer) clearTimeout(GL.timer);
@@ -2944,10 +2960,23 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   function extractSceneCode(text) {
     var s = String(text || '').trim();
-    var fenced = s.match(/```(?:js|javascript)?\s*([\s\S]*?)```/i);
-    if (fenced) s = fenced[1].trim();
+    var re = /```(?:js|javascript)?\s*([\s\S]*?)```/gi, m, best = '';
+    while ((m = re.exec(s))) {
+      if (m[1].trim().length > best.length) best = m[1].trim();
+    }
+    if (best) s = best;
     s = s.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/i, '').trim();
-    return s;
+    // Models sometimes prepend an explanation or append prose after the code.
+    // Drop leading prose before the first code-looking line, then trim trailing
+    // lines until the remaining source compiles; the longest valid prefix wins.
+    var lines = s.split('\n'), start = 0;
+    for (var i = 0; i < lines.length; i++) {
+      if (/^\s*(?:\/\/|\/\*|var\b|let\b|const\b|function\b|class\b|window\.|scene\.|camera\.|renderer\.|THREE\.)/.test(lines[i])) {
+        start = i; break;
+      }
+    }
+    if (start) s = lines.slice(start).join('\n').trim();
+    return trimSceneToValid(s) || s;
   }
 
   function generateScene(prompt) {
@@ -2980,6 +3009,8 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       if (!code || code.length > 30000) throw new Error('the model did not return usable scene code');
       var policyError = validateSceneCode(code);
       if (policyError) throw new Error(policyError);
+      var syntaxError = sceneSyntaxError(code);
+      if (syntaxError) throw new Error('generated scene has a syntax error: ' + syntaxError);
       el('gl-code').value = code;
       el('gl-template').value = 'orbit';
       setStatus('AI scene ready. Running in the sandbox…', true);
