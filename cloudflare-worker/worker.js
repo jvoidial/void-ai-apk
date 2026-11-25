@@ -630,13 +630,20 @@ async function callGroqChunked(env, messages, model, options) {
 
 async function callGroqWithRetry(env, messages, model, opts) {
   var maxRetries = 2;
+  var last = null;
   for (var i = 0; i <= maxRetries; i++) {
     var result = await callModelGeneric(model || DEFAULT_MODEL, messages, env, opts);
-    if (result.ok) return result;
-    if (result.status !== 429 && result.status !== 503) return result;
+    last = result;
+    if (result && result.ok && typeof result.text === 'string' && result.text.trim()) return result;
+    // 204/205 or a zero-length 200 is an empty success; retry and then fall back.
+    if (result && result.status !== 429 && result.status !== 503 &&
+        result.status !== 200 && result.status !== 204 && result.status !== 205) return result;
     if (i < maxRetries) await new Promise(function (r) { setTimeout(r, 2000); });
   }
-  return { ok: false, status: 503, text: JSON.stringify({ error: { message: 'groq unavailable after retries' } }) };
+  if (last && last.ok && !(last.text || '').trim()) {
+    return { ok: false, status: 502, text: JSON.stringify({ error: { message: 'empty groq response' } }) };
+  }
+  return last || { ok: false, status: 503, text: JSON.stringify({ error: { message: 'groq unavailable after retries' } }) };
 }
 
 async function callGroqAuto(env, messages, model, opts) {
@@ -645,7 +652,7 @@ async function callGroqAuto(env, messages, model, opts) {
   if (env.OPENROUTER_API_KEY) {
     try {
       var orResult = await callOpenRouter(messages, env, 'openai/gpt-oss-120b', opts);
-      if (orResult.ok) return orResult;
+      if (orResult.ok && orResult.text && orResult.text.trim()) return orResult;
     } catch (e) {}
   }
   if (env.GEMINI_API_KEY) {
@@ -1962,7 +1969,7 @@ async function callGemini(messages, env) {
     body.systemInstruction = { parts: [{ text: systemMsg.map(function (m) { return m.content; }).join('\n') }] };
   }
   const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + env.GEMINI_API_KEY,
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + env.GEMINI_API_KEY,
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
   );
   const rawGemini = await res.text();
@@ -1977,8 +1984,11 @@ async function callGemini(messages, env) {
   const text = (data.candidates && data.candidates[0] && data.candidates[0].content &&
     data.candidates[0].content.parts && data.candidates[0].content.parts[0] &&
     data.candidates[0].content.parts[0].text) || '';
+  if (!text.trim()) {
+    return { ok: false, status: 502, text: JSON.stringify({ error: { message: 'empty gemini response' } }) };
+  }
   const wrapped = {
-    id: 'gemini-' + Date.now(), object: 'chat.completion', model: 'gemini-2.0-flash',
+    id: 'gemini-' + Date.now(), object: 'chat.completion', model: 'gemini-2.5-flash',
     choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }]
   };
   return { ok: true, status: 200, text: JSON.stringify(wrapped) };
@@ -2150,13 +2160,13 @@ async function callGroq(messages, env, opts) {
     });
   };
   let res = await doFetch(DEFAULT_MODEL, maxTok);
-  if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
+  if (res.status !== 429) { const text = await res.text(); if (text.trim()) return { ok: res.ok, status: res.status, text: text }; }
   await new Promise(function (r) { setTimeout(r, 2000); });
   res = await doFetch(DEFAULT_MODEL, maxTok);
-  if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
+  if (res.status !== 429) { const text = await res.text(); if (text.trim()) return { ok: res.ok, status: res.status, text: text }; }
   res = await doFetch('openai/gpt-oss-20b', Math.min(maxTok, 3000));
-  if (res.status !== 429) { const text = await res.text(); return { ok: res.ok, status: res.status, text: text }; }
-  return await callGemini(messages, env);
+  if (res.status !== 429) { const text = await res.text(); if (text.trim()) return { ok: res.ok, status: res.status, text: text }; }
+  return await callGroqAuto(env, messages, DEFAULT_MODEL, opts);
 }
 
 async function callModelGeneric(model, messages, env, opts) {
@@ -2189,7 +2199,7 @@ async function callFirstWorkingModel(messages, env, opts, skip) {
     if (skip && model === skip) continue;
     try {
       const r = await withRetry(function () { return callModelGeneric(model, messages, env, opts); });
-      if (r.ok) return { res: r, model: model };
+      if (r.ok && r.text && r.text.trim() && extractContent(r)) return { res: r, model: model };
     } catch (e) {}
   }
   return null;
@@ -2580,7 +2590,7 @@ export default {
         status: 'ok',
         model: DEFAULT_MODEL,
         provider: 'groq',
-        fallback: env.GEMINI_API_KEY ? 'gemini-2.0-flash' : 'none',
+        fallback: env.GEMINI_API_KEY ? 'gemini-2.5-flash' : 'none',
         persona: 'phb-human-agent-v2',
         search: !!env.TAVILY_API_KEY,
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein', 'builder'],

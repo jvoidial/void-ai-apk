@@ -608,6 +608,13 @@ window.voidaiToggleSidebar = function() {
 
   function status(t) { els.status.textContent = t; }
 
+  function recordTurn(userText, assistantText) {
+    if (userText) history.push({ role: 'user', content: String(userText) });
+    if (assistantText) history.push({ role: 'assistant', content: String(assistantText) });
+    saveMemory();
+    if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+  }
+
   function scroll() { els.messages.scrollTop = els.messages.scrollHeight; }
 
   function md(text) {
@@ -855,11 +862,18 @@ window.voidaiToggleSidebar = function() {
     if (modeCmd) {
       var wantedMode = (modeCmd[1] || '').toLowerCase();
       if (!wantedMode) {
-        addMsg('assistant', '**Modes:** fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder.\nUse `/mode deep`, or pick a mode in the toolbar.');
+        var modeList = '**Modes:** fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder/sim.\nUse `/mode deep`, or pick a mode in the toolbar.';
+        addMsg('assistant', modeList);
+        recordTurn(historyText, modeList);
         return;
       }
-      if (typeof window.voidaiSetMode !== 'function' || !window.voidaiSetMode(wantedMode, true)) {
-        addMsg('assistant', 'Unknown mode. Available: fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder.');
+      if (typeof window.voidaiSetMode !== 'function' || !window.voidaiSetMode(wantedMode, false)) {
+        var badMode = 'Unknown mode. Available: fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder/sim.';
+        addMsg('assistant', badMode);
+        recordTurn(historyText, badMode);
+      } else {
+        addMsg('assistant', 'Mode set to **' + wantedMode + '**.');
+        recordTurn(historyText, 'Mode set to **' + wantedMode + '**.');
       }
       return;
     }
@@ -901,8 +915,10 @@ window.voidaiToggleSidebar = function() {
         };
         addMsg('user', shownText);
         fn();
-        addMsg('assistant', notes[command] || 'Astra tool opened.');
-        status(notes[command] || 'astra tool opened');
+        var toolNote = notes[command] || 'Astra tool opened.';
+        addMsg('assistant', toolNote);
+        recordTurn(historyText, toolNote);
+        status(toolNote);
       } else {
         addMsg('assistant', '**Astra error:** this tool failed to load.');
       }
@@ -914,9 +930,14 @@ window.voidaiToggleSidebar = function() {
       addMsg('user', shownText);
       if (typeof window.voidaiLook === 'function') {
         window.voidaiLook(lookCmd[1].trim());
+        var lookNote = 'Camera requested. Describe what you see next.';
+        addMsg('assistant', lookNote);
+        recordTurn(historyText, lookNote);
         status('camera requested');
       } else {
-        addMsg('assistant', '**Camera error:** live vision failed to load.');
+        var camErr = '**Camera error:** live vision failed to load.';
+        addMsg('assistant', camErr);
+        recordTurn(historyText, camErr);
       }
       return;
     }
@@ -955,6 +976,9 @@ window.voidaiToggleSidebar = function() {
       els.input.disabled = true;
       els.send.disabled = true;
       addMsg('user', shownText);
+      history.push({ role: 'user', content: historyText });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
       status('folding…');
       fetch(PROXY_URL + '/protein/fold', {
         method: 'POST',
@@ -990,14 +1014,15 @@ window.voidaiToggleSidebar = function() {
           btn.onclick = function() { window.voidaiCopyPdb(btn); };
           div.querySelector('.text').appendChild(btn);
         }
-        history.push({ role: 'user', content: historyText });
         history.push({ role: 'assistant', content: summary });
         saveMemory();
         if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
         status('ready');
       })
       .catch(function(e) {
-        addMsg('assistant', '**Fold error:** ' + (e.message || 'unknown'));
+        var foldErr = '**Fold error:** ' + (e.message || 'unknown');
+        addMsg('assistant', foldErr);
+        recordTurn(null, foldErr);
         status('error');
       })
       .then(function() {
@@ -1032,6 +1057,9 @@ window.voidaiToggleSidebar = function() {
       els.input.disabled = true;
       els.send.disabled = true;
       addMsg('user', shownText);
+      history.push({ role: 'user', content: historyText });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
       status('designing…');
       var designBody = {
         target: designTarget,
@@ -1090,14 +1118,15 @@ window.voidaiToggleSidebar = function() {
           };
           div.querySelector('.text').appendChild(btn);
         }
-        history.push({ role: 'user', content: historyText });
         history.push({ role: 'assistant', content: lines.join('\n') });
         saveMemory();
         if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
         status('ready');
       })
       .catch(function(e) {
-        addMsg('assistant', '**Design error:** ' + (e.message || 'unknown'));
+        var designErr = '**Design error:** ' + (e.message || 'unknown');
+        addMsg('assistant', designErr);
+        recordTurn(null, designErr);
         status('error');
       })
       .then(function() {
@@ -1113,9 +1142,14 @@ window.voidaiToggleSidebar = function() {
     if (imagesMatch) {
       if (typeof window.voidaiOpenImageMaker === 'function') {
         window.voidaiOpenImageMaker(imagesMatch[1].trim());
+        var imgTabNote = 'Image Maker opened as a separate tab.';
+        addMsg('assistant', imgTabNote);
+        recordTurn(historyText, imgTabNote);
         status('image maker ready');
       } else {
-        addMsg('assistant', '**Image maker error:** image studio failed to load.');
+        var imgTabErr = '**Image maker error:** image studio failed to load.';
+        addMsg('assistant', imgTabErr);
+        recordTurn(historyText, imgTabErr);
       }
       return;
     }
@@ -1130,6 +1164,9 @@ window.voidaiToggleSidebar = function() {
       els.input.disabled = true;
       els.send.disabled = true;
       addMsg('user', shownText);
+      history.push({ role: 'user', content: historyText });
+      saveMemory();
+      if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
       status('generating image…');
       fetch(PROXY_URL + '/image', {
         method: 'POST',
@@ -1144,7 +1181,12 @@ window.voidaiToggleSidebar = function() {
             throw new Error((d && d.error && (d.error.message || d.error)) || ('HTTP ' + r.status));
           });
         }
-        return r.blob();
+        if (r.status === 204 || r.status === 205) throw new Error('empty image response (HTTP ' + r.status + ')');
+        return r.blob().then(function(blob) {
+          if (!blob || !blob.size) throw new Error('empty image payload');
+          if (blob.type && !/^image\//i.test(blob.type)) throw new Error('provider returned ' + blob.type + ', not an image');
+          return blob;
+        });
       })
       .then(function(blob) {
         var imageUrl = URL.createObjectURL(blob);
@@ -1161,14 +1203,15 @@ window.voidaiToggleSidebar = function() {
         link.textContent = 'DOWNLOAD IMAGE';
         link.style.cssText = 'display:inline-block;margin-top:8px;background:#111;color:#ddd;border:1px solid #333;border-radius:6px;padding:6px 10px;font:11px ui-monospace,monospace;letter-spacing:.08em;text-decoration:none;';
         textDiv.appendChild(link);
-        history.push({ role: 'user', content: historyText });
         history.push({ role: 'assistant', content: 'Image generated: ' + imagePrompt });
         saveMemory();
         if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
         status('ready');
       })
       .catch(function(e) {
-        addMsg('assistant', '**Image error:** ' + (e.message || 'unknown'));
+        var imageErr = '**Image error:** ' + (e.message || 'unknown');
+        addMsg('assistant', imageErr);
+        recordTurn(null, imageErr);
         status('error');
       })
       .then(function() {
@@ -1285,7 +1328,9 @@ window.voidaiToggleSidebar = function() {
           status('ready');
         })
         .catch(function(e) {
-          addMsg('assistant', '**Sync error:** ' + (e.message || 'unknown'));
+          var syncErr = '**Sync error:** ' + (e.message || 'unknown');
+          addMsg('assistant', syncErr);
+          recordTurn(null, syncErr);
           status('error');
         })
         .then(function() {
@@ -1332,7 +1377,10 @@ window.voidaiToggleSidebar = function() {
       }
     }, REPLY_TIMEOUT_MS);
 
+    var emptyRetries = 0;
+
     function postChat(mode) {
+      var effectiveMode = mode || requestedMode;
       return fetch(PROXY_URL, {
         method: 'POST',
         headers: {
@@ -1343,9 +1391,9 @@ window.voidaiToggleSidebar = function() {
           messages: [SYSTEM_MSG].concat(history.filter(function(m) {
             return m.role !== 'system';
           }).slice(-HISTORY_TURNS)),
-          max_tokens: requestedMode === 'mini' ? 2048 : 8192,
-          temperature: requestedMode === 'predict' ? 0.4 : 0.6,
-          mode: mode || undefined
+          max_tokens: effectiveMode === 'mini' ? 2048 : 8192,
+          temperature: effectiveMode === 'predict' ? 0.4 : 0.6,
+          mode: effectiveMode || undefined
         })
       }).then(function(res) {
         return res.text().then(function(raw) {
@@ -1366,7 +1414,13 @@ window.voidaiToggleSidebar = function() {
     postChat(requestedMode)
     .catch(function(err) {
       var m = (err && err.message) || String(err);
-      if (requestedMode && requestedMode !== 'fast' && /model|provider|unavailable|no endpoints|no models|HTTP 404|HTTP 502|404|502/i.test(m)) {
+      // A 204/empty upstream can be transient. Retry once, then switch routes.
+      if (/empty response|HTTP 204|HTTP 205/i.test(m) && emptyRetries < 1) {
+        emptyRetries++;
+        status('empty reply · retrying…');
+        return postChat(requestedMode);
+      }
+      if (requestedMode && requestedMode !== 'fast' && /model|provider|unavailable|no endpoints|no models|HTTP 404|HTTP 502|HTTP 204|HTTP 205|404|502/i.test(m)) {
         status('route unavailable · retrying on the stable Groq route…');
         return postChat('fast');
       }
@@ -1390,7 +1444,9 @@ window.voidaiToggleSidebar = function() {
       hideThinking();
       var m = err.message || String(err);
       var hint = m.indexOf('413') >= 0 ? '\n\nThe message is too long — try splitting it into smaller parts.' : '\n\nTry again.';
-      addMsg('assistant', '**Error:** ' + m + hint);
+      var chatErr = '**Error:** ' + m + hint;
+      addMsg('assistant', chatErr);
+      recordTurn(null, chatErr);
       status('error');
     })
     .then(function() {
@@ -1460,6 +1516,17 @@ window.voidaiToggleSidebar = function() {
     history = [{ role: 'system', content: SYSTEM }];
     els.messages.innerHTML = '';
     updateHero();
+    try {
+      if (typeof voidaiActiveConv !== 'undefined' && voidaiActiveConv && typeof voidaiFindConv === 'function') {
+        var active = voidaiFindConv(voidaiActiveConv);
+        if (active) {
+          active.messages = [];
+          active.title = 'New chat';
+          voidaiPersist();
+          voidaiRenderConvs();
+        }
+      }
+    } catch(e) {}
     addMsg('assistant', 'Cleared.');
   };
 
@@ -2964,8 +3031,14 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
   .voidai-conv { padding: 8px 10px; margin-bottom: 4px; background: #141414;
     border: 1px solid #222; border-radius: 6px; cursor: pointer; color: #ccc; }
   .voidai-conv.active { border-color: #4a8; background: #1a2a1a; }
-  .voidai-conv .conv-title { font-weight: 600; margin-bottom: 2px; }
+  .voidai-conv { position: relative; padding-right: 30px; cursor: pointer; }
+  .voidai-conv .conv-title { font-weight: 600; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .voidai-conv .conv-meta { font-size: 10px; color: #666; }
+  .voidai-del { position: absolute; top: 5px; right: 4px; width: 22px; height: 22px; padding: 0;
+    border: 1px solid transparent; border-radius: 5px; background: transparent; color: #666;
+    font: 14px/1 ui-monospace, monospace; cursor: pointer; }
+  .voidai-del:hover { color: #f2a0a0; border-color: #5a2a2a; background: #1a0f0f; }
+  .conv-empty { color: #555; font-size: 10px; line-height: 1.6; padding: 8px 2px; }
 .voidai-msg-tools { position: absolute; right: 8px; top: 8px; display: flex; gap: 4px; }
   .voidai-msg-tools button { background: transparent; border: 1px solid #222;
     color: #666; padding: 2px 6px; border-radius: 4px; font-size: 10px; cursor: pointer; }
@@ -2988,10 +3061,20 @@ try { voidaiConvs = JSON.parse(localStorage.getItem('voidai_convs') || '[]'); } 
 try { voidaiActiveConv = localStorage.getItem('voidai_active_conv'); } catch(e) {}
 
 function voidaiPersist() {
+  voidaiConvs = voidaiConvs.slice(0, 50);
   try {
     localStorage.setItem('voidai_convs', JSON.stringify(voidaiConvs));
     localStorage.setItem('voidai_active_conv', voidaiActiveConv || '');
-  } catch(e) {}
+    return true;
+  } catch(e) {
+    // Quota pressure: drop the oldest saved chats and retry once.
+    try {
+      voidaiConvs = voidaiConvs.slice(0, 20);
+      localStorage.setItem('voidai_convs', JSON.stringify(voidaiConvs));
+      localStorage.setItem('voidai_active_conv', voidaiActiveConv || '');
+      return true;
+    } catch(e2) { return false; }
+  }
 }
 
 function voidaiEsc(s) {
@@ -3011,14 +3094,43 @@ function voidaiRenderConvs() {
   var list = document.getElementById('voidai-conv-list');
   if (!list) return;
   list.innerHTML = '';
+  if (!voidaiConvs.length) {
+    var empty = document.createElement('div');
+    empty.className = 'conv-empty';
+    empty.textContent = 'No saved conversations yet.';
+    list.appendChild(empty);
+    return;
+  }
   voidaiConvs.forEach(function(c) {
     var el = document.createElement('div');
     el.className = 'voidai-conv' + (c.id === voidaiActiveConv ? ' active' : '');
     el.innerHTML = '<div class="conv-title">' + voidaiEsc(c.title || 'Untitled') + '</div>' +
-                   '<div class="conv-meta">' + (c.messages ? c.messages.length : 0) + ' msgs</div>';
+                   '<div class="conv-meta">' + (c.messages ? c.messages.length : 0) + ' msgs</div>' +
+                   '<button class="voidai-del" type="button" title="Delete conversation" aria-label="Delete conversation">&times;</button>';
     el.onclick = function() { voidaiSwitchConv(c.id); };
+    var del = el.querySelector('.voidai-del');
+    if (del) del.onclick = function(ev) { ev.stopPropagation(); voidaiDeleteConv(c.id); };
     list.appendChild(el);
   });
+}
+
+function voidaiDeleteConv(id) {
+  if (!confirm('Delete this conversation?')) return;
+  voidaiConvs = voidaiConvs.filter(function(c) { return c.id !== id; });
+  if (voidaiActiveConv === id) {
+    voidaiActiveConv = null;
+    try { localStorage.removeItem('voidai_chat_v3'); } catch(e) {}
+    var app = window.voidaiApp;
+    var h = app ? app.history : null;
+    if (h) {
+      h.length = 0;
+      if (app.SYSTEM) h.push({ role: 'system', content: app.SYSTEM });
+    }
+    var msgs = document.getElementById('messages') || document.getElementById('chat');
+    if (msgs) msgs.innerHTML = '';
+  }
+  voidaiPersist();
+  voidaiRenderConvs();
 }
 
 function voidaiToggleSidebar() {
@@ -3084,11 +3196,12 @@ function voidaiSaveConv() {
   if (h) {
     c.messages = h
       .filter(function(m) { return m.role === 'user' || m.role === 'assistant'; })
+      .slice(-400)
       .map(function(m) { return { role: m.role, content: m.content }; });
   }
   var firstUser = (c.messages || []).filter(function(m) { return m.role === 'user'; })[0];
   if (c.title === 'New chat' && firstUser) {
-    c.title = firstUser.content.slice(0, 24);
+    c.title = firstUser.content.slice(0, 48);
   }
   voidaiPersist();
   voidaiRenderConvs();
@@ -3202,6 +3315,9 @@ function voidaiSendImage(dataUrl, fname, promptOverride, onReply) {
   if (app.els && app.els.input) app.els.input.disabled = true;
   if (app.els && app.els.send) app.els.send.disabled = true;
   if (app.addMsg) app.addMsg('user', userLine);
+  if (app.history) app.history.push({ role: 'user', content: userLine });
+  if (app.saveMemory) app.saveMemory();
+  if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
   var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   var timeout = controller ? setTimeout(function() { controller.abort(); }, 120000) : null;
 
@@ -3227,10 +3343,7 @@ function voidaiSendImage(dataUrl, fname, promptOverride, onReply) {
   .then(function(d) {
     var reply = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
     if (!reply) throw new Error((d.error && d.error.message) || 'no reply');
-    if (app.history) {
-      app.history.push({ role: 'user', content: userLine });
-      app.history.push({ role: 'assistant', content: reply });
-    }
+    if (app.history) app.history.push({ role: 'assistant', content: reply });
     if (app.addMsg) app.addMsg('assistant', reply);
     if (app.els && app.els.input) app.els.input.value = '';
     if (app.saveMemory) app.saveMemory();
@@ -3240,7 +3353,11 @@ function voidaiSendImage(dataUrl, fname, promptOverride, onReply) {
   })
   .catch(function(e) {
     var message = e && e.name === 'AbortError' ? 'image request timed out' : (e.message || 'unknown');
-    if (app.addMsg) app.addMsg('assistant', '**Image error:** ' + message);
+    var imageFail = '**Image error:** ' + message;
+    if (app.addMsg) app.addMsg('assistant', imageFail);
+    if (app.history) app.history.push({ role: 'assistant', content: imageFail });
+    if (app.saveMemory) app.saveMemory();
+    if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
     if (app.status) app.status('error');
     if (typeof onReply === 'function') { try { onReply(null, message); } catch(e) {} }
   })

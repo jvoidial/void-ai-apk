@@ -126,6 +126,7 @@ def _repl(args, user, mode, client):
                 print("modes: " + ", ".join(sorted(phb.MODES)))
             else:
                 mode = wanted
+                print("mode set to %s" % mode)
             continue
         if text.startswith("@user "):
             user = config.sanitize_user(text[len("@user "):].strip())

@@ -12,7 +12,7 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 
 ## Features
 
-- Chat, code, math, reasoning — GPT-OSS 120B via Groq
+- Chat, code, math, reasoning — GPT-OSS 120B via Groq with OpenRouter/Gemini fallbacks
 - Live weather anywhere on Earth — Open-Meteo (keyless)
 - Live facts — Wikipedia summary API
 - Worldwide location resolver — coords, UK postcodes, US zips, landmarks, cities
@@ -21,7 +21,8 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Image vision — attach a photo, downscaled on-device, analyzed through a Groq → OpenRouter → Gemini → Workers AI fallback chain
 - Image Maker tab — prompt, FLUX/TURBO/KONTEXT model, size, seed, preview, copy prompt, and download
 - Astra live layer — live camera preview, snap-and-ask vision, screen share, voice input, spoken replies, and a continuous voice loop
-- Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder
+- Eleven modes — fast, deep, research, companion, ultra, coder, mini, github, predict, protein, builder/simulator
+- Conversation history — saved chats, switch, delete, restore after reload, clear, and per-turn persistence including errors and tool commands
 - Builder/Simulator tab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D scenes, and a linked N-D simulation workbench
 - PHB layers — coherence, reflex, working, circuit, intent, narrative
 - Sign-in — GitHub OAuth via Supabase (Android + iOS)
@@ -39,7 +40,7 @@ capability panel.
 The same tools are available as commands:
 
     /live  /astra  /camera  /look PROMPT  /screen  /voice  /read  /tools
-    /mode  /mode deep  /help  /sync  /recap
+    /builder  /images  /image PROMPT  /mode  /mode deep  /help  /sync  /recap
 
 Android asks for camera and microphone permission the first time a live tool
 uses them. iOS does the same through the usage descriptions in `Info.plist`.
@@ -64,7 +65,7 @@ API, keeps per-user memory, and applies the same PHB persona as the worker.
     PYTHONPATH=python-src python3 -m voidai --print-system
 
 Modes: `fast`, `deep`, `research`, `companion`, `ultra`, `coder`, `mini`,
-`github`, `predict`, `protein`, `builder`. Each mode sets a circuit emphasis, and the PHB
+`github`, `predict`, `protein`, `builder` (displayed as builder/simulator). Each mode sets a circuit emphasis, and the PHB
 layers update after each turn through a short behavioral reflection pass.
 
 Prediction commands:
@@ -100,8 +101,9 @@ Each user gets separate memory, history and PHB state under
 HTTP server (standard library, CORS enabled):
 
     PYTHONPATH=python-src python3 -m voidai.server
-    # GET /health, GET /api/agents, GET /api/memory?user=ID
-    # POST /api/chat {"message": "...", "user_id": "alice"}
+    # GET /health, GET /api/agents, GET /api/memory?user=ID, GET /api/history?user=ID
+    # POST /api/chat {"message": "...", "user_id": "alice", "history": [...]}
+    # The chat response returns the updated history when history was supplied.
 
 Run the tests:
 

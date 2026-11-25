@@ -40,8 +40,10 @@ General:
 - @help                 : show this help menu
 - @state                : show PHB circuit levels
 - @memory               : show what VOIDAI remembers about you
-- @mode fast|deep|companion|research|coder|ultra|mini|github|predict|protein
-                         : set the answer mode
+- @history              : show the last few saved messages
+- @mode fast|deep|companion|research|coder|ultra|mini|github|predict|protein|builder
+                         : set the answer mode (builder is builder/simulator)
+- @user USER            : switch to another local profile
 - @clear                : clear this session's history
 - @quit                 : exit the CLI
 
@@ -192,6 +194,11 @@ def answer(session_id=None, user_text="", user_id=None, history=None, mode=None,
             text = "Forecast: " + topic
             mode = "predict"
             break
+
+    if text == "@builder" or text.startswith("@builder "):
+        topic = text[len("@builder"):].strip() or "Build a bounded, runnable 3D object simulation."
+        text = topic
+        mode = "builder"
 
     if text == "@protein" or text.startswith("@protein "):
         topic = text[len("@protein"):].strip() or "Help me plan a safe, benign protein engineering workflow."

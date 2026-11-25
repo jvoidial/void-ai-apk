@@ -55,8 +55,9 @@ VOIDAI has four runtime surfaces:
 ## Astra layer (web UI)
 
 - `index.html` appends a self-contained Astra script after the main app IIFE. It
-  adds the toolbar (`BUILDER / CAM / MIC / READ / TOOLS`), mode selector, capability
-  sheet, live camera modal, screen capture, SpeechRecognition dictation, and TTS.
+  adds the toolbar (`BUILDER/SIM / IMAGES / CAM / MIC / LISTEN / READ / SPEAK /
+  TOOLS`), mode selector, capability sheet, live camera modal, screen capture,
+  SpeechRecognition dictation, and TTS.
 - Live frame capture draws the current video frame to a canvas and sends a
   downscaled JPEG through the existing `voidaiSendImage` -> `/vision` bridge.
 - Keep the camera fallback: if `getUserMedia` is unavailable or denied, the
@@ -67,6 +68,11 @@ VOIDAI has four runtime surfaces:
 - Slash commands are normalized by removing the leading `@` or `/`; local
   commands return before the Worker request. Do not reintroduce the old
   `replace(/^@/, '')` form.
+- Conversation history lives in `localStorage` (`voidai_convs` and
+  `voidai_active_conv`). Every turn and command must call `recordTurn()` or
+  `voidaiSaveConv()`; keep the restore, switch, delete, clear, and quota paths
+  working. Chat requests must send `mode: requestedMode`, never an undeclared
+  `mode` identifier.
 - Keep all eleven modes aligned with `phb.MODES`, the Worker mode arrays, and
   the Astra `MODES` table.
 - Never render `VOIDAI_KEY` or provider keys in the capability sheet, chat,

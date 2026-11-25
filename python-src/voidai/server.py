@@ -8,6 +8,7 @@ Endpoints:
     GET  /health
     GET  /api/agents
     GET  /api/memory?user=<id>
+    GET  /api/history?user=<id>
     POST /api/chat      {"message", "user_id"?, "session_id"?, "mode"?, "history"?}
     POST /api/tool      {"tool_name", "args"?}
     GET  /web/<path>    static files from VOIDAI_WEB_DIR (optional)
@@ -198,6 +199,24 @@ class VoidAIHandler(BaseHTTPRequestHandler):
                 "memory": memory_summary(uid),
                 "phb": phb.load_state(uid),
             })
+        if parsed.path == "/api/history":
+            query = parse_qs(parsed.query)
+            uid = config.sanitize_user((query.get("user") or query.get("session_id") or [None])[0])
+            messages = []
+            try:
+                with open(config.history_path(uid), "r", encoding="utf-8") as handle:
+                    loaded = json.load(handle)
+                if isinstance(loaded, list):
+                    messages = [
+                        {"role": item["role"], "content": str(item["content"])}
+                        for item in loaded
+                        if isinstance(item, dict)
+                        and item.get("role") in ("user", "assistant")
+                        and item.get("content")
+                    ][-2 * chat.MAX_HISTORY:]
+            except (OSError, ValueError):
+                messages = []
+            return self._send(200, {"user": uid, "history": messages})
         if parsed.path.startswith("/web/"):
             if not WEB_DIR.is_dir():
                 return self._send(404, {"error": "web directory not configured"})
@@ -266,13 +285,16 @@ class VoidAIHandler(BaseHTTPRequestHandler):
         except Exception as exc:  # keep the server alive, do not leak internals
             self.log_message("chat failed: %s", exc)
             return self._send(500, {"error": "internal error"})
-        return self._send(200, {
+        payload = {
             "response": reply,
             "user_id": uid,
             "session_id": session,
             "mode": mode,
             "model": client.model,
-        })
+        }
+        if isinstance(history, list):
+            payload["history"] = history[-2 * chat.MAX_HISTORY:]
+        return self._send(200, payload)
 
 
 def create_server(host=None, port=None):

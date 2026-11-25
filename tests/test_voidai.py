@@ -112,7 +112,7 @@ class BaseCase(unittest.TestCase):
         cls.server.server_close()
         shutil.rmtree(cls.home, ignore_errors=True)
 
-    def cli(self, *args, env=None):
+    def cli(self, *args, env=None, input_text=None):
         full_env = {
             "PATH": os.environ.get("PATH", ""),
             "PYTHONPATH": PY_SRC,
@@ -128,6 +128,7 @@ class BaseCase(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=60,
+            input=input_text,
         )
 
 
@@ -399,6 +400,44 @@ class CLITests(BaseCase):
         self.assertEqual(payload["messages"][-1]["content"], "beta")
         self.assertEqual([m["role"] for m in payload["messages"][:2]], ["system", "system"])
 
+    def test_repl_local_commands_and_history(self):
+        script = "\n".join([
+            "@help",
+            "@state",
+            "@memory",
+            "@mode builder",
+            "hello from repl",
+            "@history",
+            "@quit",
+            "",
+        ])
+        result = self.cli("--user", "repluser", input_text=script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("VOIDAI help", result.stdout)
+        self.assertIn("PHB layers", result.stdout)
+        self.assertIn("mode set to builder", result.stdout)
+        self.assertIn("ECHO: hello from repl", result.stdout)
+        self.assertIn("assistant: ECHO: hello from repl", result.stdout)
+        path = os.path.join(self.home, "users", "repluser", "history.json")
+        with open(path, "r", encoding="utf-8") as handle:
+            saved = json.load(handle)
+        self.assertEqual(saved[-2]["content"], "hello from repl")
+        self.assertEqual(saved[-1]["content"], "ECHO: hello from repl")
+
+    def test_builder_mode_alias(self):
+        result = self.cli("--user", "builderalias", "@builder build a bounded wave")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "ECHO: build a bounded wave")
+        payload = FakeOpenAI.requests[-1]
+        self.assertIn("BUILDER MODE", payload["messages"][0]["content"])
+        self.assertEqual(payload["messages"][-1]["content"], "build a bounded wave")
+
+    def test_help_lists_builder(self):
+        result = self.cli("--user", "helpbuilder", "@help", env={"OPENAI_API_KEY": None})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("builder", result.stdout)
+        self.assertIn("@history", result.stdout)
+
 
 class ServerTests(BaseCase):
     def setUp(self):
@@ -448,16 +487,23 @@ class ServerTests(BaseCase):
                          ["phb-sync", "void-builder", "void-identity", "void-research"])
 
     def test_chat_and_memory(self):
+        history = [{"role": "user", "content": "earlier"}, {"role": "assistant", "content": "ECHO: earlier"}]
         status, headers, body = self.call("POST", "/api/chat",
-                                          {"message": "server hello", "user_id": "carol"})
+                                          {"message": "server hello", "user_id": "carol",
+                                           "history": history})
         self.assertEqual(status, 200)
         self.assertEqual(headers.get("Access-Control-Allow-Origin"), "*")
         data = json.loads(body)
         self.assertEqual(data["response"], "ECHO: server hello")
         self.assertEqual(data["user_id"], "carol")
+        self.assertEqual(data["history"][-1]["content"], "ECHO: server hello")
+        self.assertEqual(data["history"][-2]["content"], "server hello")
         status, _, body = self.call("GET", "/api/memory?user=carol")
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["memory"].get("general"), 1)
+        status, _, body = self.call("GET", "/api/history?user=ghost")
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["history"], [])
 
     def test_agent_chat(self):
         status, _, body = self.call("POST", "/api/chat",
