@@ -686,6 +686,30 @@ window.voidaiToggleSidebar = function() {
   var VOIDAI_KEY = 'voidai_d248410a0c7f01a859e5ef55b464fdec';
 
   var PROXY_URL = 'https://void-ai-proxy.jacoboliverrevellangel.workers.dev';
+
+  function voidaiAccessToken() {
+    try {
+      var bridge = (typeof window.Android !== 'undefined' && window.Android) ||
+        (typeof window.VoidAI !== 'undefined' && window.VoidAI) || null;
+      if (bridge && typeof bridge.getAccessToken === 'function') {
+        var bridgeToken = String(bridge.getAccessToken() || '');
+        if (bridgeToken) return bridgeToken;
+      }
+      if (typeof window.voidaiAccessToken === 'string') return window.voidaiAccessToken;
+    } catch (e) {}
+    return '';
+  }
+
+  function voidaiWorkerHeaders(key) {
+    var headers = {
+      'Content-Type': 'application/json',
+      'X-VOID-KEY': key || VOIDAI_KEY
+    };
+    var token = voidaiAccessToken();
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return headers;
+  }
+
   var MEMORY_KEY = 'voidai_chat_v3';
   var USER_KEY = 'voidai_user_id';
   var DEVICE_KEY = 'voidai_device_id';
@@ -1206,7 +1230,7 @@ window.voidaiToggleSidebar = function() {
       status('folding…');
       fetch(PROXY_URL + '/protein/fold', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': VOIDAI_KEY },
+        headers: voidaiWorkerHeaders(VOIDAI_KEY),
         body: JSON.stringify({
           sequence: foldSeq,
           name: 'fold-' + Date.now(),
@@ -1297,7 +1321,7 @@ window.voidaiToggleSidebar = function() {
       else { designBody.allow_de_novo = true; designBody.length = 60; }
       fetch(PROXY_URL + '/protein/design', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': VOIDAI_KEY },
+        headers: voidaiWorkerHeaders(VOIDAI_KEY),
         body: JSON.stringify(designBody)
       })
       .then(function(r) {
@@ -1394,7 +1418,7 @@ window.voidaiToggleSidebar = function() {
       status('generating image…');
       fetch(PROXY_URL + '/image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': VOIDAI_KEY },
+        headers: voidaiWorkerHeaders(VOIDAI_KEY),
         body: JSON.stringify({ prompt: imagePrompt, width: 1024, height: 1024 })
       })
       .then(function(r) {
@@ -1547,7 +1571,7 @@ window.voidaiToggleSidebar = function() {
       addMsg('user', shownText);
       history.push({ role: 'user', content: historyText });
       status('syncing…');
-      fetch(PROXY_URL + '/brain', { headers: { 'X-VOID-KEY': VOIDAI_KEY } })
+      fetch(PROXY_URL + '/brain', { headers: voidaiWorkerHeaders(VOIDAI_KEY) })
         .then(function(r) {
           return r.text().then(function(raw) {
             var d = null;
@@ -1602,7 +1626,7 @@ window.voidaiToggleSidebar = function() {
       status('reading vortex…');
       var vortexSeed = (currentUserId() || 'guest') + ':' + (vortexArg || 'state');
       fetch(PROXY_URL + '/vortex?seed=' + encodeURIComponent(vortexSeed) + '&steps=60&attempts=12', {
-        headers: { 'X-VOID-KEY': VOIDAI_KEY }
+        headers: voidaiWorkerHeaders(VOIDAI_KEY)
       })
         .then(function(r) {
           return r.text().then(function(raw) {
@@ -1683,10 +1707,7 @@ window.voidaiToggleSidebar = function() {
       var turnLimit = compact ? 12 : HISTORY_TURNS;
       return fetch(PROXY_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-VOID-KEY': VOIDAI_KEY
-        },
+        headers: voidaiWorkerHeaders(VOIDAI_KEY),
         body: JSON.stringify({
           messages: [SYSTEM_MSG].concat(history.filter(function(m) {
             return m.role !== 'system';
@@ -3427,7 +3448,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     setStatus('VOIDAI is building “' + request + '” in ' + dim + 'D…', true);
     fetch(app.PROXY_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
+      headers: voidaiWorkerHeaders(app.VOIDAI_KEY),
       body: JSON.stringify({
         mode: 'builder',
         max_tokens: 4096,
@@ -3720,10 +3741,7 @@ function voidaiCloudApi(path, payload) {
   }
   var options = {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-VOID-KEY': app.VOIDAI_KEY
-    },
+    headers: voidaiWorkerHeaders(app.VOIDAI_KEY),
     body: JSON.stringify(payload || {})
   };
   if (controller) options.signal = controller.signal;
@@ -4195,7 +4213,7 @@ function voidaiSendImage(dataUrl, fname, promptOverride, onReply) {
 
   fetch(app.PROXY_URL + '/vision', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
+    headers: voidaiWorkerHeaders(app.VOIDAI_KEY),
     body: JSON.stringify({
       image: dataUrl,
       prompt: 'You are VOIDAI, the PHB Human Agent v2: a warm, direct, curious companion with a female she/her, age-20 perspective. Stay non-romantic and non-clinical. Use the image and answer the user in VOIDAI voice. '
@@ -5440,7 +5458,7 @@ voidaiReassertSidebar();
     var statusEl = document.getElementById('va-cap-status');
     var routingEl = document.getElementById('va-routing');
     if (statusEl) statusEl.textContent = 'Loading Worker capabilities…';
-    fetch(app.PROXY_URL + '/capabilities', { headers: { 'X-VOID-KEY': app.VOIDAI_KEY } })
+    fetch(app.PROXY_URL + '/capabilities', { headers: voidaiWorkerHeaders(app.VOIDAI_KEY) })
       .then(function (r) {
         return r.text().then(function (raw) {
           var d = null;
@@ -5553,7 +5571,7 @@ voidaiReassertSidebar();
     imgStatus('Generating with ' + body.model + ' at ' + width + '×' + height + '…', false);
     fetch(app.PROXY_URL + '/image', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
+      headers: voidaiWorkerHeaders(app.VOIDAI_KEY),
       body: JSON.stringify(body)
     }).then(function (r) {
       if (!r.ok) {
@@ -5872,7 +5890,7 @@ voidaiReassertSidebar();
       function request() {
         return fetch(app.PROXY_URL + '/protein/design-llm', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-VOID-KEY': app.VOIDAI_KEY },
+          headers: voidaiWorkerHeaders(app.VOIDAI_KEY),
           body: JSON.stringify(body)
         }).then(function (r) {
           return r.text().then(function (raw) {

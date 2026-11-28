@@ -42,8 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.6.2';
-const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
+const WORKER_VERSION = '3.6.3';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
 const MAX_ARCHIVE_MESSAGES = 400;
@@ -262,12 +261,35 @@ async function buildSelfModel(env, ctx) {
   }
 }
 
+async function authenticateUser(request, env) {
+  var header = request.headers.get('Authorization') || '';
+  if (!/^Bearer\s+/i.test(header)) return null;
+  var token = header.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+  try {
+    var res = await fetch(env.SUPABASE_URL + '/auth/v1/user', {
+      headers: {
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token
+      }
+    });
+    if (!res.ok) return null;
+    var user = null;
+    try { user = await res.json(); } catch (e) {}
+    if (!user || !user.id) return null;
+    return { id: safeUserId(user.id), token: token, user: user };
+  } catch (e) {
+    return null;
+  }
+}
+
 async function sbFetch(env, path, opts) {
   opts = opts || {};
   var url = env.SUPABASE_URL + path;
   var headers = opts.headers || {};
+  var bearer = env.SUPABASE_TOKEN || env.SUPABASE_ANON_KEY;
   headers['apikey'] = env.SUPABASE_ANON_KEY;
-  headers['Authorization'] = 'Bearer ' + env.SUPABASE_ANON_KEY;
+  headers['Authorization'] = 'Bearer ' + bearer;
   if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
   var fetchOpts = { method: opts.method || 'GET', headers: headers };
   if (opts.body) fetchOpts.body = opts.body;
@@ -338,10 +360,11 @@ async function initConsciousnessTables(env) {
 }
 
 // Full conversation threads are archived in the existing Supabase reflections
-// table under a reserved user_id namespace. This avoids a schema migration
-// while keeping chat rows out of the normal reflection/memory queries.
+// table under the authenticated user's own user_id. The reserved kind prefix
+// keeps archive rows out of normal reflection reads without needing a separate
+// user_id namespace or an extra RLS exception.
 function conversationArchiveScope(userId) {
-  return String(userId || 'guest').slice(0, 96) + CONVERSATION_ARCHIVE_SUFFIX;
+  return String(userId || 'guest').slice(0, 96);
 }
 
 function normalizeArchivedConversation(raw) {
@@ -527,9 +550,12 @@ async function deleteArchivedConversations(env, userId, ids) {
 async function loadRecentReflections(env, userId) {
   try {
     var uid = userId || 'guest';
-    var res = await sbFetch(env, '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=5', { method: 'GET' });
+    var res = await sbFetch(env, '/rest/v1/voidai_reflections?user_id=eq.' + encodeURIComponent(uid) + '&order=created_at.desc&limit=100', { method: 'GET' });
     var rows = await readJsonSafe(res, []);
-    return Array.isArray(rows) ? rows : [];
+    if (!Array.isArray(rows)) return [];
+    return rows.filter(function (row) {
+      return !String((row && row.kind) || '').startsWith(CONVERSATION_KIND_PREFIX);
+    }).slice(0, 5);
   } catch (e) { return []; }
 }
 
@@ -922,7 +948,7 @@ function redactSecrets(value, env) {
   let out = String(value);
   const names = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY', 'TAVILY_API_KEY',
     'PROTEIN_DESIGN_KEY', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY',
-    'CF_SOURCE_TOKEN', 'GITHUB_TOKEN', 'VOIDAI'];
+    'SUPABASE_TOKEN', 'CF_SOURCE_TOKEN', 'GITHUB_TOKEN', 'VOIDAI'];
   if (env) {
     for (const name of names) {
       const secret = env[name];
@@ -2776,6 +2802,14 @@ function attachSources(result, sources) {
 // PHB MIND-STATE (Supabase)
 // ════════════════════════════════════════════════════════════
 
+function defaultMindState() {
+  return {
+    curiosity: 0.7, focus: 0.7, openness: 0.7, rigor: 0.7, creativity: 0.7,
+    target_curiosity: 0.8, target_focus: 0.8, target_openness: 0.8,
+    target_rigor: 0.8, target_creativity: 0.8
+  };
+}
+
 async function loadMindState(env, userId) {
   const uid = userId || 'guest';
   try {
@@ -2783,11 +2817,7 @@ async function loadMindState(env, userId) {
     const rows = await readJsonSafe(res, []);
     if (Array.isArray(rows) && rows.length) return rows[0];
   } catch (e) {}
-  return {
-    curiosity: 0.7, focus: 0.7, openness: 0.7, rigor: 0.7, creativity: 0.7,
-    target_curiosity: 0.8, target_focus: 0.8, target_openness: 0.8,
-    target_rigor: 0.8, target_creativity: 0.8
-  };
+  return defaultMindState();
 }
 
 async function saveMindState(state, env, userId) {
@@ -2905,12 +2935,16 @@ export default {
       return new Response(null, { headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-VOID-KEY'
+        'Access-Control-Allow-Headers': 'Content-Type, X-VOID-KEY, Authorization'
       }});
     }
 
     const key = request.headers.get('X-VOID-KEY') || '';
     const authed = key === env.VOIDAI;
+    const authUser = await authenticateUser(request, env);
+    const requestEnv = authUser
+      ? Object.assign({}, env, { SUPABASE_TOKEN: authUser.token })
+      : env;
 
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
     const now = Date.now();
@@ -3080,11 +3114,11 @@ export default {
       let cbody;
       try { cbody = await request.json(); }
       catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
-      const uid = safeUserId(cbody && cbody.user_id);
-      if (!cbody || !cbody.user_id || uid === 'guest') {
+      if (!authUser) {
         return json({ ok: true, guest: true, conversations: [] });
       }
-      const conversations = await listArchivedConversations(env, uid);
+      const uid = authUser.id;
+      const conversations = await listArchivedConversations(requestEnv, uid);
       return json({ ok: true, user_id: uid, conversations: conversations });
     }
 
@@ -3093,17 +3127,17 @@ export default {
       let cbody;
       try { cbody = await request.json(); }
       catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
-      const uid = safeUserId(cbody && cbody.user_id);
-      if (!cbody || !cbody.user_id || uid === 'guest') {
-        return json({ error: { message: 'signed-in user_id is required' } }, 400);
+      if (!authUser) {
+        return json({ error: { message: 'signed-in user is required' } }, 401);
       }
+      const uid = authUser.id;
       const normalized = normalizeArchivedConversation(cbody.conversation);
       if (normalized.error) {
         return json({ error: { message: normalized.error } }, normalized.error.indexOf('too large') >= 0 ? 413 : 400);
       }
-      const saved = await upsertArchivedConversation(env, uid, normalized);
+      const saved = await upsertArchivedConversation(requestEnv, uid, normalized);
       if (!saved) return json({ error: { message: 'conversation archive failed' } }, 502);
-      await pruneArchivedConversations(env, uid);
+      await pruneArchivedConversations(requestEnv, uid);
       return json({ ok: true, user_id: uid, id: normalized.id, updated: normalized.updated });
     }
 
@@ -3112,10 +3146,10 @@ export default {
       let cbody;
       try { cbody = await request.json(); }
       catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
-      const uid = safeUserId(cbody && cbody.user_id);
-      if (!cbody || !cbody.user_id || uid === 'guest') {
-        return json({ error: { message: 'signed-in user_id is required' } }, 400);
+      if (!authUser) {
+        return json({ error: { message: 'signed-in user is required' } }, 401);
       }
+      const uid = authUser.id;
       const source = Array.isArray(cbody.conversations) ? cbody.conversations.slice(0, MAX_ARCHIVE_CONVERSATIONS) : [];
       var normalizedList = [];
       var skipped = 0;
@@ -3129,10 +3163,10 @@ export default {
       // subrequest ceiling. Prune removes any older duplicate rows afterwards.
       for (var bi = 0; bi < normalizedList.length; bi += 10) {
         var chunk = normalizedList.slice(bi, bi + 10);
-        if (await bulkInsertArchivedConversations(env, uid, chunk)) saved += chunk.length;
+        if (await bulkInsertArchivedConversations(requestEnv, uid, chunk)) saved += chunk.length;
         else skipped += chunk.length;
       }
-      await pruneArchivedConversations(env, uid);
+      await pruneArchivedConversations(requestEnv, uid);
       return json({ ok: true, user_id: uid, saved: saved, skipped: skipped });
     }
 
@@ -3141,19 +3175,22 @@ export default {
       let cbody;
       try { cbody = await request.json(); }
       catch (e) { return json({ error: { message: 'invalid json' } }, 400); }
-      const uid = safeUserId(cbody && cbody.user_id);
+      if (!authUser) {
+        return json({ error: { message: 'signed-in user is required' } }, 401);
+      }
+      const uid = authUser.id;
       const singleId = String((cbody && cbody.id) || '').trim();
       const rawIds = Array.isArray(cbody && cbody.ids) ? cbody.ids : [singleId];
       const ids = rawIds.map(function (value) { return String(value || '').trim(); })
         .filter(function (value) { return /^[a-zA-Z0-9_-]{1,80}$/.test(value); })
         .slice(0, 200);
-      if (!cbody || !cbody.user_id || uid === 'guest' || !ids.length) {
-        return json({ error: { message: 'signed-in user_id and conversation id are required' } }, 400);
+      if (!cbody || !ids.length) {
+        return json({ error: { message: 'conversation id is required' } }, 400);
       }
       var deleted = 0;
       if (ids.length === 1) {
-        if (await deleteArchivedConversation(env, uid, ids[0])) deleted = 1;
-      } else if (await deleteArchivedConversations(env, uid, ids)) {
+        if (await deleteArchivedConversation(requestEnv, uid, ids[0])) deleted = 1;
+      } else if (await deleteArchivedConversations(requestEnv, uid, ids)) {
         deleted = ids.length;
       }
       if (!deleted) return json({ error: { message: 'conversation delete failed' } }, 502);
@@ -3547,7 +3584,9 @@ export default {
     const userText = lastUser ? lastUser.content : '';
     const requestedMode = body.mode || null;
     const mode = detectMode(userText, requestedMode);
-    const memoryUserId = safeUserId(body.user_id || body.userId);
+    const memoryEnabled = !!authUser;
+    const memoryUserId = memoryEnabled ? authUser.id : 'guest';
+    const memoryEnv = memoryEnabled ? requestEnv : env;
 
     try { BRAIN.stimulate('circuit', 0.7); } catch(e) {}
 
@@ -3579,13 +3618,20 @@ export default {
       }
     }
 
-    const [mindState, recent, intentState, narrative, workingMem] = await Promise.all([
-      loadMindState(env, memoryUserId),
-      loadRecentReflections(env, memoryUserId),
-      loadIntentState(memoryUserId, env),
-      loadSelfNarrative(env, memoryUserId),
-      loadWorkingMemory(env, memoryUserId)
-    ]);
+    let mindState = defaultMindState();
+    let recent = [];
+    let intentState = null;
+    let narrative = null;
+    let workingMem = [];
+    if (memoryEnabled) {
+      [mindState, recent, intentState, narrative, workingMem] = await Promise.all([
+        loadMindState(memoryEnv, memoryUserId),
+        loadRecentReflections(memoryEnv, memoryUserId),
+        loadIntentState(memoryUserId, memoryEnv),
+        loadSelfNarrative(memoryEnv, memoryUserId),
+        loadWorkingMemory(memoryEnv, memoryUserId)
+      ]);
+    }
     try { BRAIN.stimulate('working', Math.min(1, ((recent && recent.length) || 0) / 5)); } catch(e) {}
     const stateBlock = describeState(mindState);
     const intentPrimary = intentState ? (intentState.primary_intent || intentState.primary) : null;
@@ -3688,16 +3734,18 @@ export default {
       return json({ error: { message: 'upstream returned no message content', code: 'empty_message', retryable: true, detail: redactSecrets(String(result.text || '').slice(0, 300), env) } }, 502);
     }
 
-    ctx.waitUntil(
-      runReflectionPass(userText, assistantText, memoryUserId, env, mode)
-        .catch(function () {})
-        .then(balanceBrainAfterTurn)
-    );
+    if (memoryEnabled) {
+      ctx.waitUntil(
+        runReflectionPass(userText, assistantText, memoryUserId, memoryEnv, mode)
+          .catch(function () {})
+          .then(balanceBrainAfterTurn)
+      );
 
-    try {
-      const updated = nudgeAxes(mindState, userText);
-      ctx.waitUntil(saveMindState(updated, env, memoryUserId).catch(function () {}));
-    } catch (e) {}
+      try {
+        const updated = nudgeAxes(mindState, userText);
+        ctx.waitUntil(saveMindState(updated, memoryEnv, memoryUserId).catch(function () {}));
+      } catch (e) {}
+    }
 
     try {
       const parsed = JSON.parse(result.text);

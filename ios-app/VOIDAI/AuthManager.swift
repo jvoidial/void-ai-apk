@@ -22,6 +22,56 @@ final class AuthManager: NSObject {
     var accessToken: String { token(for: "voidai.accessToken") }
     var refreshToken: String { token(for: "voidai.refreshToken") }
 
+    func refreshIfNeeded(completion: @escaping (String) -> Void) {
+        let current = accessToken
+        guard isSignedIn, !current.isEmpty else {
+            completion("")
+            return
+        }
+        let expiry = Self.jwtExpiry(current) ?? 0
+        if expiry > Date().timeIntervalSince1970 + 300 {
+            completion(current)
+            return
+        }
+        let refresh = refreshToken
+        guard !refresh.isEmpty,
+              let url = URL(string: "\(supabaseURL)/auth/v1/token?grant_type=refresh_token") else {
+            completion(current)
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["refresh_token": refresh])
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
+            guard let self = self,
+                  let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let access = json["access_token"] as? String,
+                  !access.isEmpty else {
+                completion(current)
+                return
+            }
+            let newRefresh = json["refresh_token"] as? String ?? refresh
+            _ = self.persist(accessToken: access, refreshToken: newRefresh, fallbackEmail: self.email)
+            completion(access)
+        }.resume()
+    }
+
+    private static func jwtExpiry(_ token: String) -> Double? {
+        let parts = token.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 { payload += "=" }
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = json["exp"] as? NSNumber else { return nil }
+        return exp.doubleValue
+    }
+
     func signIn(
         presentationContextProvider: ASWebAuthenticationPresentationContextProviding,
         completion: @escaping (Bool) -> Void

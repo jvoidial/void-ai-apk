@@ -422,9 +422,18 @@ final class ViewController: UIViewController {
 
     private func sendSignedInState() {
         guard AuthManager.shared.isSignedIn else { return }
-        let email = jsString(AuthManager.shared.email)
-        let name = jsString(AuthManager.shared.name)
-        webView.evaluateJavaScript("window.onSignedIn && window.onSignedIn(\(email), \(name));", completionHandler: nil)
+        AuthManager.shared.refreshIfNeeded { [weak self] accessToken in
+            guard let self = self, AuthManager.shared.isSignedIn, !accessToken.isEmpty else { return }
+            let email = self.jsString(AuthManager.shared.email)
+            let name = self.jsString(AuthManager.shared.name)
+            let token = self.jsString(accessToken)
+            DispatchQueue.main.async {
+                self.webView.evaluateJavaScript(
+                    "window.voidaiAccessToken = \(token); window.onSignedIn && window.onSignedIn(\(email), \(name));",
+                    completionHandler: nil
+                )
+            }
+        }
     }
 
     private func finishFilePicker(_ urls: [URL]?) {
@@ -504,7 +513,10 @@ extension ViewController: WKScriptMessageHandler {
             }
         case "signOut":
             AuthManager.shared.signOut()
-            webView.evaluateJavaScript("window.onSignedOut && window.onSignedOut();", completionHandler: nil)
+            webView.evaluateJavaScript(
+                "window.voidaiAccessToken = ''; window.onSignedOut && window.onSignedOut();",
+                completionHandler: nil
+            )
         case "speak":
             let text = body["text"] as? String ?? ""
             let rate = (body["rate"] as? NSNumber)?.doubleValue ?? 1.03

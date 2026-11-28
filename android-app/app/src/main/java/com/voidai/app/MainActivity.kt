@@ -235,6 +235,12 @@ class MainActivity : AppCompatActivity() {
             }
 
             @JavascriptInterface
+            fun getAccessToken(): String {
+                val sb = supabase ?: return ""
+                return sb.auth.currentSessionOrNull()?.accessToken ?: ""
+            }
+
+            @JavascriptInterface
             fun isSpeechAvailable(): Boolean {
                 return try { SpeechRecognizer.isRecognitionAvailable(this@MainActivity) } catch (_: Exception) { false }
             }
