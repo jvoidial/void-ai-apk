@@ -1,0 +1,24 @@
+name: Verify release assets
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download published assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-assets
+          gh release download "${{ github.event.release.tag_name }}" --dir release-assets --clobber
+
+      - name: Check checksums and provider credentials
+        run: python3 scripts/check_release_assets.py release-assets
