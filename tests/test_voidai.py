@@ -4,6 +4,7 @@ The tests run the real code against a local OpenAI-compatible HTTP server.
 Nothing under test is mocked.
 """
 
+import ast
 import json
 import os
 import shutil
@@ -870,6 +871,85 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts)", worker)
         self.assertIn("empty_upstream", worker)
         self.assertIn("detail: String(emptyDetail)", worker)
+
+    def test_godcode_vortex_is_sandboxed_and_deterministic(self):
+        from voidai import godcode_vortex
+
+        first = godcode_vortex.snapshot(seed="test-user", steps=12, attempts=2)
+        second = godcode_vortex.snapshot(seed="test-user", steps=12, attempts=2)
+        self.assertEqual(first, second)
+        self.assertEqual(first["mode"], "symbolic")
+        self.assertEqual(len(first["sequence"]), 7)
+        self.assertEqual(len(first["voxels"]), 7)
+        self.assertIn("Symbolic geometry", first["disclosure"])
+        self.assertLessEqual(godcode_vortex.snapshot(seed="x", steps=9999)["steps"], 240)
+
+        source = open(os.path.join(ROOT, "python-src", "voidai",
+                                   "godcode_vortex.py"), encoding="utf-8").read()
+        tree = ast.parse(source)
+        banned_modules = {"socket", "subprocess", "urllib", "requests", "http", "ftplib"}
+        imported = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                imported.add(node.module.split(".")[0])
+        self.assertFalse(imported & banned_modules)
+        banned_calls = {"eval", "exec", "compile", "__import__", "open"}
+        banned_attrs = {"system", "popen", "spawn", "run", "call", "check_output"}
+        calls = set()
+        attrs = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    calls.add(node.func.id)
+                elif isinstance(node.func, ast.Attribute):
+                    attrs.add(node.func.attr)
+        self.assertFalse(calls & banned_calls)
+        self.assertFalse(attrs & banned_attrs)
+
+    def test_godcode_vortex_is_wired_into_worker_and_app(self):
+        worker = open(os.path.join(ROOT, "cloudflare-worker", "worker.js"),
+                      encoding="utf-8").read()
+        start = worker.index("// PHB God-Code Vortex")
+        end = worker.index("function buildSystemPrompt", start)
+        block = worker[start:end]
+        self.assertIn("VORTEX_DISCLOSURE", block)
+        self.assertIn("function buildVortexSnapshot", block)
+        self.assertIn("Symbolic geometry only", block)
+        self.assertNotIn("fetch(", block)
+        self.assertNotIn("eval(", block)
+        self.assertNotIn("require(", block)
+        self.assertIn("pathname === '/vortex'", worker)
+        self.assertIn("vortex: buildVortexSnapshot('brain', 24, 4)", worker)
+        self.assertIn("godcode_vortex", worker)
+
+        html = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                 "assets", "index.html"), encoding="utf-8").read()
+        self.assertIn("PHB God-Code Vortex", html)
+        self.assertIn("PROXY_URL + '/vortex?seed='", html)
+        self.assertIn("function localVortexSnapshot", html)
+        self.assertIn("function vortexReply", html)
+        self.assertIn("v.disclosure", html)
+
+        from voidai import chat
+        handled, reply = chat._command("vortex-user", "@vortex")
+        self.assertTrue(handled)
+        self.assertIn("PHB God-Code Vortex", reply)
+        self.assertIn("Symbolic geometry", reply)
+
+        class Capture:
+            def __init__(self):
+                self.messages = []
+            def chat(self, messages, **kwargs):
+                self.messages = messages
+                return "ok"
+
+        capture = Capture()
+        chat.answer(user_id="vortex-user", user_text="show the vortex coherence state", client=capture)
+        combined = "\n".join(str(m.get("content", "")) for m in capture.messages)
+        self.assertIn("PHB GOD-CODE VORTEX", combined)
+        self.assertIn("symbolic geometry", combined)
 
     def test_whisper_listening_path_and_service(self):
         html = open(os.path.join(ROOT, "android-app", "app", "src", "main",

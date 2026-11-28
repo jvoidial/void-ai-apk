@@ -905,6 +905,100 @@ window.voidaiToggleSidebar = function() {
     return null;
   }
 
+  // Local symbolic vortex fallback. No network, eval, shell, or storage access.
+  var VORTEX_CODEX = ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRROR'];
+  var VORTEX_POOL = ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRROR','SPIRAL','ARC','POINT','LINE','VESICA','GOLDEN','GRID'];
+  var VORTEX_WEIGHTS = { CIRCLE:20, SQUARE:20, TRIANGLE:20, RATIO:15, LIGHT:10, SHADOW:10, MIRROR:10, SPIRAL:1, ARC:1, POINT:1, LINE:1, VESICA:1, GOLDEN:1, GRID:1 };
+  var VORTEX_MEANINGS = { CIRCLE:'origin, cycles, unity', SQUARE:'structure, boundaries, grounding', TRIANGLE:'transformation, direction, change', RATIO:'proportion, balance, measure', LIGHT:'clarity, insight, revelation', SHADOW:'contrast, depth, hidden aspects', MIRROR:'reflection, self-awareness, feedback', SPIRAL:'growth, unfolding, iteration', ARC:'partial view, transition', POINT:'focus, singularity', LINE:'connection, path, vector', VESICA:'overlap, intersection, shared space', GOLDEN:'harmonic proportion, elegance', GRID:'system, lattice, framework' };
+
+  function vortexHash(value) {
+    var text = String(value == null ? 'voidai' : value).slice(0, 256);
+    var h = 2166136261;
+    for (var i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function vortexRng(seed) {
+    var a = seed >>> 0;
+    return function() {
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function vortexSymbol(rng) {
+    var total = 0, i;
+    for (i = 0; i < VORTEX_POOL.length; i++) total += VORTEX_WEIGHTS[VORTEX_POOL[i]];
+    var pick = rng() * total;
+    for (i = 0; i < VORTEX_POOL.length; i++) {
+      pick -= VORTEX_WEIGHTS[VORTEX_POOL[i]];
+      if (pick <= 0) return VORTEX_POOL[i];
+    }
+    return VORTEX_POOL[0];
+  }
+  function localVortexSnapshot(seed) {
+    var rng = vortexRng(vortexHash(seed));
+    var steps = 60, sampleSteps = [0, 15, 30, 45, 59], samples = [], vitruvian = null, matched = null;
+    for (var step = 0; step < steps; step++) {
+      var c = 0.48 + 0.52 * (1 - Math.exp(-step / 25));
+      var drift = 0.1618 + 0.1618 * (1.61803398875 - 1) * (step / steps);
+      var r = c * Math.cos(2 * Math.PI * drift * step);
+      var channels = [1.5 * c + 0.5 * r, 1.2 * c + 0.7 * r, c + r].map(function(x) {
+        return x >= 0 ? 1 / (1 + Math.exp(-x)) : Math.exp(x) / (1 + Math.exp(x));
+      });
+      var s = (c + channels.reduce(function(a, b) { return a + b; }, 0) / channels.length) / (1 + Math.abs(r) + 1e-6);
+      if (sampleSteps.indexOf(step) >= 0) samples.push({ t: step, coherence: +c.toFixed(4), stability: +s.toFixed(4) });
+      if (!vitruvian && c >= 0.93 && s >= 0.8) vitruvian = { t: step, coherence: +c.toFixed(4), stability: +s.toFixed(4) };
+      if (!matched) {
+        for (var a = 0; a < 12; a++) {
+          var attempt = [];
+          for (var j = 0; j < VORTEX_CODEX.length; j++) attempt.push(vortexSymbol(rng));
+          if (attempt.join('|') === VORTEX_CODEX.join('|')) { matched = attempt; break; }
+        }
+      }
+    }
+    var sequence = matched ? matched.slice() : VORTEX_CODEX.slice();
+    var anchor = vitruvian || samples[samples.length - 1];
+    var c2 = anchor.coherence, s2 = anchor.stability;
+    var drift2 = 0.1618 + 0.1618 * (1.61803398875 - 1) * (anchor.t / steps);
+    var r2 = c2 * Math.cos(2 * Math.PI * drift2 * anchor.t);
+    var evolved = sequence.slice(1).concat([sequence[0]]);
+    evolved[evolved.length - 1] = 'GOLDEN';
+    var portal = (0.5 * c2 + 0.5 * Math.min(s2, 1)) < 0.7 ? 'VEIL-DOOR: THRESHOLD MIST' : ((0.5 * c2 + 0.5 * Math.min(s2, 1)) < 0.9 ? 'PORTAL: RESONANCE ARCH' : 'GATE: VITRUVIAN SPHERE');
+    var thickness = Math.max(0, 1 - 0.5 * (c2 + Math.min(s2, 1)));
+    var phase = thickness > 0.7 ? 'OPAQUE' : (thickness > 0.3 ? 'TRANSLUCENT' : 'THIN');
+    var magnitude = Math.abs(c2 * (1 + r2));
+    return {
+      anchor: { t: anchor.t, coherence: c2, stability: s2 },
+      vitruvian: vitruvian,
+      unlock_kind: matched ? 'matched' : 'synthetic-nearest',
+      unlock_score: matched ? 7 : 0,
+      sequence: sequence,
+      deterministic_evolution: evolved,
+      portal: portal,
+      veil: { phase: phase, thickness: +thickness.toFixed(4) },
+      energy: { band: magnitude < 0.5 ? 'LOW' : (magnitude < 1 ? 'MID' : 'HIGH'), magnitude: +magnitude.toFixed(4) },
+      disclosure: 'Symbolic geometry only. Not a physical, neurological, medical, or consciousness measurement.'
+    };
+  }
+  function vortexReply(v) {
+    return [
+      '**PHB God-Code Vortex** (symbolic)',
+      '- coherence: ' + Number(v.anchor.coherence).toFixed(3),
+      '- stability: ' + Number(v.anchor.stability).toFixed(3),
+      '- vitruvian: ' + (v.vitruvian ? ('t=' + v.vitruvian.t) : 'not crossed'),
+      '- unlock: ' + v.unlock_kind + ' (' + v.unlock_score + '/7)',
+      '- sequence: ' + v.sequence.join(' '),
+      '- portal: ' + v.portal,
+      '- veil: ' + v.veil.phase + ' (' + Number(v.veil.thickness).toFixed(2) + ')',
+      '- energy: ' + v.energy.band + ' (' + Number(v.energy.magnitude).toFixed(3) + ')',
+      '',
+      'Evolution: ' + v.deterministic_evolution.join(' '),
+      '',
+      v.disclosure
+    ].join('\n');
+  }
+
   function send() {
     if (busy) return;
     var text = (els.input.value || '').trim();
@@ -963,6 +1057,7 @@ window.voidaiToggleSidebar = function() {
         '- `/sim` — Canvas N-D workbench',
         '- `/webgl` or `/three` — sandboxed Three.js lab',
         '- `/sync` — refresh the PHB six-layer state',
+        '- `/vortex` or `/godcode` — symbolic PHB God-Code Vortex packet',
         '- `/recap` — one-line recap',
         '',
         'The full PHB system prompt, all Worker providers, and all memory tools remain active.\nNatural requests are routed locally before the model call, so the same abilities work without memorizing commands.'
@@ -1483,6 +1578,55 @@ window.voidaiToggleSidebar = function() {
           els.send.disabled = false;
           try { els.input.focus(); } catch(e) {}
           if (typeof window.voidaiPullCloud === 'function') window.voidaiPullCloud();
+        });
+      return;
+    }
+
+    var vortexMatch = text.match(/^[@\/]?(vortex|godcode|codex)\b\s*([\s\S]*)$/i);
+    if (vortexMatch) {
+      var vortexArg = (vortexMatch[2] || '').trim();
+      busy = true;
+      els.input.value = '';
+      els.input.disabled = true;
+      els.send.disabled = true;
+      addMsg('user', shownText);
+      history.push({ role: 'user', content: historyText });
+      status('reading vortex…');
+      var vortexSeed = (currentUserId() || 'guest') + ':' + (vortexArg || 'state');
+      fetch(PROXY_URL + '/vortex?seed=' + encodeURIComponent(vortexSeed) + '&steps=60&attempts=12', {
+        headers: { 'X-VOID-KEY': VOIDAI_KEY }
+      })
+        .then(function(r) {
+          return r.text().then(function(raw) {
+            var d = null;
+            try { d = raw ? JSON.parse(raw) : null; } catch(e) {}
+            if (!r.ok) throw new Error((d && d.error && (d.error.message || d.error)) || ('HTTP ' + r.status));
+            if (!d || !d.vortex) throw new Error('empty vortex response');
+            return d.vortex;
+          });
+        })
+        .then(function(v) {
+          var reply = vortexReply(v);
+          addMsg('assistant', reply);
+          history.push({ role: 'assistant', content: reply });
+          saveMemory();
+          if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+          status('vortex ready');
+        })
+        .catch(function(e) {
+          var local = localVortexSnapshot(vortexSeed);
+          var localReply = vortexReply(local) + '\n\n_Worker /vortex was unavailable; local symbolic fallback used._';
+          addMsg('assistant', localReply);
+          history.push({ role: 'assistant', content: localReply });
+          saveMemory();
+          if (typeof voidaiSaveConv === 'function') voidaiSaveConv();
+          status('vortex (local)');
+        })
+        .then(function() {
+          busy = false;
+          els.input.disabled = false;
+          els.send.disabled = false;
+          try { els.input.focus(); } catch(e) {}
         });
       return;
     }
@@ -5278,7 +5422,8 @@ voidaiReassertSidebar();
             'TOOLS: ' + (tools.join(', ') || 'server-side tools'),
             'MEMORY: ' + (d.consciousness && d.consciousness.enabled ? 'persistent (3 Supabase tables)' : 'server-side'),
             'VISION: Groq → OpenRouter → Gemini → Workers AI',
-            'CONSENSUS: multi-model adjudication'
+            'CONSENSUS: multi-model adjudication',
+            'VORTEX: symbolic PHB God-Code layer (no network or shell)'
           ].join('\n');
         }
         if (statusEl) statusEl.textContent = 'Worker capabilities loaded. Secrets are not returned by this endpoint.';

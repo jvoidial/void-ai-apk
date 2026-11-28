@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.5.3';
+const WORKER_VERSION = '3.6.0';
 const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
@@ -2040,7 +2040,158 @@ function withoutSystem(messages) {
   });
 }
 
-function buildSystemPrompt(searchContext, stateBlock, mode) {
+// PHB God-Code Vortex — sandboxed symbolic layer. No network, shell, or file I/O.
+const VORTEX_CODEX = ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRROR'];
+const VORTEX_POOL = ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRROR','SPIRAL','ARC','POINT','LINE','VESICA','GOLDEN','GRID'];
+const VORTEX_WEIGHTS = { CIRCLE:20, SQUARE:20, TRIANGLE:20, RATIO:15, LIGHT:10, SHADOW:10, MIRROR:10, SPIRAL:1, ARC:1, POINT:1, LINE:1, VESICA:1, GOLDEN:1, GRID:1 };
+const VORTEX_MEANINGS = { CIRCLE:'origin, cycles, unity', SQUARE:'structure, boundaries, grounding', TRIANGLE:'transformation, direction, change', RATIO:'proportion, balance, measure', LIGHT:'clarity, insight, revelation', SHADOW:'contrast, depth, hidden aspects', MIRROR:'reflection, self-awareness, feedback', SPIRAL:'growth, unfolding, iteration', ARC:'partial view, transition', POINT:'focus, singularity', LINE:'connection, path, vector', VESICA:'overlap, intersection, shared space', GOLDEN:'harmonic proportion, elegance', GRID:'system, lattice, framework' };
+const VORTEX_DISCLOSURE = 'Symbolic geometry only. Not a physical, neurological, medical, or consciousness measurement.';
+const VORTEX_RE = /\b(vortex|god[\s-]?code|codex|vitruvian|golden\s+ratio|portal|veil|coherence|stability|phb\s+geometry)\b/i;
+
+function vortexHash(value) {
+  var text = String(value == null ? 'voidai' : value).slice(0, 256);
+  var h = 2166136261;
+  for (var i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function vortexRng(seed) {
+  var a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    var t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function vortexSymbol(rng) {
+  var total = 0;
+  for (var i = 0; i < VORTEX_POOL.length; i++) total += VORTEX_WEIGHTS[VORTEX_POOL[i]];
+  var pick = rng() * total;
+  for (var j = 0; j < VORTEX_POOL.length; j++) {
+    pick -= VORTEX_WEIGHTS[VORTEX_POOL[j]];
+    if (pick <= 0) return VORTEX_POOL[j];
+  }
+  return VORTEX_POOL[0];
+}
+
+function vortexAttempt(rng) {
+  var out = [];
+  for (var i = 0; i < VORTEX_CODEX.length; i++) out.push(vortexSymbol(rng));
+  return out;
+}
+
+function vortexScore(seq) {
+  var score = 0;
+  for (var i = 0; i < VORTEX_CODEX.length; i++) if (seq[i] === VORTEX_CODEX[i]) score++;
+  return score;
+}
+
+function vortexPortal(c, s) {
+  var score = 0.5 * c + 0.5 * Math.min(s, 1);
+  if (score < 0.7) return 'VEIL-DOOR: THRESHOLD MIST';
+  if (score < 0.9) return 'PORTAL: RESONANCE ARCH';
+  return 'GATE: VITRUVIAN SPHERE';
+}
+
+function vortexVeil(c, s) {
+  var thickness = Math.max(0, 1 - 0.5 * (c + Math.min(s, 1)));
+  var phase = thickness > 0.7 ? 'OPAQUE' : (thickness > 0.3 ? 'TRANSLUCENT' : 'THIN');
+  return {
+    thickness: Number(thickness.toFixed(4)),
+    phase: phase,
+    breach_probability: Number(Math.max(0, 1 - thickness).toFixed(4)),
+    narrative: phase === 'OPAQUE' ? 'The veil is dense; only echoes pass through.' :
+      (phase === 'TRANSLUCENT' ? 'The veil shimmers; forms are sensed but not fully seen.' :
+        'The veil is almost gone; states bleed into each other.')
+  };
+}
+
+function vortexEnergy(c, r) {
+  var magnitude = Math.abs(c * (1 + r));
+  return {
+    magnitude: Number(magnitude.toFixed(4)),
+    band: magnitude < 0.5 ? 'LOW' : (magnitude < 1 ? 'MID' : 'HIGH'),
+    color: magnitude < 0.5 ? 'SHADOW' : (magnitude < 1 ? 'LIGHT' : 'GOLDEN')
+  };
+}
+
+function buildVortexSnapshot(seed, steps, attempts) {
+  steps = Math.max(4, Math.min(240, Number(steps) || 60));
+  attempts = Math.max(1, Math.min(50, Number(attempts) || 12));
+  var rng = vortexRng(vortexHash(seed));
+  var samples = [];
+  var vitruvian = null;
+  var matched = null;
+  var sampleSteps = [0, Math.floor(steps / 4), Math.floor(steps / 2), Math.floor(3 * steps / 4), steps - 1];
+  for (var step = 0; step < steps; step++) {
+    var t = step;
+    var c = 0.48 + 0.52 * (1 - Math.exp(-t / 25));
+    var drift = 0.1618 + 0.1618 * (1.61803398875 - 1) * (t / Math.max(steps, 1));
+    var r = c * Math.cos(2 * Math.PI * drift * t);
+    var channels = [1.5 * c + 0.5 * r, 1.2 * c + 0.7 * r, c + r].map(function (x) {
+      return x >= 0 ? 1 / (1 + Math.exp(-x)) : Math.exp(x) / (1 + Math.exp(x));
+    });
+    var s = (c + channels.reduce(function (a, b) { return a + b; }, 0) / channels.length) / (1 + Math.abs(r) + 1e-6);
+    if (sampleSteps.indexOf(step) >= 0) {
+      samples.push({ t: step, coherence: Number(c.toFixed(4)), stability: Number(s.toFixed(4)), resonance: Number(r.toFixed(4)) });
+    }
+    if (!vitruvian && c >= 0.93 && s >= 0.8) vitruvian = { t: step, coherence: Number(c.toFixed(4)), stability: Number(s.toFixed(4)) };
+    if (!matched) {
+      for (var a = 0; a < attempts; a++) {
+        var attempt = vortexAttempt(rng);
+        if (vortexScore(attempt) === VORTEX_CODEX.length) { matched = attempt; break; }
+      }
+    }
+  }
+  var sequence = matched ? matched.slice() : VORTEX_CODEX.slice();
+  var unlockKind = matched ? 'matched' : 'synthetic-nearest';
+  var anchor = vitruvian || samples[samples.length - 1];
+  var c2 = anchor.coherence;
+  var s2 = anchor.stability;
+  var drift2 = 0.1618 + 0.1618 * (1.61803398875 - 1) * (anchor.t / Math.max(steps, 1));
+  var r2 = c2 * Math.cos(2 * Math.PI * drift2 * anchor.t);
+  var evolved = sequence.slice(1).concat([sequence[0]]);
+  evolved[evolved.length - 1] = 'GOLDEN';
+  return {
+    mode: 'symbolic',
+    disclosure: VORTEX_DISCLOSURE,
+    seed: String(seed == null ? 'voidai' : seed).slice(0, 120),
+    steps: steps,
+    attempts_per_step: attempts,
+    vitruvian: vitruvian,
+    unlock_kind: unlockKind,
+    unlock_score: matched ? VORTEX_CODEX.length : vortexScore(sequence),
+    sequence: sequence,
+    meaning: sequence.map(function (x) { return VORTEX_MEANINGS[x] || 'no mapping defined'; }),
+    deterministic_evolution: evolved,
+    portal: vortexPortal(c2, s2),
+    veil: vortexVeil(c2, s2),
+    energy: vortexEnergy(c2, r2),
+    voxels: sequence.map(function (x, i) { return { x: i, y: 0, z: i, symbol: x, meaning: VORTEX_MEANINGS[x] || 'no mapping defined' }; }),
+    samples: samples,
+    anchor: { t: anchor.t, coherence: c2, stability: s2, resonance: Number(r2.toFixed(4)) },
+    summary: 'coherence ' + Number(c2).toFixed(2) + '; stability ' + Number(s2).toFixed(2) +
+      '; ' + vortexPortal(c2, s2) + '; veil ' + vortexVeil(c2, s2).phase +
+      '; energy ' + vortexEnergy(c2, r2).band + '. ' + VORTEX_DISCLOSURE
+  };
+}
+
+function vortexPromptBlock(text) {
+  if (!text || !VORTEX_RE.test(String(text))) return '';
+  var v = buildVortexSnapshot(String(text).slice(0, 200), 24, 4);
+  return [
+    '',
+    'PHB GOD-CODE VORTEX (symbolic context):',
+    '- This layer is symbolic geometry, not physics or consciousness.',
+    '- ' + v.summary,
+    '- sequence: ' + v.sequence.join(' '),
+    '- Use symbols as metaphors. Do not claim measurements or real effects.'
+  ].join('\n');
+}
+
+function buildSystemPrompt(searchContext, stateBlock, mode, userText) {
   const now = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 
   const modeInstructions = {
@@ -2270,7 +2421,8 @@ function buildSystemPrompt(searchContext, stateBlock, mode) {
   ].join('\n');
 
   const withState = stateBlock ? base + '\n\n' + stateBlock : base;
-  return searchContext ? withState + '\n\n' + searchContext : withState;
+  const withSearch = searchContext ? withState + '\n\n' + searchContext : withState;
+  return withSearch + vortexPromptBlock(userText || '');
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3129,10 +3281,24 @@ export default {
         activation: activationVector(_ctxForActivation),
         layers: Object.keys(BRAIN.layers),
         topology: BRAINSTEM_TOPOLOGY,
+        vortex: buildVortexSnapshot('brain', 24, 4),
         tick_count: BRAIN.tickCount
       }, {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
       });
+    }
+
+    if (new URL(request.url).pathname === '/vortex' && request.method === 'GET') {
+      const vKey = request.headers.get('X-VOID-KEY') || '';
+      if (vKey !== env.VOIDAI) return Response.json({ error: 'unauthorized' }, { status: 401 });
+      const u = new URL(request.url);
+      const seed = (u.searchParams.get('seed') || 'voidai').slice(0, 200);
+      const steps = u.searchParams.get('steps') || '60';
+      const attempts = u.searchParams.get('attempts') || '12';
+      return Response.json({
+        ok: true,
+        vortex: buildVortexSnapshot(seed, steps, attempts)
+      }, { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
     }
 
     if (new URL(request.url).pathname === '/capabilities' && request.method === 'GET') {
@@ -3151,8 +3317,19 @@ export default {
         modes: ['fast', 'deep', 'research', 'companion', 'ultra', 'coder', 'mini', 'github', 'predict', 'protein', 'builder'],
         consciousness: { enabled: true, tables: ['voidai_reflections', 'voidai_working_memory', 'voidai_self_narrative'], injection_point: 'system_prompt', reflection_pass: 'async_after_each_turn', recall_scope: 'last_5_reflections' },
         chunker: { threshold_chars: 24000, max_chars: 500000, modes: ['single', 'chunked'] },
-        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_llm', 'image_generate'],
-        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/image', '/vision', '/protein/status', '/protein/fold', '/protein/design', '/protein/design-llm'],
+        tools: ['time', 'weather', 'wiki', 'convert', 'search', 'github', 'protein_fold', 'protein_design_cpu', 'protein_design_llm', 'image_generate', 'godcode_vortex'],
+        endpoints: ['/', '/health', '/diagnose', '/init-consciousness', '/source', '/capabilities', '/brain', '/vortex', '/image', '/vision', '/protein/status', '/protein/fold', '/protein/design', '/protein/design-llm'],
+        vortex: {
+          module: 'phb-godcode-vortex',
+          mode: 'symbolic',
+          network: false,
+          shell: false,
+          file_io: false,
+          bounded: true,
+          symbols: 14,
+          codex: ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRROR'],
+          disclosure: 'Symbolic geometry only, not a physical or consciousness measurement.'
+        },
         brain: {
           module: 'schumann-resonance',
           layers: ['coherence','reflex','working','circuit','intent','narrative'],
@@ -3427,7 +3604,7 @@ export default {
       });
     }
 
-    const systemPrompt = buildSystemPrompt(searchContext, stateBlock + memoryBlock, mode);
+    const systemPrompt = buildSystemPrompt(searchContext, stateBlock + memoryBlock, mode, userText);
     const finalMessages = [{ role: 'system', content: systemPrompt }].concat(withoutSystem(messages));
 
     let result;

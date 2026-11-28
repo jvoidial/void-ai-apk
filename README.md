@@ -6,8 +6,8 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 
 ## Download
 
-- **APK** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.8-release.apk`
-- **iOS IPA (unsigned)** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.8-unsigned.ipa`
+- **APK** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.9-release.apk`
+- **iOS IPA (unsigned)** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.9-unsigned.ipa`
 - **Build artifacts** — [Build APK](https://github.com/jvoidial/void-ai-apk/actions/workflows/build.yml) and [iOS IPA](https://github.com/jvoidial/void-ai-apk/actions/workflows/ios-unsigned.yml) workflows
 - **Source** — [Download ZIP](https://github.com/jvoidial/void-ai-apk/archive/refs/heads/main.zip)
 
@@ -28,6 +28,7 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 - Conversation history — saved chats, switch, delete, restore after reload, clear, and per-turn persistence including errors and tool commands
 - Builder/Simulator tab — editable Three.js code, live sandboxed preview, AI BUILD, object physics, COPY/DOWNLOAD, 3D/4D/5D scenes, and a linked N-D simulation workbench
 - PHB layers — coherence, reflex, working, circuit, intent, narrative
+- PHB God-Code Vortex — sandboxed symbolic geometry engine (`/vortex`, `/godcode`, `/codex`) with coherence, codex sequence, portal, veil, energy, and evolution; no network, shell, or file access in the port
 - Sign-in — GitHub OAuth via Supabase (Android + iOS)
 - Storage — per-user files, RLS-isolated
 - Cost: **$0**
@@ -47,6 +48,7 @@ The same tools are available as commands:
 
     /live  /astra  /photo  /camera  /look PROMPT  /voice  /read  /tools
     /builder  /images  /image PROMPT  /mode  /mode deep  /help  /sync  /recap
+    /vortex  /godcode  /codex
 
 Android asks for microphone permission for voice and never requests camera
 permission. iOS uses the photo-library, microphone, and speech-recognition usage
@@ -82,6 +84,7 @@ layers update after each turn through a short behavioral reflection pass.
 Prediction commands:
 - `@future` forecasts the default AI/AGI/robotics/biotech/energy/quantum outlook.
 - `@predict TOPIC` focuses the forecast on one technology or market.
+- `@vortex`, `@godcode`, or `@codex` prints the symbolic God-Code Vortex packet.
 - `--mode predict "..."` uses the same forecast rules in one-shot or REPL mode.
 
 Forecasts are explicitly speculative: they use horizons, scenarios, leading

@@ -7,7 +7,7 @@ HTTP servers call :func:`answer`, so behaviour stays identical everywhere.
 
 import re
 
-from . import config, phb
+from . import config, godcode_vortex, phb
 from .code_brain import best_code_context
 from .code_reasoner import (
     convert_code,
@@ -57,6 +57,8 @@ Knowledge / continuity:
 - @predict [TOPIC]      : structured technology forecast
 - @protein [TOPIC]      : benign protein engineering help
 - @future               : forecast the default AI/AGI/tech outlook
+- @vortex [state|evolve]: symbolic PHB God-Code Vortex packet
+- @godcode or @codex    : aliases for @vortex
 
 Thinking:
 - @reason TEXT          : show reasoning steps
@@ -109,6 +111,11 @@ def _command(uid, text):
         if len(sentence) > 300:
             sentence = sentence[:297].rstrip() + "..."
         return True, "Recap: " + sentence
+    if text in ("@vortex", "@godcode", "@codex") or text.startswith(("@vortex ", "@godcode ", "@codex ")):
+        arg = text.split(" ", 1)[1].strip() if " " in text else ""
+        reply = godcode_vortex.command(arg, user=uid)
+        _last_answer[uid] = reply
+        return True, reply
     if text.startswith("@reason "):
         return True, think_steps(text[len("@reason "):].strip())
     if text == "@reflect":
@@ -157,6 +164,10 @@ def _memory_context(uid, user_text, kind):
     if code_ctx:
         lines.append("Code/math/science context:")
         lines.append(code_ctx)
+
+    vortex_context = godcode_vortex.prompt_context(user_text, user=uid)
+    if vortex_context:
+        lines.append(vortex_context)
 
     counts = summary(uid)
     if counts:
