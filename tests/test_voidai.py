@@ -919,6 +919,8 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("VORTEX_DISCLOSURE", block)
         self.assertIn("function buildVortexSnapshot", block)
         self.assertIn("closestScore", block)
+        self.assertIn("const emergency = await callGroqAuto", worker)
+        self.assertIn("result = await callGroqAuto(env, fm, DEFAULT_MODEL, opts);", worker)
         self.assertIn("Symbolic geometry only", block)
         self.assertNotIn("fetch(", block)
         self.assertNotIn("eval(", block)
@@ -935,6 +937,18 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("function vortexReply", html)
         self.assertIn("^[@\\/](vortex|godcode|codex)", html)
         self.assertIn("v.disclosure", html)
+        self.assertIn("postChatWithRetry('fast', 2, true)", html)
+        self.assertIn("**Sources**", html)
+        self.assertIn("voidai://auth-callback", html)
+
+        android_main = open(os.path.join(ROOT, "android-app", "app", "src", "main",
+                                         "java", "com", "voidai", "app", "MainActivity.kt"),
+                            encoding="utf-8").read()
+        self.assertIn("withTimeoutOrNull(15000) { sb.handleDeeplinks(intent) }", android_main)
+        ios_auth = open(os.path.join(ROOT, "ios-app", "VOIDAI", "AuthManager.swift"),
+                        encoding="utf-8").read()
+        self.assertIn("exchangeAttempt", ios_auth)
+        self.assertIn("request.timeoutInterval = 30", ios_auth)
 
         from voidai import chat
         handled, reply = chat._command("vortex-user", "@vortex")

@@ -990,6 +990,7 @@ window.voidaiToggleSidebar = function() {
   function vortexReply(v) {
     return [
       '**PHB God-Code Vortex** (symbolic)',
+      '- aliases: /vortex, /godcode, /codex (same packet)',
       '- coherence: ' + Number(v.anchor.coherence).toFixed(3),
       '- stability: ' + Number(v.anchor.stability).toFixed(3),
       '- vitruvian: ' + (v.vitruvian ? ('t=' + v.vitruvian.t) : 'not crossed'),
@@ -1001,6 +1002,7 @@ window.voidaiToggleSidebar = function() {
       '',
       'Evolution: ' + v.deterministic_evolution.join(' '),
       '',
+      'No timestamp or version field; this is a deterministic symbolic snapshot.',
       v.disclosure
     ].join('\n');
   }
@@ -1676,8 +1678,9 @@ window.voidaiToggleSidebar = function() {
       }
     }, REPLY_TIMEOUT_MS);
 
-    function postChat(mode) {
+    function postChat(mode, compact) {
       var effectiveMode = mode || requestedMode;
+      var turnLimit = compact ? 12 : HISTORY_TURNS;
       return fetch(PROXY_URL, {
         method: 'POST',
         headers: {
@@ -1687,8 +1690,8 @@ window.voidaiToggleSidebar = function() {
         body: JSON.stringify({
           messages: [SYSTEM_MSG].concat(history.filter(function(m) {
             return m.role !== 'system';
-          }).slice(-HISTORY_TURNS)),
-          max_tokens: effectiveMode === 'mini' ? 2048 : 8192,
+          }).slice(-turnLimit)),
+          max_tokens: compact ? 4096 : (effectiveMode === 'mini' ? 2048 : 8192),
           temperature: effectiveMode === 'predict' ? 0.4 : 0.6,
           mode: effectiveMode || undefined,
           user_id: currentUserId()
@@ -1714,29 +1717,35 @@ window.voidaiToggleSidebar = function() {
       return new Promise(function(resolve) { setTimeout(resolve, ms); });
     }
 
-    function postChatWithRetry(mode, attempts) {
-      return postChat(mode).catch(function(err) {
+    function postChatWithRetry(mode, attempts, compact) {
+      return postChat(mode, compact).catch(function(err) {
         var m = (err && err.message) || String(err);
         var transient = /empty response|empty_upstream|empty_message|HTTP 204|HTTP 205|HTTP 429|HTTP 500|HTTP 502|HTTP 503|timed out|timeout/i.test(m);
         if (transient && attempts > 1) {
           status('provider busy · retrying…');
-          return retryDelay(1500).then(function() {
-            return postChatWithRetry(mode, attempts - 1);
+          var wait = 1500 + (3 - attempts) * 1200;
+          return retryDelay(wait).then(function() {
+            return postChatWithRetry(mode, attempts - 1, compact);
           });
         }
         throw err;
       });
     }
 
-    postChatWithRetry(requestedMode, 3)
+    postChatWithRetry(requestedMode, 3, false)
     .catch(function(err) {
       var m = (err && err.message) || String(err);
-      if (requestedMode && requestedMode !== 'fast' &&
-          /model|provider|unavailable|no endpoints|no models|empty_upstream|empty_message|HTTP 404|HTTP 429|HTTP 500|HTTP 502|HTTP 503|404|429|500|502|503/i.test(m)) {
+      var routeFailure = /model|provider|unavailable|no endpoints|no models|empty_upstream|empty_message|HTTP 404|HTTP 429|HTTP 500|HTTP 502|HTTP 503|404|429|500|502|503/i.test(m);
+      if (!routeFailure) throw err;
+      if (requestedMode && requestedMode !== 'fast') {
         status('route unavailable · retrying on the stable Groq route…');
-        return postChatWithRetry('fast', 2);
+        return postChatWithRetry('fast', 2, false).catch(function() {
+          status('compacting context · final retry…');
+          return postChatWithRetry('fast', 2, true);
+        });
       }
-      throw err;
+      status('compacting context · final retry…');
+      return postChatWithRetry('fast', 2, true);
     })
     .then(function(data) {
       clearTimeout(timeout);
@@ -1744,6 +1753,19 @@ window.voidaiToggleSidebar = function() {
       var reply = data.choices && data.choices[0] && data.choices[0].message
         ? data.choices[0].message.content : null;
       if (!reply || !reply.trim()) throw new Error('Empty reply');
+      var sources = Array.isArray(data.sources) ? data.sources : [];
+      if (sources.length) {
+        var sourceLines = [];
+        var seenSources = {};
+        sources.forEach(function(src) {
+          var url = src && src.url ? String(src.url) : '';
+          if (!/^https?:\/\//i.test(url) || seenSources[url]) return;
+          seenSources[url] = true;
+          var title = String((src && src.title) || url).replace(/[\[\]]/g, '').slice(0, 140);
+          sourceLines.push('- [' + title + '](' + url + ')');
+        });
+        if (sourceLines.length) reply += '\n\n**Sources**\n' + sourceLines.slice(0, 8).join('\n');
+      }
       history.push({ role: 'assistant', content: reply });
       hideThinking();
       addMsg('assistant', reply);
@@ -1755,7 +1777,7 @@ window.voidaiToggleSidebar = function() {
       clearTimeout(timeout);
       hideThinking();
       var m = err.message || String(err);
-      var hint = m.indexOf('413') >= 0 ? '\n\nThe message is too long — try splitting it into smaller parts.' : (/empty_upstream|empty_message|HTTP 502|HTTP 503/i.test(m) ? '\n\nThe model route returned an empty reply. Retry, or switch to FAST mode.' : '\n\nTry again.');
+      var hint = m.indexOf('413') >= 0 ? '\n\nThe message is too long — try splitting it into smaller parts.' : (/empty_upstream|empty_message|HTTP 502|HTTP 503/i.test(m) ? '\n\nVOIDAI retried on the stable route and with compact context. Retry once; if it persists, shorten the message or switch modes.' : '\n\nTry again.');
       var chatErr = '**Error:** ' + m + hint;
       addMsg('assistant', chatErr);
       recordTurn(null, chatErr);
@@ -1910,11 +1932,15 @@ window.voidaiToggleSidebar = function() {
     var bridge = nativeBridge();
     if (!bridge || typeof bridge.signInWithGitHub !== 'function') {
       status('sign-in requires the native app');
+      addMsg('assistant', '**Sign-in error:** GitHub sign-in is available in the installed Android or iOS app.');
       return;
     }
     status('opening GitHub…');
     try { bridge.signInWithGitHub(); }
-    catch(e) { status('sign-in error'); addMsg('assistant', '**Sign-in error:** ' + e.message); }
+    catch(e) {
+      if (typeof window.onAuthError === 'function') window.onAuthError(e.message || 'sign-in could not start');
+      else { status('sign-in error'); addMsg('assistant', '**Sign-in error:** ' + (e.message || 'sign-in could not start')); }
+    }
   };
 
   window.voidaiSignOut = function() {
@@ -1945,8 +1971,18 @@ window.voidaiToggleSidebar = function() {
   };
 
   window.onAuthError = function(msg) {
+    var text = String(msg || 'unknown error');
+    var low = text.toLowerCase();
+    var hint = '';
+    if (/redirect|provider|not enabled|oauth|state|pkce|code|callback/.test(low)) {
+      hint = '\n\nCheck that GitHub is enabled in Supabase Authentication → Providers, and that `voidai://auth-callback` is listed under Authentication → URL Configuration → Redirect URLs.';
+    } else if (/network|timeout|offline|fetch|unreachable/.test(low)) {
+      hint = '\n\nCheck your connection and try again.';
+    } else {
+      hint = '\n\nTry again. If it repeats, update to the latest release.';
+    }
     status('auth error');
-    addMsg('assistant', '**Auth error:** ' + msg);
+    addMsg('assistant', '**Auth error:** ' + text + hint);
   };
 
   window.onFileUploaded = function(name) {

@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.6.1';
+const WORKER_VERSION = '3.6.2';
 const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
@@ -2189,6 +2189,7 @@ function vortexPromptBlock(text) {
     '',
     'PHB GOD-CODE VORTEX (symbolic context):',
     '- This layer is symbolic geometry, not physics or consciousness.',
+    '- /vortex, /godcode, and /codex are aliases for the same packet; there is no timestamp field.',
     '- ' + v.summary,
     '- sequence: ' + v.sequence.join(' '),
     '- Use symbols as metaphors. Do not claim measurements or real effects.'
@@ -2752,7 +2753,10 @@ async function researchReply(question, messages, env, stateBlock, opts) {
 
   const sp = buildSystemPrompt(searchResult.text, stateBlock, 'research');
   const fm = [{ role: 'system', content: sp }].concat(withoutSystem(messages));
-  const result = await consensusReply(question, fm, env, opts);
+  let result = await consensusReply(question, fm, env, opts);
+  if (!result || !result.ok || !extractContent(result)) {
+    try { result = await callGroqAuto(env, fm, DEFAULT_MODEL, opts); } catch (e) {}
+  }
   return attachSources(result, searchResult.sources);
 }
 
@@ -3646,7 +3650,21 @@ export default {
       result = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
     }
 
-    if (!result || !result.ok || typeof result.text !== 'string' || !result.text.trim()) {
+    const resultHasContent = result && result.ok && typeof result.text === 'string' &&
+      result.text.trim() && extractContent(result);
+    if (!resultHasContent) {
+      const providerStatus = result ? result.status : 0;
+      const permanentFailure = providerStatus === 400 || providerStatus === 401 ||
+        providerStatus === 403 || providerStatus === 413;
+      if (!permanentFailure) {
+        try {
+          const emergency = await callGroqAuto(env, finalMessages, DEFAULT_MODEL, callOpts);
+          if (emergency && emergency.ok && extractContent(emergency)) result = emergency;
+        } catch (e) {}
+      }
+    }
+
+    if (!result || !result.ok || typeof result.text !== 'string' || !extractContent(result)) {
       var emptyDetail = result ? redactSecrets(briefProviderError(result.text, result.status), env) : 'no provider result';
       return json({ error: {
         message: 'upstream returned an empty response',

@@ -686,12 +686,20 @@ class MainActivity : AppCompatActivity() {
             // The SDK validates the PKCE code and OAuth state. Do not import
             // tokens from the callback URL manually; that bypasses state checks.
             try {
-                sb.handleDeeplinks(intent)
+                withTimeoutOrNull(15000) { sb.handleDeeplinks(intent) }
             } catch (e: Throwable) {
                 Log.w("VOIDAI", "handleDeeplinks failed: ${redact(e.message)}")
             }
 
-            val user = sb.auth.currentUserOrNull()
+            // PKCE exchange can finish just after the callback intent is handled.
+            var user = sb.auth.currentUserOrNull()
+            var attempts = 0
+            while (user == null && attempts < 12) {
+                delay(150L)
+                user = sb.auth.currentUserOrNull()
+                attempts++
+            }
+            if (attempts > 0) Log.i("VOIDAI", "auth callback waited ${attempts * 150}ms")
             var email = user?.email ?: ""
             val name = user?.userMetadata?.let { meta ->
                 meta["user_name"]?.toString()?.trim('"') ?: meta["name"]?.toString()?.trim('"')

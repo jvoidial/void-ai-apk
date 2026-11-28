@@ -66,6 +66,12 @@ final class AuthManager: NSObject {
             }
 
             let params = Self.params(from: callbackURL)
+            if let providerError = params["error_description"] ?? params["error"], !providerError.isEmpty {
+                self.lastError = providerError
+                self.clearPending()
+                DispatchQueue.main.async { completion(false) }
+                return
+            }
             guard let expected = self.pendingState, !expected.isEmpty,
                   params["state"] == expected else {
                 self.lastError = "sign-in state did not match"
@@ -116,6 +122,11 @@ final class AuthManager: NSObject {
     }
 
     private func exchange(code: String, verifier: String, completion: @escaping (Bool) -> Void) {
+        exchangeAttempt(code: code, verifier: verifier, attempt: 0, completion: completion)
+    }
+
+    private func exchangeAttempt(code: String, verifier: String, attempt: Int,
+                                 completion: @escaping (Bool) -> Void) {
         guard let url = URL(string: "\(supabaseURL)/auth/v1/token?grant_type=pkce") else {
             lastError = "could not build the token exchange URL"
             completion(false)
@@ -123,6 +134,7 @@ final class AuthManager: NSObject {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 30
         request.setValue(anonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: [
@@ -132,15 +144,24 @@ final class AuthManager: NSObject {
 
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            if (status == 429 || (500...599).contains(status)) && attempt < 1 {
+                DispatchQueue.global().asyncAfter(deadline: .now() + 1.2) {
+                    self.exchangeAttempt(code: code, verifier: verifier,
+                                         attempt: attempt + 1, completion: completion)
+                }
+                return
+            }
+
             guard error == nil,
                   let data = data,
-                  let http = response as? HTTPURLResponse,
-                  (200..<300).contains(http.statusCode),
+                  (200..<300).contains(status),
                   let object = try? JSONSerialization.jsonObject(with: data),
                   let json = object as? [String: Any],
                   let access = json["access_token"] as? String
             else {
-                self.lastError = "the sign-in provider rejected the token exchange"
+                self.lastError = Self.authError(status: status, data: data, error: error)
                 completion(false)
                 return
             }
@@ -152,12 +173,26 @@ final class AuthManager: NSObject {
         }.resume()
     }
 
+    private static func authError(status: Int, data: Data?, error: Error?) -> String {
+        if let error = error { return error.localizedDescription }
+        if let data = data,
+           let object = try? JSONSerialization.jsonObject(with: data),
+           let json = object as? [String: Any] {
+            if let detail = (json["error_description"] as? String) ?? (json["msg"] as? String) ??
+                (json["message"] as? String), !detail.isEmpty {
+                return status > 0 ? "HTTP \(status): \(detail)" : detail
+            }
+        }
+        return status > 0 ? "token exchange failed (HTTP \(status))" : "the sign-in provider rejected the token exchange"
+    }
+
     private func persist(accessToken: String, refreshToken: String?, fallbackEmail: String?) -> Bool {
         let (jwtEmail, jwtName, jwtSub) = Self.decodeJWT(accessToken)
         let resolvedEmail = jwtEmail.isEmpty ? (fallbackEmail ?? "") : jwtEmail
-        guard !resolvedEmail.isEmpty else { return false }
+        let identity = resolvedEmail.isEmpty ? jwtSub : resolvedEmail
+        guard !identity.isEmpty else { return false }
 
-        defaults.set(resolvedEmail, forKey: "voidai.email")
+        defaults.set(identity, forKey: "voidai.email")
         defaults.set(jwtName, forKey: "voidai.name")
         defaults.set(jwtSub, forKey: "voidai.userId")
         Keychain.set(accessToken, for: "voidai.accessToken")
