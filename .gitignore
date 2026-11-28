@@ -73,3 +73,6 @@ DerivedData/
 *.secret
 secrets.json
 supabase/.temp/
+
+# Release binaries and their local checksum sidecars
+downloads/
