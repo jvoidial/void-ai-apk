@@ -206,3 +206,20 @@ does not prove persistence.
   as a hardened arbitrary-code sandbox.
 - Three.js is loaded from jsDelivr. If the CDN is blocked, the WebGL lab shows
   an error and the offline Canvas 2D workbench remains available.
+
+## Chat transport and auth
+
+- The Worker retries an empty or 502 provider result through `callGroqAuto`
+  (Groq, OpenRouter, Gemini, Workers AI). Research replies keep their searched
+  sources when the consensus path falls back.
+- The WebView retries the selected mode, then the fast route, then a compact
+  12-turn / 4096-token request. Keep the compact fallback because long history
+  is the usual cause of empty upstream replies.
+- Research responses render `sources` under the answer; only `http`/`https`
+  links are shown and duplicate URLs are dropped.
+- Android PKCE callbacks can complete after `handleDeeplinks` returns. Poll
+  `currentUserOrNull()` briefly instead of reporting a missing session at once.
+- iOS must surface `error_description`, use a token-exchange timeout, and allow
+  a JWT `sub` identity when GitHub hides the email.
+- `/vortex`, `/godcode`, and `/codex` are aliases for one deterministic packet.
+  Do not describe them as separate APIs or add a timestamp field.
