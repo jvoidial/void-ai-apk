@@ -223,3 +223,13 @@ does not prove persistence.
   a JWT `sub` identity when GitHub hides the email.
 - `/vortex`, `/godcode`, and `/codex` are aliases for one deterministic packet.
   Do not describe them as separate APIs or add a timestamp field.
+
+## Release asset verification
+
+- Before publishing, run
+  `python3 scripts/check_release_assets.py downloads/`.
+  It verifies `.sha256` sidecars and scans APK/IPA ZIP entries for provider
+  credential patterns. It never prints the matched value.
+- `release-check.yml` runs the same guard when a GitHub release is published.
+- Never attach the keystore, password file, chat logs, or environment dumps to
+  a release. APK/IPA checksums are public; signing credentials are not.
