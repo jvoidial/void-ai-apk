@@ -2046,7 +2046,7 @@ const VORTEX_POOL = ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRR
 const VORTEX_WEIGHTS = { CIRCLE:20, SQUARE:20, TRIANGLE:20, RATIO:15, LIGHT:10, SHADOW:10, MIRROR:10, SPIRAL:1, ARC:1, POINT:1, LINE:1, VESICA:1, GOLDEN:1, GRID:1 };
 const VORTEX_MEANINGS = { CIRCLE:'origin, cycles, unity', SQUARE:'structure, boundaries, grounding', TRIANGLE:'transformation, direction, change', RATIO:'proportion, balance, measure', LIGHT:'clarity, insight, revelation', SHADOW:'contrast, depth, hidden aspects', MIRROR:'reflection, self-awareness, feedback', SPIRAL:'growth, unfolding, iteration', ARC:'partial view, transition', POINT:'focus, singularity', LINE:'connection, path, vector', VESICA:'overlap, intersection, shared space', GOLDEN:'harmonic proportion, elegance', GRID:'system, lattice, framework' };
 const VORTEX_DISCLOSURE = 'Symbolic geometry only. Not a physical, neurological, medical, or consciousness measurement.';
-const VORTEX_RE = /\b(vortex|god[\s-]?code|codex|vitruvian|golden\s+ratio|portal|veil|coherence|stability|phb\s+geometry)\b/i;
+const VORTEX_RE = /\b(vortex|god[\s-]?code|codex|vitruvian|golden\s+ratio|portal|veil|phb\s+geometry)\b/i;
 
 function vortexHash(value) {
   var text = String(value == null ? 'voidai' : value).slice(0, 256);
