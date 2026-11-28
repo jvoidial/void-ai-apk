@@ -293,6 +293,7 @@ def format_report(packet):
     """Render a packet for the CLI or command reply."""
     lines = [
         "**PHB God-Code Vortex** (symbolic)",
+        "- aliases: @vortex, @godcode, @codex (same packet)",
         "- coherence: %.3f" % packet["anchor"]["coherence"],
         "- stability: %.3f" % packet["anchor"]["stability"],
         "- vitruvian: " + (
@@ -306,6 +307,7 @@ def format_report(packet):
         "",
         "Evolution: " + " ".join(packet["deterministic_evolution"]),
         "",
+        "No timestamp or version field; this is a deterministic symbolic snapshot.",
         packet["disclosure"],
     ]
     return "\n".join(lines)
