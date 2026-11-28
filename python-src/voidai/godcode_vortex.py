@@ -62,7 +62,7 @@ CHANNEL_PARAMS = ((1.5, 0.5), (1.2, 0.7), (1.0, 1.0))
 
 VORTEX_RE = re.compile(
     r"\b(vortex|god[\s-]?code|codex|vitruvian|golden\s+ratio|"
-    r"portal|veil|phb\s+geometry)\b",
+    r"phb\s+(geometry|portal|veil))\b",
     re.I,
 )
 

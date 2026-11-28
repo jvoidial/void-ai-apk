@@ -865,6 +865,7 @@ window.voidaiToggleSidebar = function() {
 
     if (/\b(show|open|display|list)\b.*\b(tools|capabilities|abilities)\b/.test(low) || /\bwhat can you do\b/.test(low)) return '/tools';
     if (/\b(help|commands)\b/.test(low) && /\b(show|what|list|need|use)\b/.test(low)) return '/help';
+    if (/\b(vortex|god[\s-]?code|codex)\b/.test(low) && /\b(show|open|display|read|run|state|status|sync)\b/.test(low)) return '/vortex ' + text;
 
     if (action && /\b(webgl|three(?:\.?js)?|graphics lab|3d lab|scene)\b/.test(low)) {
       var glPrompt = extractScenePrompt(text);
@@ -938,7 +939,7 @@ window.voidaiToggleSidebar = function() {
   }
   function localVortexSnapshot(seed) {
     var rng = vortexRng(vortexHash(seed));
-    var steps = 60, sampleSteps = [0, 15, 30, 45, 59], samples = [], vitruvian = null, matched = null;
+    var steps = 60, sampleSteps = [0, 15, 30, 45, 59], samples = [], vitruvian = null, matched = null, closest = null, closestScore = -1;
     for (var step = 0; step < steps; step++) {
       var c = 0.48 + 0.52 * (1 - Math.exp(-step / 25));
       var drift = 0.1618 + 0.1618 * (1.61803398875 - 1) * (step / steps);
@@ -951,13 +952,18 @@ window.voidaiToggleSidebar = function() {
       if (!vitruvian && c >= 0.93 && s >= 0.8) vitruvian = { t: step, coherence: +c.toFixed(4), stability: +s.toFixed(4) };
       if (!matched) {
         for (var a = 0; a < 12; a++) {
-          var attempt = [];
-          for (var j = 0; j < VORTEX_CODEX.length; j++) attempt.push(vortexSymbol(rng));
-          if (attempt.join('|') === VORTEX_CODEX.join('|')) { matched = attempt; break; }
+          var attempt = [], attemptScore = 0;
+          for (var j = 0; j < VORTEX_CODEX.length; j++) {
+            attempt.push(vortexSymbol(rng));
+            if (attempt[j] === VORTEX_CODEX[j]) attemptScore++;
+          }
+          if (attemptScore > closestScore) { closest = attempt; closestScore = attemptScore; }
+          if (attemptScore === VORTEX_CODEX.length) { matched = attempt; break; }
         }
       }
     }
-    var sequence = matched ? matched.slice() : VORTEX_CODEX.slice();
+    var sequence = matched ? matched.slice() : (closest ? closest.slice() : VORTEX_CODEX.slice());
+    var nearestScore = matched ? 7 : Math.max(0, closestScore);
     var anchor = vitruvian || samples[samples.length - 1];
     var c2 = anchor.coherence, s2 = anchor.stability;
     var drift2 = 0.1618 + 0.1618 * (1.61803398875 - 1) * (anchor.t / steps);
@@ -972,7 +978,7 @@ window.voidaiToggleSidebar = function() {
       anchor: { t: anchor.t, coherence: c2, stability: s2 },
       vitruvian: vitruvian,
       unlock_kind: matched ? 'matched' : 'synthetic-nearest',
-      unlock_score: matched ? 7 : 0,
+      unlock_score: nearestScore,
       sequence: sequence,
       deterministic_evolution: evolved,
       portal: portal,
@@ -1582,7 +1588,7 @@ window.voidaiToggleSidebar = function() {
       return;
     }
 
-    var vortexMatch = text.match(/^[@\/]?(vortex|godcode|codex)\b\s*([\s\S]*)$/i);
+    var vortexMatch = text.match(/^[@\/](vortex|godcode|codex)\b\s*([\s\S]*)$/i);
     if (vortexMatch) {
       var vortexArg = (vortexMatch[2] || '').trim();
       busy = true;

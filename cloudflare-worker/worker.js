@@ -42,7 +42,7 @@ const CONSENSUS_MODELS = [
 ];
  
 // Schumann Resonance Brain Module v3.0.2 — 6-layer oscillator + brainstem topology
-const WORKER_VERSION = '3.6.0';
+const WORKER_VERSION = '3.6.1';
 const CONVERSATION_ARCHIVE_SUFFIX = ':conversation_archive';
 const CONVERSATION_KIND_PREFIX = 'conversation:';
 const MAX_ARCHIVE_CONVERSATIONS = 60;
@@ -2046,7 +2046,7 @@ const VORTEX_POOL = ['CIRCLE','SQUARE','TRIANGLE','RATIO','LIGHT','SHADOW','MIRR
 const VORTEX_WEIGHTS = { CIRCLE:20, SQUARE:20, TRIANGLE:20, RATIO:15, LIGHT:10, SHADOW:10, MIRROR:10, SPIRAL:1, ARC:1, POINT:1, LINE:1, VESICA:1, GOLDEN:1, GRID:1 };
 const VORTEX_MEANINGS = { CIRCLE:'origin, cycles, unity', SQUARE:'structure, boundaries, grounding', TRIANGLE:'transformation, direction, change', RATIO:'proportion, balance, measure', LIGHT:'clarity, insight, revelation', SHADOW:'contrast, depth, hidden aspects', MIRROR:'reflection, self-awareness, feedback', SPIRAL:'growth, unfolding, iteration', ARC:'partial view, transition', POINT:'focus, singularity', LINE:'connection, path, vector', VESICA:'overlap, intersection, shared space', GOLDEN:'harmonic proportion, elegance', GRID:'system, lattice, framework' };
 const VORTEX_DISCLOSURE = 'Symbolic geometry only. Not a physical, neurological, medical, or consciousness measurement.';
-const VORTEX_RE = /\b(vortex|god[\s-]?code|codex|vitruvian|golden\s+ratio|portal|veil|phb\s+geometry)\b/i;
+const VORTEX_RE = /\b(vortex|god[\s-]?code|codex|vitruvian|golden\s+ratio|phb\s+(geometry|portal|veil))\b/i;
 
 function vortexHash(value) {
   var text = String(value == null ? 'voidai' : value).slice(0, 256);
@@ -2124,6 +2124,8 @@ function buildVortexSnapshot(seed, steps, attempts) {
   var samples = [];
   var vitruvian = null;
   var matched = null;
+  var closest = null;
+  var closestScore = -1;
   var sampleSteps = [0, Math.floor(steps / 4), Math.floor(steps / 2), Math.floor(3 * steps / 4), steps - 1];
   for (var step = 0; step < steps; step++) {
     var t = step;
@@ -2141,11 +2143,13 @@ function buildVortexSnapshot(seed, steps, attempts) {
     if (!matched) {
       for (var a = 0; a < attempts; a++) {
         var attempt = vortexAttempt(rng);
-        if (vortexScore(attempt) === VORTEX_CODEX.length) { matched = attempt; break; }
+        var attemptScore = vortexScore(attempt);
+        if (attemptScore > closestScore) { closest = attempt; closestScore = attemptScore; }
+        if (attemptScore === VORTEX_CODEX.length) { matched = attempt; break; }
       }
     }
   }
-  var sequence = matched ? matched.slice() : VORTEX_CODEX.slice();
+  var sequence = matched ? matched.slice() : (closest ? closest.slice() : VORTEX_CODEX.slice());
   var unlockKind = matched ? 'matched' : 'synthetic-nearest';
   var anchor = vitruvian || samples[samples.length - 1];
   var c2 = anchor.coherence;
@@ -2162,7 +2166,7 @@ function buildVortexSnapshot(seed, steps, attempts) {
     attempts_per_step: attempts,
     vitruvian: vitruvian,
     unlock_kind: unlockKind,
-    unlock_score: matched ? VORTEX_CODEX.length : vortexScore(sequence),
+    unlock_score: matched ? VORTEX_CODEX.length : Math.max(0, closestScore),
     sequence: sequence,
     meaning: sequence.map(function (x) { return VORTEX_MEANINGS[x] || 'no mapping defined'; }),
     deterministic_evolution: evolved,

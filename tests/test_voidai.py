@@ -883,6 +883,8 @@ process.stdout.write(JSON.stringify(out));
         self.assertEqual(len(first["voxels"]), 7)
         self.assertIn("Symbolic geometry", first["disclosure"])
         self.assertLessEqual(godcode_vortex.snapshot(seed="x", steps=9999)["steps"], 240)
+        self.assertFalse(godcode_vortex.is_relevant("a portal frame"))
+        self.assertTrue(godcode_vortex.is_relevant("phb portal"))
 
         source = open(os.path.join(ROOT, "python-src", "voidai",
                                    "godcode_vortex.py"), encoding="utf-8").read()
@@ -916,6 +918,7 @@ process.stdout.write(JSON.stringify(out));
         block = worker[start:end]
         self.assertIn("VORTEX_DISCLOSURE", block)
         self.assertIn("function buildVortexSnapshot", block)
+        self.assertIn("closestScore", block)
         self.assertIn("Symbolic geometry only", block)
         self.assertNotIn("fetch(", block)
         self.assertNotIn("eval(", block)
@@ -930,6 +933,7 @@ process.stdout.write(JSON.stringify(out));
         self.assertIn("PROXY_URL + '/vortex?seed='", html)
         self.assertIn("function localVortexSnapshot", html)
         self.assertIn("function vortexReply", html)
+        self.assertIn("^[@\\/](vortex|godcode|codex)", html)
         self.assertIn("v.disclosure", html)
 
         from voidai import chat

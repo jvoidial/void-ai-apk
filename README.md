@@ -6,8 +6,8 @@ Android app and unsigned iOS clone with GitHub sign-in, Supabase storage, and AI
 
 ## Download
 
-- **APK** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.9-release.apk`
-- **iOS IPA (unsigned)** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.9-unsigned.ipa`
+- **APK** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.10-release.apk`
+- **iOS IPA (unsigned)** — [latest release](https://github.com/jvoidial/void-ai-apk/releases/latest), download `VOID-AI-Odyssey-1.7.10-unsigned.ipa`
 - **Build artifacts** — [Build APK](https://github.com/jvoidial/void-ai-apk/actions/workflows/build.yml) and [iOS IPA](https://github.com/jvoidial/void-ai-apk/actions/workflows/ios-unsigned.yml) workflows
 - **Source** — [Download ZIP](https://github.com/jvoidial/void-ai-apk/archive/refs/heads/main.zip)
 
